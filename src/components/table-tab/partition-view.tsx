@@ -14,11 +14,15 @@ import { useConnection } from "@/lib/connection/ConnectionContext";
 import "@/lib/number-utils";
 import { toastManager } from "@/lib/toast";
 import { ArrowDown, ArrowUp, ArrowUpDown, Loader2, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 export interface PartitionViewProps {
   database: string;
   table: string;
+}
+
+export interface PartitionSizeViewRef {
+  refresh: () => void;
 }
 
 interface PartitionSizeInfo {
@@ -33,36 +37,42 @@ interface PartitionSizeInfo {
 type SortColumn = "partition" | "partCount" | "rows" | "diskSize" | "uncompressedSize" | "compressRatio";
 type SortDirection = "asc" | "desc" | null;
 
-export function PartitionSizeView({ database, table }: PartitionViewProps) {
-  const { selectedConnection } = useConnection();
-  const [isLoading, setIsLoading] = useState(false);
-  const [partitionSizeInfo, setPartitionSizeInfo] = useState<PartitionSizeInfo[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [dropPartitionDialogOpen, setDropPartitionDialogOpen] = useState(false);
-  const [partitionToDrop, setPartitionToDrop] = useState<string | null>(null);
-  const [isDroppingPartition, setIsDroppingPartition] = useState(false);
-  const apiCancellerRef = useRef<ApiCanceller | null>(null);
-  const dropPartitionCancellerRef = useRef<ApiCanceller | null>(null);
-  const isMountedRef = useRef(true);
+export const PartitionSizeView = forwardRef<PartitionSizeViewRef, PartitionViewProps>(
+  ({ database, table }, ref) => {
+    const { selectedConnection } = useConnection();
+    const [isLoading, setIsLoading] = useState(false);
+    const [partitionSizeInfo, setPartitionSizeInfo] = useState<PartitionSizeInfo[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+    const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+    const [dropPartitionDialogOpen, setDropPartitionDialogOpen] = useState(false);
+    const [partitionToDrop, setPartitionToDrop] = useState<string | null>(null);
+    const [isDroppingPartition, setIsDroppingPartition] = useState(false);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const apiCancellerRef = useRef<ApiCanceller | null>(null);
+    const dropPartitionCancellerRef = useRef<ApiCanceller | null>(null);
+    const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    isMountedRef.current = true;
+    useImperativeHandle(ref, () => ({
+      refresh: () => {
+        setRefreshTrigger((prev) => prev + 1);
+      },
+    }));
 
-    if (!selectedConnection) {
-      setError("No connection selected");
-      return;
-    }
+    const fetchPartitionSize = () => {
+      if (!selectedConnection) {
+        setError("No connection selected");
+        return;
+      }
 
-    setIsLoading(true);
-    setError(null);
-    setPartitionSizeInfo([]);
+      setIsLoading(true);
+      setError(null);
+      setPartitionSizeInfo([]);
 
-    const api = Api.create(selectedConnection);
+      const api = Api.create(selectedConnection);
 
-    // Query partition size from system.parts
-    const sql = `
+      // Query partition size from system.parts
+      const sql = `
 SELECT 
     partition,
     count(1) as partCount,
@@ -139,20 +149,25 @@ ORDER BY
       }
     );
 
-    apiCancellerRef.current = canceller;
-
-    return () => {
-      isMountedRef.current = false;
-      if (apiCancellerRef.current) {
-        apiCancellerRef.current.cancel();
-        apiCancellerRef.current = null;
-      }
-      if (dropPartitionCancellerRef.current) {
-        dropPartitionCancellerRef.current.cancel();
-        dropPartitionCancellerRef.current = null;
-      }
+      apiCancellerRef.current = canceller;
     };
-  }, [selectedConnection, database, table]);
+
+    useEffect(() => {
+      isMountedRef.current = true;
+      fetchPartitionSize();
+
+      return () => {
+        isMountedRef.current = false;
+        if (apiCancellerRef.current) {
+          apiCancellerRef.current.cancel();
+          apiCancellerRef.current = null;
+        }
+        if (dropPartitionCancellerRef.current) {
+          dropPartitionCancellerRef.current.cancel();
+          dropPartitionCancellerRef.current = null;
+        }
+      };
+    }, [selectedConnection, database, table, refreshTrigger]);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -281,130 +296,133 @@ ORDER BY
     setIsDroppingPartition(false);
   };
 
-  return (
-    <CollapsibleSection title="Table Size by Partition" className="relative" defaultOpen={true}>
-      <FloatingProgressBar show={isLoading} />
-      {error ? (
-        <div className="p-4">
-          <div className="text-sm text-destructive">
-            <p className="font-semibold mb-2">Error loading partition size:</p>
-            <p>{error}</p>
+    return (
+      <CollapsibleSection title="Table Size by Partition" className="relative" defaultOpen={true}>
+        <FloatingProgressBar show={isLoading} />
+        {error ? (
+          <div className="p-4">
+            <div className="text-sm text-destructive">
+              <p className="font-semibold mb-2">Error loading partition size:</p>
+              <p>{error}</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="overflow-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b">
-                <th
-                  className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("partition")}
-                >
-                  Partition{getSortIcon("partition")}
-                </th>
-                <th
-                  className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("partCount")}
-                >
-                  Part Count{getSortIcon("partCount")}
-                </th>
-                <th
-                  className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("rows")}
-                >
-                  Rows{getSortIcon("rows")}
-                </th>
-                <th
-                  className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("diskSize")}
-                >
-                  On Disk Size{getSortIcon("diskSize")}
-                </th>
-                <th
-                  className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("uncompressedSize")}
-                >
-                  Uncompressed Size{getSortIcon("uncompressedSize")}
-                </th>
-                <th
-                  className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("compressRatio")}
-                >
-                  Compress Ratio (%){getSortIcon("compressRatio")}
-                </th>
-                <th className="text-left p-2 font-semibold">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedPartitionSizeInfo.length === 0 && !isLoading && (
-                <tr>
-                  <td colSpan={7} className="p-4 text-center text-muted-foreground">
-                    No partition size information found
-                  </td>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th
+                    className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort("partition")}
+                  >
+                    Partition{getSortIcon("partition")}
+                  </th>
+                  <th
+                    className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort("partCount")}
+                  >
+                    Part Count{getSortIcon("partCount")}
+                  </th>
+                  <th
+                    className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort("rows")}
+                  >
+                    Rows{getSortIcon("rows")}
+                  </th>
+                  <th
+                    className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort("diskSize")}
+                  >
+                    On Disk Size{getSortIcon("diskSize")}
+                  </th>
+                  <th
+                    className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort("uncompressedSize")}
+                  >
+                    Uncompressed Size{getSortIcon("uncompressedSize")}
+                  </th>
+                  <th
+                    className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort("compressRatio")}
+                  >
+                    Compress Ratio (%){getSortIcon("compressRatio")}
+                  </th>
+                  <th className="text-left p-2 font-semibold">Action</th>
                 </tr>
-              )}
-              {sortedPartitionSizeInfo.map((info, index) => (
-                <tr key={index} className="border-b hover:bg-muted/50">
-                  <td className="p-2 ">{info.partition || "-"}</td>
-                  <td className="p-2">{info.partCount?.toLocaleString() || "-"}</td>
-                  <td className="p-2">{info.rows?.toLocaleString() || "-"}</td>
-                  <td className="p-2 ">{info.diskSize != null ? Number(info.diskSize).formatBinarySize() : "-"}</td>
-                  <td className="p-2 ">
-                    {info.uncompressedSize != null ? Number(info.uncompressedSize).formatBinarySize() : "-"}
-                  </td>
-                  <td className="p-2">{info.compressRatio != null ? info.compressRatio : "-"}</td>
-                  <td className="p-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDropPartitionClick(info.partition)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {sortedPartitionSizeInfo.length === 0 && !isLoading && (
+                  <tr>
+                    <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                      No partition size information found
+                    </td>
+                  </tr>
+                )}
+                {sortedPartitionSizeInfo.map((info, index) => (
+                  <tr key={index} className="border-b hover:bg-muted/50">
+                    <td className="p-2 ">{info.partition || "-"}</td>
+                    <td className="p-2">{info.partCount?.toLocaleString() || "-"}</td>
+                    <td className="p-2">{info.rows?.toLocaleString() || "-"}</td>
+                    <td className="p-2 ">{info.diskSize != null ? Number(info.diskSize).formatBinarySize() : "-"}</td>
+                    <td className="p-2 ">
+                      {info.uncompressedSize != null ? Number(info.uncompressedSize).formatBinarySize() : "-"}
+                    </td>
+                    <td className="p-2">{info.compressRatio != null ? info.compressRatio : "-"}</td>
+                    <td className="p-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDropPartitionClick(info.partition)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      {/* Drop Partition Confirmation Dialog */}
-      <Dialog open={dropPartitionDialogOpen} onOpenChange={(open) => !isDroppingPartition && setDropPartitionDialogOpen(open)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Drop Partition</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to drop partition <strong>{partitionToDrop}</strong> from table{" "}
-              <strong>{database}.{table}</strong>? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              onClick={handleDropPartitionConfirm}
-              disabled={isDroppingPartition}
-            >
-              {isDroppingPartition ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Dropping...
-                </>
-              ) : (
-                "Drop Partition"
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleDropPartitionCancel}
-              disabled={isDroppingPartition}
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </CollapsibleSection>
-  );
-}
+        {/* Drop Partition Confirmation Dialog */}
+        <Dialog open={dropPartitionDialogOpen} onOpenChange={(open) => !isDroppingPartition && setDropPartitionDialogOpen(open)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Drop Partition</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to drop partition <strong>{partitionToDrop}</strong> from table{" "}
+                <strong>{database}.{table}</strong>? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="destructive"
+                onClick={handleDropPartitionConfirm}
+                disabled={isDroppingPartition}
+              >
+                {isDroppingPartition ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Dropping...
+                  </>
+                ) : (
+                  "Drop Partition"
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDropPartitionCancel}
+                disabled={isDroppingPartition}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CollapsibleSection>
+    );
+  }
+);
+
+PartitionSizeView.displayName = "PartitionSizeView";

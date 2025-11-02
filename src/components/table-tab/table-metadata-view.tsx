@@ -4,11 +4,15 @@ import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter"
 import { Api, type ApiCanceller, type ApiErrorResponse, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { toastManager } from "@/lib/toast";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 export interface TableMetadataViewProps {
   database: string;
   table: string;
+}
+
+export interface TableMetadataViewRef {
+  refresh: () => void;
 }
 
 interface ColumnInfo {
@@ -21,7 +25,11 @@ interface ColumnInfo {
   ttl_expression: string;
 }
 
-function TableDDLView({ database, table }: TableMetadataViewProps) {
+function TableDDLView({
+  database,
+  table,
+  refreshTrigger,
+}: TableMetadataViewProps & { refreshTrigger?: number }) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [ddl, setDdl] = useState<string>("");
@@ -29,9 +37,7 @@ function TableDDLView({ database, table }: TableMetadataViewProps) {
   const apiCancellerRef = useRef<ApiCanceller | null>(null);
   const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-
+  const fetchDDL = () => {
     if (!selectedConnection) {
       setError("No connection selected");
       return;
@@ -95,6 +101,11 @@ function TableDDLView({ database, table }: TableMetadataViewProps) {
     );
 
     apiCancellerRef.current = canceller;
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchDDL();
 
     return () => {
       isMountedRef.current = false;
@@ -103,7 +114,7 @@ function TableDDLView({ database, table }: TableMetadataViewProps) {
         apiCancellerRef.current = null;
       }
     };
-  }, [selectedConnection, database, table]);
+  }, [selectedConnection, database, table, refreshTrigger]);
 
   return (
     <CollapsibleSection title="Table DDL" className="relative">
@@ -136,7 +147,11 @@ function TableDDLView({ database, table }: TableMetadataViewProps) {
   );
 }
 
-function TableStructureView({ database, table }: TableMetadataViewProps) {
+function TableStructureView({
+  database,
+  table,
+  refreshTrigger,
+}: TableMetadataViewProps & { refreshTrigger?: number }) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [columns, setColumns] = useState<ColumnInfo[]>([]);
@@ -144,9 +159,7 @@ function TableStructureView({ database, table }: TableMetadataViewProps) {
   const apiCancellerRef = useRef<ApiCanceller | null>(null);
   const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-
+  const fetchStructure = () => {
     if (!selectedConnection) {
       setError("No connection selected");
       return;
@@ -209,6 +222,11 @@ function TableStructureView({ database, table }: TableMetadataViewProps) {
     );
 
     apiCancellerRef.current = canceller;
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchStructure();
 
     return () => {
       isMountedRef.current = false;
@@ -217,7 +235,7 @@ function TableStructureView({ database, table }: TableMetadataViewProps) {
         apiCancellerRef.current = null;
       }
     };
-  }, [selectedConnection, database, table]);
+  }, [selectedConnection, database, table, refreshTrigger]);
 
   return (
     <CollapsibleSection title="Table Structure" className="relative">
@@ -270,12 +288,24 @@ function TableStructureView({ database, table }: TableMetadataViewProps) {
   );
 }
 
-export function TableMetadataView({ database, table }: TableMetadataViewProps) {
-  return (
-    <div className="space-y-2">
-      <TableDDLView database={database} table={table} />
-      <TableStructureView database={database} table={table} />
-    </div>
-  );
-}
+export const TableMetadataView = forwardRef<TableMetadataViewRef, TableMetadataViewProps>(
+  ({ database, table }, ref) => {
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    useImperativeHandle(ref, () => ({
+      refresh: () => {
+        setRefreshTrigger((prev) => prev + 1);
+      },
+    }));
+
+    return (
+      <div className="space-y-2">
+        <TableDDLView database={database} table={table} refreshTrigger={refreshTrigger} />
+        <TableStructureView database={database} table={table} refreshTrigger={refreshTrigger} />
+      </div>
+    );
+  }
+);
+
+TableMetadataView.displayName = "TableMetadataView";
 

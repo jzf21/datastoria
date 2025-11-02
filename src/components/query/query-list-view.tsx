@@ -220,7 +220,7 @@ export function QueryListView({ tabId }: QueryListViewProps) {
   return (
     <div ref={responseScrollContainerRef} className="h-full w-full overflow-auto p-2" style={{ scrollBehavior: 'smooth' }}>
       {queryViewProps.length === 0 ? (
-        <div className="text-sm text-muted-foreground p-4">Query results will appear here</div>
+        <div className="text-sm text-muted-foreground p-1">Input your SQL in the editor below and execute it, then the results will appear here.</div>
       ) : (
         <>
           {queryViewProps.map((query, index) => (

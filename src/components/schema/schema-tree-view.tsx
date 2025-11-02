@@ -421,12 +421,21 @@ export function SchemaTreeView({ onExecuteQuery, tabId }: SchemaTreeViewProps) {
     const nodeData = node.data;
     if (!nodeData) return;
 
-    // Only show context menu for database nodes
+    // Show context menu for database nodes and table nodes (if not materialized view)
     if (nodeData.type === "database") {
       event.preventDefault();
       event.stopPropagation();
       setContextMenuNode(node);
       setContextMenuPosition({ x: event.clientX, y: event.clientY });
+    } else if (nodeData.type === "table") {
+      const tableData = nodeData as TableNodeData;
+      // Only show context menu if table engine is not MaterializedView
+      if (tableData.fullTableEngine !== "MaterializedView") {
+        event.preventDefault();
+        event.stopPropagation();
+        setContextMenuNode(node);
+        setContextMenuPosition({ x: event.clientX, y: event.clientY });
+      }
     }
   }, []);
 
@@ -456,6 +465,16 @@ export function SchemaTreeView({ onExecuteQuery, tabId }: SchemaTreeViewProps) {
         displayFormat: "sql",
         formatter: (text: string) => text.replaceAll("\\n", "\n").replaceAll("\\", ""),
       });
+    }
+    setContextMenuNode(null);
+    setContextMenuPosition(null);
+  }, [contextMenuNode, executeQuery]);
+
+  const handleSelectAllFromTable = useCallback(() => {
+    if (contextMenuNode?.data?.type === "table") {
+      const tableData = contextMenuNode.data as TableNodeData;
+      const sql = `SELECT * FROM \`${tableData.database}\`.\`${tableData.table}\``;
+      executeQuery(sql);
     }
     setContextMenuNode(null);
     setContextMenuPosition(null);
@@ -705,6 +724,14 @@ ORDER BY lower(database), database, table, columnName`,
                 onClick={handleShowCreateDatabase}
               >
                 Show create database
+              </div>
+            )}
+            {contextMenuNode.data?.type === "table" && (
+              <div
+                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground"
+                onClick={handleSelectAllFromTable}
+              >
+                Select * from
               </div>
             )}
           </div>,

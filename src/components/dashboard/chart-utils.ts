@@ -139,6 +139,8 @@ export interface StatDescriptor extends ChartDescriptor {
 
     // Default to center
     align?: "left" | "center" | "right";
+
+    format?: FormatName;
   };
 }
 

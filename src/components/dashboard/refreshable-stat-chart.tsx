@@ -3,8 +3,8 @@
 import { Api, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { DateTimeExtension } from "@/lib/datetime-utils";
+import { Formatter } from "@/lib/formatter";
 import { cn } from "@/lib/utils";
-import NumberFlow from "@number-flow/react";
 import { format } from "date-fns";
 import { CircleAlert, TrendingDown, TrendingUpIcon } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -180,7 +180,7 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data
 
 const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableStatComponentProps>(
   function RefreshableStatComponent(props, ref) {
-    const { descriptor, searchParams } = props;
+    const { descriptor } = props;
     const { selectedConnection } = useConnection();
 
     // State
@@ -323,7 +323,13 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
             // }
 
             Api.create(selectedConnection!).executeSQL(
-              thisQuery,
+              {
+                sql: thisQuery.sql,
+                params: {
+                  default_format: "JSON",
+                  output_format_json_quote_64bit_integers: 0,
+                },
+              },
               (response) => {
                 // Use the streaming API for better performance with large datasets
                 //const streaming: StreamingResponse = await dataSourceApi.queryStream(thisQuery);
@@ -367,14 +373,32 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
             const query = Object.assign({}, descriptor.query);
 
             Api.create(selectedConnection!).executeSQL(
-              query,
+              {
+                sql: query.sql,
+                params: {
+                  default_format: "JSONCompact",
+                  output_format_json_quote_64bit_integers: 0,
+                },
+              },
               (response) => {
                 if (isOffset) {
-                  setOffsetData(dataResult);
+                  //setOffsetData(dataResult);
                   setOffsetError("");
                 } else {
-                  setData(dataResult);
+                  const responsJson = response.data;
+                  if (responsJson && responsJson.data.length > 0) {
+                    setData(responsJson.data[0][0]);
+                  } else {
+                    setData(0);
+                  }
                   setError("");
+                }
+
+                if (isOffset) {
+                  setIsLoadingOffset(false);
+                } else {
+                  setIsLoadingValue(false);
+                  setIsLoadingMinimap(false);
                 }
               },
               (error) => {
@@ -388,13 +412,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
           } else {
             setError((error as Error).message);
             console.error(error);
-          }
-        } finally {
-          if (isOffset) {
-            setIsLoadingOffset(false);
-          } else {
-            setIsLoadingValue(false);
-            setIsLoadingMinimap(false);
           }
         }
       },
@@ -567,7 +584,14 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
               "text-5xl font-semibold tabular-nums"
             )}
           >
-            <NumberFlow value={data} format={{ notation: "compact", compactDisplay: "short" }} locales="en-GB" />
+            {isLoadingValue && data !== 0 ? (
+              <Skeleton className="w-20 h-10" />
+            ) : descriptor.valueOption?.format ? (
+              Formatter.getInstance().getFormatter(descriptor.valueOption.format)(data)
+            ) : (
+              data
+            )}
+            {/* <NumberFlow value={data} format={{ notation: "compact", compactDisplay: "short" }} locales="en-GB" /> */}
           </CardTitle>
 
           {renderComparison()}

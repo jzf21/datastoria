@@ -29,7 +29,7 @@ const FloatingProgressBar: React.FC<FloatingProgressBarProps> = ({ show, classNa
 
   return (
     <div
-      className={cn("absolute top-0 left-0 w-full z-50", className)}
+      className={cn("absolute top-0 left-0 w-full z-50 rounded-sm", className)}
     >
       <LinearProgress />
     </div>

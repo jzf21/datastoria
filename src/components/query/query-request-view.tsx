@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { toastManager } from "@/lib/toast";
 import { Copy } from "lucide-react";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { solarizedDark } from "react-syntax-highlighter/dist/cjs/styles/hljs";
@@ -12,8 +13,10 @@ export function QueryRequestView({ queryRequest }: QueryRequestViewProps) {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(queryRequest.sql);
+      toastManager.show("SQL copied to clipboard", "success");
     } catch (err) {
       console.error("Failed to copy text: ", err);
+      toastManager.show("Failed to copy SQL to clipboard", "error");
     }
   };
 
@@ -23,10 +26,10 @@ export function QueryRequestView({ queryRequest }: QueryRequestViewProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
           onClick={handleCopy}
         >
-          <Copy className="h-4 w-4" />
+          <Copy className="h-3 w-3" />
         </Button>
         <SyntaxHighlighter
           showLineNumbers={true}

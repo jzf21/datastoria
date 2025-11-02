@@ -98,14 +98,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams }
 
   return (
     <>
-      <TimeSpanSelector
-        ref={filterRef}
-        defaultTimeSpan={defaultTimeSpan}
-        onSelectedSpanChanged={onQueryConditionChange}
-      />
+      <div className="flex pr-2 justify-end">
+        <TimeSpanSelector
+          ref={filterRef}
+          defaultTimeSpan={defaultTimeSpan}
+          onSelectedSpanChanged={onQueryConditionChange}
+        />
+      </div>
 
       {/* Dashboard section */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="pt-1 flex-1 overflow-y-auto">
         {dashboard && dashboard.charts && (
           <div className="card-container flex flex-wrap">
             {dashboard.charts.map((chart: ChartDescriptor, index) => (
