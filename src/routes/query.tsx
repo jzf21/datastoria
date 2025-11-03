@@ -9,7 +9,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { createFileRoute } from "@tanstack/react-router";
 import { X } from "lucide-react";
@@ -266,13 +266,24 @@ function RouteComponent() {
               </TabsList>
             </div>
             <div className="flex-1 overflow-hidden relative">
-              <TabsContent value="query" className="h-full m-0">
+              {/* Query Tab - Always mounted */}
+              <div
+                className={`h-full ${activeTab === "query" ? "block" : "hidden"}`}
+                role="tabpanel"
+                aria-hidden={activeTab !== "query"}
+              >
                 <QueryTab />
-              </TabsContent>
+              </div>
+              {/* Table Tabs - Always mounted */}
               {tableTabs.map((tab) => (
-                <TabsContent key={tab.id} value={tab.id} className="h-full m-0">
+                <div
+                  key={tab.id}
+                  className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
+                  role="tabpanel"
+                  aria-hidden={activeTab !== tab.id}
+                >
                   <TableTab database={tab.database} table={tab.table} engine={tab.engine} />
-                </TabsContent>
+                </div>
               ))}
             </div>
           </Tabs>
