@@ -10,6 +10,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useConnection } from "@/lib/connection/ConnectionContext";
 import { createFileRoute } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -27,10 +28,12 @@ interface TableTabInfo {
 }
 
 function RouteComponent() {
+  const { selectedConnection } = useConnection();
   const [activeTab, setActiveTab] = useState<string>("query");
   const [tableTabs, setTableTabs] = useState<TableTabInfo[]>([]);
   const [pendingTabId, setPendingTabId] = useState<string | null>(null);
   const tabsScrollContainerRef = useRef<HTMLDivElement>(null);
+  const previousConnectionRef = useRef<string | null>(null);
 
   // Generate a unique tab ID from database and table name
   const getTableTabId = useCallback((database: string, table: string) => {
@@ -158,6 +161,20 @@ function RouteComponent() {
     // Always switch to query tab after closing all
     setActiveTab("query");
   }, []);
+
+  // Close all table tabs when connection changes
+  useEffect(() => {
+    const currentConnectionName = selectedConnection?.name ?? null;
+    const previousConnectionName = previousConnectionRef.current;
+
+    // Only close tabs if connection actually changed (not on initial mount)
+    if (previousConnectionName !== null && previousConnectionName !== currentConnectionName) {
+      handleCloseAll();
+    }
+
+    // Update the ref to track the current connection
+    previousConnectionRef.current = currentConnectionName;
+  }, [selectedConnection?.name, handleCloseAll]);
 
   return (
     <div className="h-[calc(100vh-3.0625rem)] w-full flex">
