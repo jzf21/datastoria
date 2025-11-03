@@ -105,7 +105,6 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data
   };
 
   const isArea = minimap.type === "area";
-  const isLine = minimap.type === "line";
   const ChartComponent = isArea ? AreaChart : LineChart;
 
   return (
@@ -185,10 +184,10 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
 
     // State
     const [data, setData] = useState(0);
-    const [offset, setOffset] = useState(() =>
+    const [offset] = useState(() =>
       descriptor.comparisonOption ? DateTimeExtension.parseOffsetExpression(descriptor.comparisonOption.offset) : 0
     );
-    const [offsetData, setOffsetData] = useState(0);
+    const [offsetData] = useState(0);
     const [minimapData, setMinimapData] = useState<MinimapDataPoint[]>([]);
     const [isLoadingMinimap, setIsLoadingMinimap] = useState(false);
     const [isLoadingValue, setIsLoadingValue] = useState(false);
@@ -284,11 +283,11 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     }, []);
 
     const loadData = useCallback(
-      async (param: RefreshParameter, isOffset: boolean = false) => {
+      async (_param: RefreshParameter, isOffset: boolean = false) => {
         const showMinimap = shouldShowMinimap() && !isOffset;
 
         console.trace(
-          `Loading data for stat [${descriptor.id}], isOffset: ${isOffset}, showMinimap: ${showMinimap}, queryType: ${descriptor.query?.type}`
+          `Loading data for stat [${descriptor.id}], isOffset: ${isOffset}, showMinimap: ${showMinimap}, queryType: ${(descriptor.query as any)?.type}`
         );
 
         // Don't clear previous data during reload to prevent flickering
@@ -440,14 +439,14 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
 
       // Load offset data
       if (offset !== 0) {
-        const offsetTimeSpan = {
+        const offsetTimeSpan: TimeSpan = {
           startISO8601: DateTimeExtension.formatISO8601(
             new Date(new Date(currentParam.selectedTimeSpan.startISO8601).getTime() + offset * 1000)
-          ),
+          ) || "",
 
           endISO8601: DateTimeExtension.formatISO8601(
             new Date(new Date(currentParam.selectedTimeSpan.endISO8601).getTime() + offset * 1000)
-          ),
+          ) || "",
         };
 
         const offsetParam: RefreshParameter = {

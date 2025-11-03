@@ -1,5 +1,5 @@
 import { Formatter } from "@/lib/formatter";
-import type { ChartDescriptor, FormatterFn } from "./chart-utils";
+import type { ChartDescriptor, ColumnDef, FormatterFn, QueryResponse } from "./chart-utils";
 
 // Base interfaces
 export interface ChartRenderer {
@@ -23,12 +23,12 @@ export class PieChartRenderer implements ChartRenderer {
     columnMap: Map<string, ColumnDef>,
     queryResponse: QueryResponse
   ): any {
-    const series = [];
-    const legendData = [];
+    const series: any[] = [];
+    const legendData: Array<{ name: string; icon: string }> = [];
 
     // For pie charts, we need to aggregate data differently
     // We'll use the latest value from each metric or sum across time
-    const pieData = [];
+    const pieData: Array<{ name: string; value: number }> = [];
 
     queryResponse.data.forEach((metric: { tags: string[]; values: number[] }) => {
       // The last tag is the metric name
@@ -87,7 +87,7 @@ export class PieChartRenderer implements ChartRenderer {
       },
       label: {
         show: true,
-        formatter: (params) => {
+        formatter: (params: any) => {
           const yAxisIndex = 0; // Default to first formatter for pie charts
           const formatterFn = yAxisFormatters[yAxisIndex] || ((v) => v.toString());
           return `${params.name}: ${formatterFn(params.value)}`;

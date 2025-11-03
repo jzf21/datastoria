@@ -6,23 +6,26 @@ import type { ChartDescriptor } from "./chart-utils";
 import type { Dashboard } from "./dashboard-model";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableStatComponent from "./refreshable-stat-chart";
-import type { TimeSpan } from "./timespan-selector";
 import TimeSpanSelector, { BUILT_IN_TIME_SPAN_LIST } from "./timespan-selector";
 
 interface DashboardViewProps {
   dashboard: Dashboard;
+  searchParams?: Record<string, unknown> | URLSearchParams;
 }
 
-const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams = {} }) => {
   const inputFilterRef = useRef<HTMLInputElement>(undefined);
   const subComponentRefs = useRef<(RefreshableComponent | null)[]>([]);
-  const filterRef = useRef<TimeSpanSelector>(undefined);
+  const filterRef = useRef<TimeSpanSelector>(null as any);
 
   // Function to connect all chart instances together
   const connectAllCharts = useCallback(() => {
     const chartInstances: echarts.ECharts[] = subComponentRefs.current
-      .filter((ref: RefreshableComponent) => ref && typeof (ref as unknown).getEChartInstance === "function")
-      .map((ref) => (ref as any).getEChartInstance())
+      .filter((ref): ref is RefreshableComponent => ref !== null && typeof (ref as unknown as { getEChartInstance?: () => echarts.ECharts }).getEChartInstance === "function")
+      .map((ref) => {
+        const component = ref as unknown as { getEChartInstance: () => echarts.ECharts };
+        return component.getEChartInstance();
+      })
       .filter((echartInstance) => echartInstance !== undefined);
 
     if (chartInstances.length === 0) {
@@ -84,10 +87,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams }
     }, 10);
   }, [refreshAllCharts]);
 
-  const onClickChartInterval = useCallback((timeSpan: TimeSpan) => {
-    //filterRef.current.setSelectedTimeSpan(timeSpan);
-  }, []);
-
   // Provide a default DisplayTimeSpan instance if not provided or if it's not an instance
   const defaultTimeSpan = useMemo(() => {
     // Otherwise, use the default "Last 15 Mins"
@@ -135,7 +134,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams }
                       onSubComponentUpdated(el, index);
                     }}
                     descriptor={chart as any}
-                    searchParams={searchParams}
+                    searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                   />
                 )}
               </div>

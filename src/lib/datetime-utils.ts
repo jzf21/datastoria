@@ -24,7 +24,7 @@ export class DateTimeExtension {
   /**
    * Format date with custom format string
    */
-  static formatDateTime(date: Date, fmt: string): string {
+  static formatDateTime(date: Date | undefined, fmt: string): string | undefined {
     return date === undefined ? undefined : format(date, fmt);
   }
 
@@ -47,8 +47,8 @@ export class DateTimeExtension {
   /**
    * Format date to ISO 8601 format
    */
-  static formatISO8601(date: Date): string {
-    return date === undefined ? undefined : formatISO(date.valueOf());
+  static formatISO8601(date: Date | undefined): string {
+    return date === undefined ? "" : formatISO(date.valueOf());
   }
 
   /**

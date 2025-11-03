@@ -21,7 +21,7 @@ const AutoRefresher: React.FC<AutoRefreshProps> = ({ onRefresh }) => {
   const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
   const [countDown, setCountDown] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (refreshInterval !== null) {
@@ -160,31 +160,35 @@ export class DisplayTimeSpan {
     if (val === "today") {
       const e = new Date();
       const s = startOfDay(e);
-      return { startISO8601: DateTimeExtension.formatISO8601(s), endISO8601: DateTimeExtension.formatISO8601(e) };
+      return { startISO8601: DateTimeExtension.formatISO8601(s) || "", endISO8601: DateTimeExtension.formatISO8601(e) || "" };
     } else if (val === "yesterday") {
       const e = startOfDay(new Date());
       const s = subDays(e, 1);
-      return { startISO8601: DateTimeExtension.formatISO8601(s), endISO8601: DateTimeExtension.formatISO8601(e) };
+      return { startISO8601: DateTimeExtension.formatISO8601(s) || "", endISO8601: DateTimeExtension.formatISO8601(e) || "" };
     } else if (this.unit === "m") {
       const e = new Date();
       const s = sub(e, { minutes: this.value as number });
-      return { startISO8601: DateTimeExtension.formatISO8601(s), endISO8601: DateTimeExtension.formatISO8601(e) };
+      return { startISO8601: DateTimeExtension.formatISO8601(s) || "", endISO8601: DateTimeExtension.formatISO8601(e) || "" };
     } else if (this.unit === "h") {
       const e = new Date();
       const s = sub(e, { hours: this.value as number });
-      return { startISO8601: DateTimeExtension.formatISO8601(s), endISO8601: DateTimeExtension.formatISO8601(e) };
+      return { startISO8601: DateTimeExtension.formatISO8601(s) || "", endISO8601: DateTimeExtension.formatISO8601(e) || "" };
     } else if (this.unit === "d") {
       const e = new Date();
       const s = sub(e, { days: this.value as number });
-      return { startISO8601: DateTimeExtension.formatISO8601(s), endISO8601: DateTimeExtension.formatISO8601(e) };
+      return { startISO8601: DateTimeExtension.formatISO8601(s) || "", endISO8601: DateTimeExtension.formatISO8601(e) || "" };
     } else if (this.value === "user") {
-      return { startISO8601: this.start, endISO8601: this.end };
+      return { startISO8601: this.start || "", endISO8601: this.end || "" };
     } else if (this.value === "all") {
       return {
-        startISO8601: this.start!,
-        endISO8601: this.end!,
+        startISO8601: this.start || "",
+        endISO8601: this.end || "",
       };
     }
+    // Default fallback
+    const e = new Date();
+    const s = startOfDay(e);
+    return { startISO8601: DateTimeExtension.formatISO8601(s) || "", endISO8601: DateTimeExtension.formatISO8601(e) || "" };
   }
 }
 
@@ -275,7 +279,7 @@ class TimeSpanSelector extends React.Component<TimeSpanSelectorProps, TimeSpanSe
     };
   }
 
-  componentDidUpdate(prevProps: TimeSpanSelectorProps, prevState: TimeSpanSelectorState) {
+  componentDidUpdate(_prevProps: TimeSpanSelectorProps, prevState: TimeSpanSelectorState) {
     if (prevState.selectedTimeSpan !== this.state.selectedTimeSpan) {
       this.state.selectedTimeSpan.reCalculateTimeSpan();
 
@@ -346,7 +350,7 @@ class TimeSpanSelector extends React.Component<TimeSpanSelectorProps, TimeSpanSe
     );
   };
 
-  onRefershButtonClicked = (e) => {
+  onRefershButtonClicked = (e: React.MouseEvent) => {
     // prevent event propagation to parent if this component is ebmedded in a FORM component
     e.preventDefault();
     e.stopPropagation();
@@ -456,8 +460,8 @@ class TimeSpanSelector extends React.Component<TimeSpanSelectorProps, TimeSpanSe
                         selected={inputDateRange}
                         onSelect={(date) => {
                           this.setState({
-                            startDateInput: DateTimeExtension.formatDateTime(date?.from, "yyyy-MM-dd HH:mm:ss"),
-                            endDateInput: DateTimeExtension.formatDateTime(date?.to, "yyyy-MM-dd HH:mm:ss"),
+                            startDateInput: date?.from ? (DateTimeExtension.formatDateTime(date.from, "yyyy-MM-dd HH:mm:ss") || "") : "",
+                            endDateInput: date?.to ? (DateTimeExtension.formatDateTime(date.to, "yyyy-MM-dd HH:mm:ss") || "") : "",
                             inputDateRange: date,
                             error: "",
                           });

@@ -16,6 +16,7 @@ import { QueryInputLocalStorage } from "../query-input/query-input-local-storage
 import { QueryCompletionManager } from "./completion/QueryCompletionManager";
 import "./query-input-view.css";
 import { QuerySnippetManager } from "./snippet/QuerySnippetManager";
+import { updateHasSelectedText } from "../query-control/use-query-state";
 
 type ExtendedEditor = {
   completer?: Ace.Autocomplete;
@@ -166,7 +167,10 @@ export function QueryInputView() {
   }, []);
 
   const handleSelectionChange = useCallback(() => {
-    // Selection change handler if needed
+    if (globalEditor) {
+      const selected = globalEditor.getSelectedText().trim();
+      updateHasSelectedText(selected.length > 0);
+    }
   }, []);
 
   return (

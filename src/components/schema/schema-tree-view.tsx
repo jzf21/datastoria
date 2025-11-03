@@ -164,7 +164,8 @@ interface HostNodeData {
 }
 
 // Type union for all possible tree node data types
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/ban-ts-comment
+// @ts-expect-error - Unused but kept for documentation
 type TreeNodeData = HostNodeData | DatabaseNodeData | TableNodeData | ColumnNodeData;
 
 export interface SchemaTreeViewProps {

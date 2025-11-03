@@ -1,6 +1,6 @@
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import type { FormatterFn } from "./chart-utils";
-import type { ChartDescriptor } from "./chart-utils";
+import { Formatter } from "@/lib/formatter";
+import type { ChartDescriptor, ColumnDef, FormatterFn, QueryResponse } from "./chart-utils";
 
 // Base interfaces
 export interface ChartRenderer {
@@ -69,10 +69,10 @@ export class TimeSeriesRenderer implements ChartRenderer {
       }
 
       // Set the BY fields in a Map for Legend use
-      const by = {};
-      if (queryResponse.meta) {
-        for (let i = 0; i < queryResponse.meta.length - 1; i++) {
-          by[queryResponse.meta[i].name] = metric.tags[i];
+      const by: Record<string, string> = {};
+      if ((queryResponse as any).meta) {
+        for (let i = 0; i < (queryResponse as any).meta.length - 1; i++) {
+          by[(queryResponse as any).meta[i].name] = metric.tags[i];
         }
       }
 
@@ -95,7 +95,7 @@ export class TimeSeriesRenderer implements ChartRenderer {
 
         label: {
           show: isBar,
-          formatter: (v) => {
+          formatter: (v: any) => {
             if (v.value > 0) {
               const formatterFn = yAxisFormatters[yAxisIndex];
               return formatterFn(v.value);

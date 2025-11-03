@@ -1,4 +1,5 @@
-import { defineConfig, Plugin } from 'vite'
+import { defineConfig } from 'vite'
+import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { TanStackRouterVite } from '@tanstack/router-vite-plugin'
 import path from 'path'
@@ -51,9 +52,5 @@ export default defineConfig({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
-  },
-  test: {
-    globals: true,
-    environment: 'node',
   },
 })

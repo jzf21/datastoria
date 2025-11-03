@@ -1,4 +1,3 @@
-import type { StatDescriptor } from "@/components/dashboard/chart-utils";
 import DashboardContainer from "@/components/dashboard/dashboard-container";
 import type { Dashboard } from "@/components/dashboard/dashboard-model";
 import { createFileRoute } from "@tanstack/react-router";

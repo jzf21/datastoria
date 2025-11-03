@@ -1,6 +1,7 @@
 import type { FormatName } from "@/lib/formatter";
-import { ChartOptionBuilder, ChartRenderer, PieChartOptionBuilder, PieChartRenderer } from "./chart-pie";
-import { TimeSeriesChartBuilder, TimeSeriesRenderer } from "./chart-time-series";
+import type { ChartOptionBuilder, ChartRenderer } from "./chart-pie";
+import { PieChartOptionBuilder, PieChartRenderer } from "./chart-pie";
+import { TimeSeriesChartBuilder as TimeSeriesChartBuilderImpl, TimeSeriesRenderer as TimeSeriesRendererImpl } from "./chart-timeseries";
 
 export interface FormatterFn {
   (value: string | number | Date): string | React.ReactNode;
@@ -32,14 +33,17 @@ export interface YAxisOption {
   format?: FormatName;
 }
 
-interface TracingSpec {
+// TracingSpec is not used but kept for compatibility
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/ban-ts-comment
+// @ts-expect-error - Unused but kept for compatibility
+type TracingSpec = {
   mappings?: Map<string, object>;
 
   // Legacy name
   dimensionMaps?: Map<string, object>;
 
   filter?: string;
-}
+};
 
 export interface ThresholdSpec {
   value: number;
@@ -86,6 +90,37 @@ export interface ColumnDef {
   fill?: boolean;
 }
 
+export interface QueryResponse {
+  startTimestamp: number;
+  endTimestamp: number;
+  interval: number;
+  data: any[];
+}
+
+export interface JsonQuery extends SQLQuery {
+  type?: string;
+  dataSource?: string;
+  mql?: string;
+  filterExpression?: string;
+  fields?: any[];
+  limit?: number;
+  orderBy?: { name: string; order: string };
+  groupBy?: any[];
+  window?: any;
+}
+
+export interface AlertExpression {
+  id?: string;
+  expressionText: string;
+  select: { name: string; field?: string };
+  from?: string;
+  where?: string;
+  offset?: string;
+  groupBy?: any[];
+  window?: any;
+  alertExpected?: number | { type: string; value: number; text: string };
+}
+
 export interface ChartDescriptor {
   type: string; // "line" | "bar" | "pie" | "scatter" | "heatmap" | "table" | "map" | "custom" | "stat"
   id?: string;
@@ -109,6 +144,9 @@ export interface ChartDescriptor {
   height?: number;
 
   query: SQLQuery;
+  legend?: LegendSpec;
+  threshold?: ThresholdSpec;
+  details?: ChartDescriptor;
 }
 
 export type Reducer = "min" | "max" | "avg" | "sum" | "count" | "first" | "last";
@@ -153,7 +191,7 @@ function getChartOptionBuilder(chartType: string): ChartOptionBuilder {
     case "bar":
     case "area":
     default:
-      return new TimeSeriesChartBuilder();
+      return new TimeSeriesChartBuilderImpl();
   }
 }
 
@@ -172,7 +210,7 @@ export function getChartRenderer(chartType: string): ChartRenderer {
     case "bar":
     case "area":
     default:
-      return new TimeSeriesRenderer();
+      return new TimeSeriesRendererImpl();
   }
 }
 
@@ -187,11 +225,13 @@ export function toEChartSeriesOption(
 }
 
 function toDetailTableDescriptor(expr: AlertExpression): ChartDescriptor {
-  const chartDescriptor = {
+  const chartDescriptor: ChartDescriptor = {
     type: "table",
     title: expr.expressionText,
     columns: [],
+    width: 100, // Required field
     query: {
+      sql: "", // Required for SQLQuery
       type: "list",
       dataSource: expr.from,
       interval: {
@@ -202,9 +242,9 @@ function toDetailTableDescriptor(expr: AlertExpression): ChartDescriptor {
       filterExpression: expr.where,
       fields: ["*"],
       limit: 15,
-      orderBy: { name: expr.select.field, order: "asc" },
+      orderBy: { name: expr.select.field || "", order: "asc" },
     } as JsonQuery,
-  } as ChartDescriptor;
+  };
   return chartDescriptor;
 }
 
@@ -234,18 +274,20 @@ export function toChartDescriptor(expr: AlertExpression): ChartDescriptor {
     threshold.displayText = "" + (expr.alertExpected as number);
   }
 
-  const chartDescriptor = {
+  const chartDescriptor: ChartDescriptor = {
     type: "line",
     id: expr.id,
     title: expr.expressionText,
     yAxis: yAxsis,
     columns: columns,
+    width: 100, // Required field
     query: {
+      sql: "", // Required for SQLQuery
       type: "timeseries",
       mql: expr.expressionText,
       dataSource: expr.from,
       interval: {
-        startISO8601: "2021-01- 01T00:00:00Z",
+        startISO8601: "2021-01-01T00:00:00Z",
         endISO8601: "2021-01-02T00:00:00Z",
         step: 60, // TODO: SHOULD use the 'every' field
         window: expr.window,
@@ -258,6 +300,6 @@ export function toChartDescriptor(expr: AlertExpression): ChartDescriptor {
     threshold: threshold,
 
     details: toDetailTableDescriptor(expr),
-  } as ChartDescriptor;
+  };
   return chartDescriptor;
 }

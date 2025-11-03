@@ -67,10 +67,11 @@ class GraphvizComponentImpl extends React.Component<
       id: `graphviz${counter++}`,
     };
 
-    this.selectedComponents = d3_selectAll<SVGElement, unknown>(null);
-    this.graph0 = d3_select<SVGGElement, unknown>(null);
-    this.svg = d3_select<SVGSVGElement, unknown>(null);
-    this.div = d3_select<HTMLDivElement, unknown>(null);
+    // Initialize with null and type assertions - will be set in componentDidMount
+    this.selectedComponents = d3_selectAll<SVGElement, unknown>(null as any) as any;
+    this.graph0 = d3_select<SVGGElement, unknown>(null as any) as any;
+    this.svg = d3_select<SVGSVGElement, unknown>(null as any) as any;
+    this.div = d3_select<HTMLDivElement, unknown>(null as any) as any;
     this.graphviz = null;
   }
 
@@ -126,10 +127,9 @@ class GraphvizComponentImpl extends React.Component<
     try {
       const zoomSelection = this.graphviz.zoomSelection();
       if (!zoomSelection) return 1;
-      const node = zoomSelection.node() as Element | null;
+      const node = (zoomSelection as any).node() as Element | null;
       if (!node) return 1;
-      // @ts-expect-error - d3-zoom types
-      const transform = d3_zoomTransform(node);
+      const transform = d3_zoomTransform(node as any);
       return transform.k || 1;
     } catch {
       return 1;
@@ -290,10 +290,10 @@ class GraphvizComponentImpl extends React.Component<
   zoomInHandler = () => {
     if (this.graphviz !== null) {
       const zoomSelection = this.graphviz.zoomSelection();
-      const node = zoomSelection.node();
+      if (!zoomSelection) return;
+      const node = (zoomSelection as any).node();
       if (node) {
-        // @ts-expect-error - d3-zoom types
-        const scale = d3_zoomTransform(node).k;
+        const scale = d3_zoomTransform(node as any).k;
         this.setZoomScale(scale * 1.1);
       }
     }
@@ -302,10 +302,10 @@ class GraphvizComponentImpl extends React.Component<
   zoomOutHandler = () => {
     if (this.graphviz !== null) {
       const zoomSelection = this.graphviz.zoomSelection();
-      const node = zoomSelection.node();
+      if (!zoomSelection) return;
+      const node = (zoomSelection as any).node();
       if (node) {
-        // @ts-expect-error - d3-zoom types
-        const scale = d3_zoomTransform(node).k;
+        const scale = d3_zoomTransform(node as any).k;
         this.setZoomScale(scale / 1.1);
       }
     }
@@ -330,11 +330,11 @@ class GraphvizComponentImpl extends React.Component<
 
     const bbox = graph0Node.getBBox();
     const zoomSelection = this.graphviz.zoomSelection();
-    const node = zoomSelection.node();
+    if (!zoomSelection) return;
+    const node = (zoomSelection as any).node();
     if (!node) return;
 
-    // @ts-expect-error - d3-zoom types
-    let { x, y, k } = d3_zoomTransform(node);
+    let { x, y, k } = d3_zoomTransform(node as any);
     let [x0, y0, scale0] = [x, y, k];
     let xOffset0 = x0 + bbox.x * scale0;
     let yOffset0 = y0 + bbox.y * scale0;
@@ -360,19 +360,19 @@ class GraphvizComponentImpl extends React.Component<
     zoomSelection.call(this.graphviz.zoomBehavior().transform, transform);
   };
 
-  private renderGraph(renderGraph: boolean, resetZoom: boolean) {
+  private renderGraph(_renderGraph: boolean, resetZoom: boolean) {
     const divNode = this.div.node();
     if (!divNode) return;
 
     //
     // NOTE: Need to re-render the dot so that zoom reset can work correctly
     //
-    this.graphviz = graphviz(`#${this.state.id}`, {
+    this.graphviz = (graphviz(`#${this.state.id}`, {
       fit: true,
       zoom: true,
       width: divNode.offsetWidth,
       ...this.props.options,
-    })
+    }) as any)
       .renderDot(this.props.dot)
       .render(() => {
         this.svg = this.div!.select<SVGSVGElement>("svg");
@@ -403,7 +403,8 @@ class GraphvizComponentImpl extends React.Component<
     if (resetZoom && this.graphviz) {
       const zoomed = this.props.options?.zoom !== undefined ? this.props.options.zoom : false;
       const zoomSelection = this.graphviz.zoomSelection();
-      const node = zoomSelection.node();
+      if (!zoomSelection) return;
+      const node = (zoomSelection as any).node();
       if (!zoomed && node) {
         this.graphviz.resetZoom();
       }

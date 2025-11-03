@@ -52,7 +52,7 @@ export interface ColumnDef {
   lookupFn?: (value: any) => string | undefined;
 
   // If set, above format/lookupFn will be ignored
-  render?: (row: MRT_Row<object>) => React.ReactNode;
+  render?: (row: { original: object }) => React.ReactNode;
 
   yAxis?: number;
   inverse?: boolean;
@@ -77,6 +77,22 @@ export interface BaseQuery {
   type: "list" | "timeseries" | "groupBy" | "http";
   // Common UI properties
   precondition?: QueryPrecondition;
+}
+
+export interface JsonQueryRequest {
+  dataSource?: string;
+  filterExpression?: string;
+  fields?: any[];
+  interval?: {
+    startISO8601: string;
+    endISO8601: string;
+    step: number;
+    bucketCount?: number;
+  };
+  limit?: number;
+  orderBy?: { name: string; order: string };
+  groupBy?: any[];
+  window?: any;
 }
 
 export type JsonQuery = JsonQueryRequest &

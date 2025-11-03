@@ -13,6 +13,7 @@ import type { QueryResponseViewModel, QueryViewProps } from "./query-view-model"
 
 interface QueryListItemViewProps extends QueryViewProps {
   isLast?: boolean;
+  onExecutionStateChange?: (queryId: string, isExecuting: boolean) => void;
 }
 
 export function QueryListItemView({
@@ -21,6 +22,7 @@ export function QueryListItemView({
   queryRequest,
   viewArgs,
   isLast,
+  onExecutionStateChange,
 }: QueryListItemViewProps) {
   const { selectedConnection } = useConnection();
   const [collapsed, setCollapsed] = useState(queryRequest.showRequest === "collapse");
@@ -45,12 +47,14 @@ export function QueryListItemView({
     
     if (!selectedConnection) {
       setIsExecuting(false);
+      onExecutionStateChange?.(queryRequest.uuid, false);
       return;
     }
 
     // Mark as executing - this will be reset if cancelled
     hasExecutedRef.current = queryRequest.uuid;
     setIsExecuting(true);
+    onExecutionStateChange?.(queryRequest.uuid, true);
     const api = Api.create(selectedConnection);
 
     // Use JSON format for dependency view, TabSeparated for others
@@ -86,6 +90,7 @@ export function QueryListItemView({
 
         setQueryResponse(queryResponse);
         setIsExecuting(false);
+        onExecutionStateChange?.(queryRequest.uuid, false);
         cancellerRef.current = null;
       },
       (error: ApiErrorResponse) => {
@@ -104,6 +109,7 @@ export function QueryListItemView({
 
           setQueryResponse(queryResponse);
           setIsExecuting(false);
+          onExecutionStateChange?.(queryRequest.uuid, false);
           cancellerRef.current = null;
           toastManager.show(`Query execution failed: ${error.errorMessage}`, "error");
         } else {

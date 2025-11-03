@@ -8,6 +8,7 @@ import type { QueryRequestViewModel, QueryViewProps } from "./query-view-model";
 
 export interface QueryListViewProps {
   tabId?: string; // Optional tab ID for multi-tab support
+  onExecutionStateChange?: (isExecuting: boolean) => void;
 }
 
 const MAX_QUERY_VIEW_LIST_SIZE = 50;
@@ -23,12 +24,13 @@ interface QueryListItem {
   };
 }
 
-export function QueryListView({ tabId }: QueryListViewProps) {
+export function QueryListView({ tabId, onExecutionStateChange }: QueryListViewProps) {
   const { selectedConnection } = useConnection();
   const [queryList, setQueryList] = useState<QueryListItem[]>([]);
   const responseScrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollPlaceholderRef = useRef<HTMLDivElement>(null);
   const shouldScrollRef = useRef(false);
+  const executingQueriesRef = useRef<Set<string>>(new Set());
 
   const scrollToBottom = useCallback(() => {
     if (scrollPlaceholderRef.current) {
@@ -130,6 +132,7 @@ export function QueryListView({ tabId }: QueryListViewProps) {
     [queryList]
   );
 
+
   return (
     <div ref={responseScrollContainerRef} className="h-full w-full overflow-auto p-2" style={{ scrollBehavior: 'smooth' }}>
       {queryViewProps.length === 0 ? (
@@ -142,6 +145,16 @@ export function QueryListView({ tabId }: QueryListViewProps) {
               {...query} 
               onQueryDelete={handleQueryDelete}
               isLast={index === queryViewProps.length - 1}
+              onExecutionStateChange={(queryId, isExecuting) => {
+                if (isExecuting) {
+                  executingQueriesRef.current.add(queryId);
+                } else {
+                  executingQueriesRef.current.delete(queryId);
+                }
+                if (onExecutionStateChange) {
+                  onExecutionStateChange(executingQueriesRef.current.size > 0);
+                }
+              }}
             />
           ))}
           {/* Placeholder element used for smooth scrolling to the end */}

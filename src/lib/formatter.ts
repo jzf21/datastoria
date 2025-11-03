@@ -29,7 +29,7 @@ export type FormatName =
 export class Formatter {
   private static instance: Formatter;
 
-  _formatters: { [key: string]: (v, props?, params?) => string | React.ReactNode };
+  _formatters: { [key: string]: (v: any, props?: any, params?: any) => string | React.ReactNode };
 
   private constructor() {
     this._formatters = {};
@@ -75,7 +75,7 @@ export class Formatter {
 
     this._formatters["timeDuration"] = (v) => v.formatTimeDuration();
     this._formatters["timeDiff"] = (v) => this.timeDifference(v);
-    this._formatters["template"] = (v, props, params) => {
+    this._formatters["template"] = (_v, props, params) => {
       const template = props.template;
 
       return template.replaceVariables(params);
@@ -92,7 +92,7 @@ export class Formatter {
     return Formatter.instance;
   }
 
-  getFormatter(formatType: string): (v, props?, params?) => string | React.ReactNode {
+  getFormatter(formatType: string): (v: any, props?: any, params?: any) => string | React.ReactNode {
     return this._formatters[formatType];
   }
 
