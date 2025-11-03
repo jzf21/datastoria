@@ -521,10 +521,74 @@ interface GraphvizState {
 }
 
 export class GraphvizComponent extends React.PureComponent<GraphvizProps, GraphvizState> {
+  private containerRef = React.createRef<HTMLDivElement>();
+  private fixIntervalId?: ReturnType<typeof setInterval>;
+  private fixTimeoutId?: ReturnType<typeof setTimeout>;
+
   constructor(props: GraphvizProps) {
     super(props);
     this.state = { fit: false, useWorker: false };
   }
+
+  componentDidMount() {
+    this.fixSVGDimensions();
+  }
+
+  componentDidUpdate() {
+    this.fixSVGDimensions();
+  }
+
+  componentWillUnmount() {
+    if (this.fixIntervalId) {
+      clearInterval(this.fixIntervalId);
+    }
+    if (this.fixTimeoutId) {
+      clearTimeout(this.fixTimeoutId);
+    }
+  }
+
+  private fixSVGDimensions = () => {
+    const container = this.containerRef.current;
+    if (!container || !this.props.dot) return;
+
+    const fixSVG = () => {
+      const svg = container.querySelector("svg");
+      if (!svg) return;
+
+      // Only fix if width is unreasonably large (likely a bug)
+      const svgWidth = parseFloat(svg.getAttribute("width") || "0");
+      if (svgWidth > 100000 || svgWidth === 0) {
+        // Remove fixed width/height to let viewBox handle it
+        svg.removeAttribute("width");
+        svg.removeAttribute("height");
+
+        // Ensure viewBox is present
+        const existingViewBox = svg.getAttribute("viewBox");
+        if (!existingViewBox) {
+          // Try to calculate reasonable dimensions from the SVG content
+          try {
+            const bbox = (svg as SVGElement & { getBBox?: () => DOMRect })?.getBBox?.();
+            if (bbox) {
+              svg.setAttribute("viewBox", `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
+            }
+          } catch {
+            // getBBox might fail if SVG is not rendered yet, ignore
+          }
+        }
+      }
+    };
+
+    // Fix after a short delay to allow Graphviz to render
+    if (this.fixTimeoutId) {
+      clearTimeout(this.fixTimeoutId);
+    }
+    this.fixTimeoutId = setTimeout(fixSVG, 100);
+    
+    if (this.fixIntervalId) {
+      clearInterval(this.fixIntervalId);
+    }
+    this.fixIntervalId = setInterval(fixSVG, 500); // Check periodically
+  };
 
   zoomInHandler = () => {};
   zoomOutHandler = () => {};
@@ -557,20 +621,68 @@ export class GraphvizComponent extends React.PureComponent<GraphvizProps, Graphv
   render() {
     const containerStyle: CSSProperties = {
       position: "relative",
+      width: "100%",
+      height: "100%",
       ...this.props.style,
     };
     
     return (
       <div style={containerStyle}>
-        <GraphvizComponentImpl
-          dot={this.props.dot}
-          options={this.state}
-          onGraphAction={this.props.onGraphAction}
-          registerZoomInHandler={this.registerZoomInButtonClick}
-          registerZoomOutHandler={this.registerZoomOutButtonClick}
-          registerZoomResetHandler={this.registerZoomResetEventHandler}
-          className="dark"
-        />
+        {/* Scrollable container */}
+        <div
+          className="w-full h-full overflow-auto"
+          style={{
+            scrollBehavior: "smooth",
+            position: "relative",
+            overflowX: "auto",
+            overflowY: "auto",
+          }}
+        >
+          {/* Inner wrapper divs to enable horizontal scrolling */}
+          <div
+            style={{
+              minWidth: "100%",
+              minHeight: "100%",
+              position: "relative",
+              display: "inline-block",
+            }}
+          >
+            <div
+              style={{
+                minWidth: "100%",
+                minHeight: "100%",
+                position: "relative",
+                display: "inline-block",
+              }}
+            >
+              {/* SVG styling */}
+              <style>{`
+                [data-graphviz-container] svg {
+                  height: auto !important;
+                  display: block !important;
+                }
+                [data-graphviz-container] svg[width] {
+                  width: auto !important;
+                }
+              `}</style>
+              <div 
+                ref={this.containerRef}
+                data-graphviz-container 
+                style={{ display: "inline-block", minWidth: "100%" }}
+              >
+                <GraphvizComponentImpl
+                  dot={this.props.dot}
+                  options={this.state}
+                  onGraphAction={this.props.onGraphAction}
+                  registerZoomInHandler={this.registerZoomInButtonClick}
+                  registerZoomOutHandler={this.registerZoomOutButtonClick}
+                  registerZoomResetHandler={this.registerZoomResetEventHandler}
+                  className="dark"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
         {/* Floating zoom buttons */}
         <div className="absolute top-2 right-2 flex flex-row gap-2 z-10">
           <Button

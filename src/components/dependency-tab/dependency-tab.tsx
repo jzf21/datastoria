@@ -13,7 +13,6 @@ import { X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { DependencyBuilder } from "./DependencyBuilder";
-import { is } from "date-fns/locale";
 
 // Convert HSL color (from CSS variable) to hex
 function hslToHex(hsl: string): string {
@@ -125,7 +124,6 @@ export function DependencyTab({ database }: DependencyTabProps) {
   const [showTableNode, setShowTableNode] = useState<DependencyGraphNode | undefined>(undefined);
   const { theme } = useTheme();
   const [bgColor, setBgColor] = useState("#002B36");
-  const graphvizContainerRef = useRef<HTMLDivElement>(null);
 
   // Update background color based on current theme
   useEffect(() => {
@@ -270,50 +268,6 @@ FROM system.tables`;
     TableTabManager.sendOpenTableTabRequest(showTableNode.database, showTableNode.name, showTableNode.engine);
   };
 
-  // Fix SVG dimensions if they're incorrect (prevent huge width issue)
-  useEffect(() => {
-    if (!graphvizContainerRef.current || graphviz.length === 0) return;
-
-    const fixSVGDimensions = () => {
-      const container = graphvizContainerRef.current;
-      if (!container) return;
-
-      const svg = container.querySelector("svg");
-      if (!svg) return;
-
-      // Only fix if width is unreasonably large (likely a bug)
-      const svgWidth = parseFloat(svg.getAttribute("width") || "0");
-      if (svgWidth > 100000 || svgWidth === 0) {
-        // Remove fixed width/height to let viewBox handle it
-        svg.removeAttribute("width");
-        svg.removeAttribute("height");
-
-        // Ensure viewBox is present
-        const existingViewBox = svg.getAttribute("viewBox");
-        if (!existingViewBox) {
-          // Try to calculate reasonable dimensions from the SVG content
-          try {
-            const bbox = (svg as SVGElement & { getBBox?: () => DOMRect })?.getBBox?.();
-            if (bbox) {
-              svg.setAttribute("viewBox", `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
-            }
-          } catch {
-            // getBBox might fail if SVG is not rendered yet, ignore
-          }
-        }
-      }
-    };
-
-    // Fix after a short delay to allow Graphviz to render
-    const timeoutId = setTimeout(fixSVGDimensions, 100);
-    const intervalId = setInterval(fixSVGDimensions, 500); // Check periodically
-
-    return () => {
-      clearTimeout(timeoutId);
-      clearInterval(intervalId);
-    };
-  }, [graphviz]);
-
   if (!queryResponse && !isLoading) {
     return null;
   }
@@ -325,42 +279,11 @@ FROM system.tables`;
         <>
           {/* Left Panel: Dependency View */}
           <Panel defaultSize={showTableNode ? 60 : 100} minSize={showTableNode ? 30 : 0} className="bg-background">
-            <div className="w-full h-full overflow-auto" style={{ scrollBehavior: "smooth", position: "relative" }}>
-              <div
-                style={{
-                  width: "100%",
-                  minHeight: "100%",
-                  position: "relative",
-                  display: "block",
-                }}
-              >
-                <div
-                  ref={graphvizContainerRef}
-                  style={{
-                    width: "100%",
-                    minHeight: "100%",
-                    position: "relative",
-                  }}
-                >
-                  <style>{`
-                  [data-graphviz-container] svg {
-                    max-width: 100% !important;
-                    height: auto !important;
-                  }
-                  [data-graphviz-container] svg[width] {
-                    width: auto !important;
-                  }
-                `}</style>
-                  <div data-graphviz-container>
-                    <GraphvizComponent
-                      dot={graphviz}
-                      style={{ width: "100%", minHeight: "100%" }}
-                      onGraphAction={onGraphAction}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <GraphvizComponent
+              dot={graphviz}
+              style={{ width: "100%", height: "100%" }}
+              onGraphAction={onGraphAction}
+            />
           </Panel>
 
           {/* Splitter */}
