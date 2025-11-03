@@ -35,10 +35,12 @@ export function ConnectionSelector() {
   const handleOpenAddDialog = () => {
     showConnectionEditDialog({
       connection: null,
-      onSave: () => {
+      onSave: (savedConnection) => {
         // Reload connections after save
         const manager = ConnectionManager.getInstance();
         setConnections(manager.getConnections());
+        // Ensure the newly saved connection is selected in the context
+        setSelectedConnection(savedConnection);
       },
     });
     setIsCommandOpen(false);
@@ -94,15 +96,17 @@ export function ConnectionSelector() {
                           onSelect={() => handleConnectionSelect(conn)}
                           className={cn(
                             "flex items-center justify-between !rounded-none cursor-pointer !py-1 mb-1",
-                            isSelected && "bg-accent"
+                            isSelected && "bg-primary/10"
                           )}
                           style={{ borderRadius: 0 }}
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium truncate">
+                            <div className={cn("font-medium truncate", isSelected && "text-primary")}>
                               <HighlightableCommandItem text={conn.name} />
                             </div>
-                            <div className="text-xs text-muted-foreground truncate">{getConnectionItemText(conn)}</div>
+                            <div className={cn("text-xs truncate", isSelected ? "text-primary/80" : "text-muted-foreground")}>
+                              {getConnectionItemText(conn)}
+                            </div>
                           </div>
                           {isSelected && <span className="ml-2 text-xs text-primary">✓</span>}
                         </CommandItem>

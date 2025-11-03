@@ -274,19 +274,6 @@ function ConnectionEditForm({ connection, onSaveHandlerRef, onTestHandlerRef, on
       editable: editable,
     };
 
-    // Customized case
-    // handling some special usernames
-    const parts = newConnection.user.split("-");
-    if (parts.length === 2 && parts[1].startsWith("cluster_")) {
-      if (newConnection.name !== parts[1]) {
-        showErrorMessage("Cluster on 'User' does not match the 'Name'");
-        return;
-      }
-
-      newConnection.user = parts[0];
-      newConnection.cluster = parts[1];
-    }
-
     console.log(`Connection: [${newConnection.url}]`);
 
     return newConnection;
@@ -328,9 +315,17 @@ function ConnectionEditForm({ connection, onSaveHandlerRef, onTestHandlerRef, on
       manager.replace(currentSelectedConnection!.name, editingConnection);
     }
 
+    // Get the saved connection from manager to ensure consistency
+    const savedConnection = manager.getConnections().find((conn) => conn.name === editingConnection.name);
+    if (!savedConnection) {
+      showErrorMessage("Failed to retrieve saved connection from ConnectionManager.");
+      return false; // Keep dialog open
+    }
+
     // Update the selected connection to the newly saved/edited connection
-    setSelectedConnection(editingConnection);
-    onSave(editingConnection);
+    // This will also initialize the connection runtime and save it as the last selected
+    setSelectedConnection(savedConnection);
+    onSave(savedConnection);
     return true; // Close dialog
   }, [getEditingConnection, currentSelectedConnection, isAddMode, onSave, setSelectedConnection]);
 
