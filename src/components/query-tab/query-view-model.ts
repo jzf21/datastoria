@@ -49,9 +49,11 @@ export interface QueryResponseViewProps {
 export interface QueryViewProps {
   onQueryDelete?: (queryId: string) => void;
   view: string;
-  isExecuting: boolean;
   queryRequest: QueryRequestViewModel;
-  queryResponse?: QueryResponseViewModel;
+  viewArgs?: {
+    displayFormat?: "sql" | "text";
+    formatter?: (text: string) => string;
+    showRequest?: "show" | "hide" | "collapse";
+    params?: Record<string, unknown>;
+  };
 }
-
-export type { QueryRequestViewModel, QueryResponseViewModel, QueryResponseViewProps, QueryViewProps };

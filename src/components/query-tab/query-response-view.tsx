@@ -99,11 +99,34 @@ export function QueryResponseView({ queryResponse, isLoading = false }: QueryRes
 
   return (
     <Tabs value={selectedTab} onValueChange={setSelectedTab} className="mt-2">
-      <TabsList>
-        {error && <TabsTrigger value="result">Result</TabsTrigger>}
-        {!error && rawQueryResponse && <TabsTrigger value="result">Result</TabsTrigger>}
-        {queryResponse.httpHeaders && <TabsTrigger value="headers">Response Headers</TabsTrigger>}
-      </TabsList>
+      <div className="w-full border-b bg-background">
+        <TabsList className="inline-flex min-w-full justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
+          {error && (
+            <TabsTrigger
+              value="result"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              Result
+            </TabsTrigger>
+          )}
+          {!error && (
+            <TabsTrigger
+              value="result"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              Result
+            </TabsTrigger>
+          )}
+          {queryResponse.httpHeaders && (
+            <TabsTrigger
+              value="headers"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              Response Headers
+            </TabsTrigger>
+          )}
+        </TabsList>
+      </div>
 
       {error && (
         <TabsContent value="result">
@@ -111,7 +134,7 @@ export function QueryResponseView({ queryResponse, isLoading = false }: QueryRes
         </TabsContent>
       )}
 
-      {!error && rawQueryResponse && (
+      {!error && (
         <TabsContent value="result" className="overflow-auto">
           <div className="relative">{renderResponse()}</div>
         </TabsContent>

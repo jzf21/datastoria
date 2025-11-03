@@ -28,6 +28,7 @@ import { createPortal } from "react-dom";
 import { DependencyTabManager } from "../dependency-tab/dependency-tab-manager";
 import { QueryExecutor } from "../query-tab/query-execution/query-executor";
 import { TableTabManager } from "../table-tab/table-tab-manager";
+import { showDropTableConfirmationDialog } from "./drop-table-confirmation-dialog";
 
 // Shared badge component for schema tree nodes
 function SchemaTreeBadge({ children }: { children: React.ReactNode }) {
@@ -405,7 +406,7 @@ export function SchemaTreeView({ onExecuteQuery, tabId }: SchemaTreeViewProps) {
   const executeQuery = useCallback(
     (sql: string, options?: { displayFormat?: "sql" | "text"; formatter?: (text: string) => string }) => {
       // Emit event for event-based communication
-      QueryExecutor.sendQueryRequest(sql, options, undefined, tabId);
+      QueryExecutor.sendQueryRequest(sql, options, tabId);
 
       // Fallback to prop-based approach for backward compatibility
       if (onExecuteQuery) {
@@ -471,17 +472,6 @@ export function SchemaTreeView({ onExecuteQuery, tabId }: SchemaTreeViewProps) {
     setContextMenuPosition(null);
   }, [contextMenuNode, executeQuery]);
 
-  const handleSelectAllFromTable = useCallback(() => {
-    if (contextMenuNode?.data?.type === "table") {
-      const tableData = contextMenuNode.data as TableNodeData;
-      const sql = `SELECT * FROM \`${tableData.database}\`.\`${tableData.table}\``;
-      executeQuery(sql);
-    }
-    setContextMenuNode(null);
-    setContextMenuPosition(null);
-  }, [contextMenuNode, executeQuery]);
-
-  const [serverVersion, setServerVersion] = useState<string>("");
 
   const handleShowDependency = useCallback(
     (databaseName: string) => {
@@ -596,6 +586,22 @@ ORDER BY lower(database), database, table, columnName`,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConnection]);
+
+  const handleDropTable = useCallback(() => {
+    if (contextMenuNode?.data?.type === "table" && selectedConnection) {
+      const tableData = contextMenuNode.data as TableNodeData;
+      showDropTableConfirmationDialog({
+        table: tableData,
+        connection: selectedConnection,
+        onSuccess: () => {
+          // Refresh the schema tree
+          loadDatabases();
+        },
+      });
+    }
+    setContextMenuNode(null);
+    setContextMenuPosition(null);
+  }, [contextMenuNode, selectedConnection, loadDatabases]);
 
   const toDatabaseTreeNode = (db: {
     name: string;
@@ -760,14 +766,21 @@ ORDER BY lower(database), database, table, columnName`,
                 })()}
               </>
             )}
-            {contextMenuNode.data?.type === "table" && (
-              <div
-                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground"
-                onClick={handleSelectAllFromTable}
-              >
-                Select * from
-              </div>
-            )}
+            {contextMenuNode.data?.type === "table" && (() => {
+              const tableData = contextMenuNode.data as TableNodeData;
+              // Only show drop table if engine is not 'Sys' (System tables)
+              if (tableData.tableEngine !== "Sys") {
+                return (
+                  <div
+                    className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground"
+                    onClick={handleDropTable}
+                  >
+                    Drop table
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>,
           document.body
         )}

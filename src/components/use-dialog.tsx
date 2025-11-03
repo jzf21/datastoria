@@ -20,6 +20,7 @@ export interface DialogButton {
   onClick: () => Promise<boolean>;
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   content?: React.ReactNode | (() => React.ReactNode); // Custom content to render instead of text (e.g., spinner + text)
+  disabled?: boolean; // Explicitly control button disabled state
 }
 
 export interface DialogProps {
@@ -108,12 +109,13 @@ const AlertDialogComponent = (dialogProps: InternalDialogProps) => {
               const content = button.content !== undefined 
                 ? (typeof button.content === 'function' ? button.content() : button.content)
                 : button.text;
-              const isLoading = button.content !== undefined;
+              // Use explicit disabled prop if provided, otherwise disable if content is defined (for loading state)
+              const isDisabled = button.disabled !== undefined ? button.disabled : (button.content !== undefined);
               return (
                 <Button
                   key={index}
                   variant={variant}
-                  disabled={isLoading} // Disable button when showing loading state
+                  disabled={isDisabled}
                   onClick={async () => {
                     const shouldClose = await button.onClick();
                     if (shouldClose) {

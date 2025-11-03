@@ -12,9 +12,9 @@ import "./completion/clickhouse-sql";
 import { useTheme } from "@/components/theme-provider";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { QueryExecutor } from "../query-execution/query-executor";
-import "./query-input-view.css";
 import { QueryInputLocalStorage } from "../query-input/query-input-local-storage";
 import { QueryCompletionManager } from "./completion/QueryCompletionManager";
+import "./query-input-view.css";
 import { QuerySnippetManager } from "./snippet/QuerySnippetManager";
 
 type ExtendedEditor = {
@@ -137,12 +137,14 @@ export function QueryInputView() {
       exec: () => {
         const text = extendedEditor.getSelectedText().trim() || extendedEditor.getValue().trim();
         if (text) {
-          QueryExecutor.sendQueryRequest(text, undefined, {
-            default_format: "PrettyCompactMonoBlock",
-            output_format_pretty_color: 0,
-            output_format_pretty_max_value_width: 50000,
-            output_format_pretty_max_rows: 500,
-            output_format_pretty_row_numbers: true,
+          QueryExecutor.sendQueryRequest(text, {
+            params: {
+              default_format: "PrettyCompactMonoBlock",
+              output_format_pretty_color: 0,
+              output_format_pretty_max_value_width: 50000,
+              output_format_pretty_max_rows: 500,
+              output_format_pretty_row_numbers: true,
+            },
           });
         }
       },

@@ -21,7 +21,7 @@ export function QueryRequestView({ queryRequest }: QueryRequestViewProps) {
   };
 
   return (
-    <div className="query-request border-b pb-2 mb-2">
+    <div className="query-request">
       <div className="relative group">
         <Button
           variant="ghost"
@@ -44,13 +44,6 @@ export function QueryRequestView({ queryRequest }: QueryRequestViewProps) {
           {queryRequest.sql}
         </SyntaxHighlighter>
       </div>
-      {queryRequest.queryId && (
-        <pre className="text-xs text-muted-foreground mt-2 mb-0">
-          Query Id: {queryRequest.queryId}
-          {queryRequest.traceId && `, Trace Id: ${queryRequest.traceId}`}
-        </pre>
-      )}
-      <pre className="text-xs text-muted-foreground mt-0 mb-0">Request Server: {queryRequest.requestServer}</pre>
     </div>
   );
 }
