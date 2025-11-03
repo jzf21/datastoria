@@ -14,13 +14,31 @@ export interface TableTabProps {
   tabId?: string;
 }
 
+// Map of engine types to their available tabs
+const ENGINE_TABS_MAP = new Map<string, Set<string>>([
+  ["MaterializedView", new Set(["metadata", "table-size", "partitions"])],
+  ["Kafka", new Set(["metadata"])],
+  ["URL", new Set(["metadata"])],
+  ["Distributed", new Set(["data-sample", "metadata", "query-log"])],
+  // Default: all tabs available
+]);
+
 export function TableTab({ database, table, engine }: TableTabProps) {
   // Hide Table Size and Partitions tabs if engine starts with "System"
-  const isSystemTable = engine?.startsWith("System") ?? false;
-  // Hide Data Sample tab if engine is MaterializedView
-  const isMaterializedView = engine === "MaterializedView";
+  const isSystemTable = (engine?.startsWith("System") || engine?.startsWith("MySQL")) ?? false;
 
-  const [currentTab, setCurrentTab] = useState<string>(isMaterializedView ? "metadata" : "data-sample");
+  // Get available tabs for this engine, or default to all tabs
+  const baseAvailableTabs = engine
+    ? (ENGINE_TABS_MAP.get(engine) ??
+      new Set(["data-sample", "metadata", "table-size", "partitions", "query-log", "part-log"]))
+    : new Set(["data-sample", "metadata", "table-size", "partitions", "query-log", "part-log"]);
+
+  // Remove table-size and partitions for System tables
+  const availableTabs = isSystemTable
+    ? new Set([...baseAvailableTabs].filter((tab) => tab !== "data-sample" && tab !== "table-size" && tab !== "partitions"))
+    : baseAvailableTabs;
+
+  const [currentTab, setCurrentTab] = useState<string>(availableTabs.has("data-sample") ? "data-sample" : "metadata");
 
   // Refs for each tab view
   const dataSampleRef = useRef<DataSampleViewRef>(null);
@@ -53,12 +71,12 @@ export function TableTab({ database, table, engine }: TableTabProps) {
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex flex-col flex-1 overflow-hidden">
         <div className="flex justify-between items-center gap-2 mx-2 mt-2">
           <TabsList>
-            {!isMaterializedView && <TabsTrigger value="data-sample">Data Sample</TabsTrigger>}
-            <TabsTrigger value="metadata">Metadata</TabsTrigger>
-            {!isSystemTable && <TabsTrigger value="table-size">Table Size</TabsTrigger>}
-            {!isSystemTable && <TabsTrigger value="partitions">Partitions</TabsTrigger>}
-            <TabsTrigger value="query-log">Query Log</TabsTrigger>
-            <TabsTrigger value="part-log">Part Log</TabsTrigger>
+            {availableTabs.has("data-sample") && <TabsTrigger value="data-sample">Data Sample</TabsTrigger>}
+            {availableTabs.has("metadata") && <TabsTrigger value="metadata">Metadata</TabsTrigger>}
+            {availableTabs.has("table-size") && <TabsTrigger value="table-size">Table Size</TabsTrigger>}
+            {availableTabs.has("partitions") && <TabsTrigger value="partitions">Partitions</TabsTrigger>}
+            {availableTabs.has("query-log") && <TabsTrigger value="query-log">Query Log</TabsTrigger>}
+            {availableTabs.has("part-log") && <TabsTrigger value="part-log">Part Log</TabsTrigger>}
           </TabsList>
           {(currentTab === "data-sample" ||
             currentTab === "metadata" ||
@@ -69,34 +87,40 @@ export function TableTab({ database, table, engine }: TableTabProps) {
             </Button>
           )}
         </div>
-        {!isMaterializedView && (
+        {availableTabs.has("data-sample") && (
           <TabsContent value="data-sample" className="flex-1 overflow-auto p-2 mt-0">
             <DataSampleView ref={dataSampleRef} database={database} table={table} />
           </TabsContent>
         )}
-        <TabsContent value="metadata" className="flex-1 overflow-auto p-2 space-y-2 mt-0">
-          <TableMetadataView ref={metadataRef} database={database} table={table} />
-        </TabsContent>
-        {!isSystemTable && (
+        {availableTabs.has("metadata") && (
+          <TabsContent value="metadata" className="flex-1 overflow-auto p-2 space-y-2 mt-0">
+            <TableMetadataView ref={metadataRef} database={database} table={table} />
+          </TabsContent>
+        )}
+        {availableTabs.has("table-size") && (
           <TabsContent value="table-size" className="flex-1 overflow-auto p-2 mt-0">
             <TableSizeView ref={tableSizeRef} database={database} table={table} />
           </TabsContent>
         )}
-        {!isSystemTable && (
+        {availableTabs.has("partitions") && (
           <TabsContent value="partitions" className="flex-1 overflow-auto p-2 mt-0">
             <PartitionSizeView ref={partitionRef} database={database} table={table} />
           </TabsContent>
         )}
-        <TabsContent value="query-log" className="flex-1 overflow-auto p-4 mt-2">
-          <div className="h-full flex items-center justify-center text-muted-foreground">
-            Query Log content coming soon
-          </div>
-        </TabsContent>
-        <TabsContent value="part-log" className="flex-1 overflow-auto p-4 mt-2">
-          <div className="h-full flex items-center justify-center text-muted-foreground">
-            Part Log content coming soon
-          </div>
-        </TabsContent>
+        {availableTabs.has("query-log") && (
+          <TabsContent value="query-log" className="flex-1 overflow-auto p-4 mt-2">
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              Query Log content coming soon
+            </div>
+          </TabsContent>
+        )}
+        {availableTabs.has("part-log") && (
+          <TabsContent value="part-log" className="flex-1 overflow-auto p-4 mt-2">
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              Part Log content coming soon
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
