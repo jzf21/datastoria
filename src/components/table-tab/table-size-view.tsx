@@ -10,6 +10,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 export interface TableSizeViewProps {
   database: string;
   table: string;
+  autoLoad?: boolean;
 }
 
 export interface TableSizeViewRef {
@@ -55,7 +56,7 @@ type ColumnSizeSortColumn =
 type SortDirection = "asc" | "desc" | null;
 
 export const TableSizeView = forwardRef<TableSizeViewRef, TableSizeViewProps>(
-  ({ database, table }, ref) => {
+  ({ database, table, autoLoad = false }, ref) => {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     useImperativeHandle(ref, () => ({
@@ -66,8 +67,8 @@ export const TableSizeView = forwardRef<TableSizeViewRef, TableSizeViewProps>(
 
     return (
       <div className="space-y-2">
-        <TableSizeViewImpl database={database} table={table} refreshTrigger={refreshTrigger} />
-        <ColumnSizeView database={database} table={table} refreshTrigger={refreshTrigger} />
+        <TableSizeViewImpl database={database} table={table} refreshTrigger={refreshTrigger} autoLoad={autoLoad} />
+        <ColumnSizeView database={database} table={table} refreshTrigger={refreshTrigger} autoLoad={autoLoad} />
       </div>
     );
   }
@@ -79,7 +80,8 @@ function TableSizeViewImpl({
   database,
   table,
   refreshTrigger,
-}: TableSizeViewProps & { refreshTrigger?: number }) {
+  autoLoad = false,
+}: TableSizeViewProps & { refreshTrigger?: number; autoLoad?: boolean }) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [sizeInfo, setSizeInfo] = useState<TableSizeInfo[]>([]);
@@ -219,7 +221,9 @@ ORDER BY
 
   useEffect(() => {
     isMountedRef.current = true;
-    fetchTableSize();
+    if (autoLoad || refreshTrigger > 0) {
+      fetchTableSize();
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -228,7 +232,7 @@ ORDER BY
         apiCancellerRef.current = null;
       }
     };
-  }, [selectedConnection, database, table, groupByHost, groupByDiskName, refreshTrigger]);
+  }, [selectedConnection, database, table, groupByHost, groupByDiskName, refreshTrigger, autoLoad]);
 
   const handleSort = (column: TableSizeSortColumn) => {
     if (sortColumn === column) {
@@ -432,7 +436,8 @@ function ColumnSizeView({
   database,
   table,
   refreshTrigger,
-}: TableSizeViewProps & { refreshTrigger?: number }) {
+  autoLoad = false,
+}: TableSizeViewProps & { refreshTrigger?: number; autoLoad?: boolean }) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [columnSizeInfo, setColumnSizeInfo] = useState<ColumnSizeInfo[]>([]);
@@ -537,7 +542,9 @@ ORDER BY
 
   useEffect(() => {
     isMountedRef.current = true;
-    fetchColumnSize();
+    if (autoLoad || refreshTrigger > 0) {
+      fetchColumnSize();
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -546,7 +553,7 @@ ORDER BY
         apiCancellerRef.current = null;
       }
     };
-  }, [selectedConnection, database, table, refreshTrigger]);
+  }, [selectedConnection, database, table, refreshTrigger, autoLoad]);
 
   const handleSort = (column: ColumnSizeSortColumn) => {
     if (sortColumn === column) {

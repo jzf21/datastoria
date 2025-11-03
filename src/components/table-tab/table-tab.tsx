@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DataSampleView, type DataSampleViewRef } from "./data-sample-view";
 import { PartitionSizeView, type PartitionSizeViewRef } from "./partition-view";
 import { TableMetadataView, type TableMetadataViewRef } from "./table-metadata-view";
@@ -38,13 +38,27 @@ export function TableTab({ database, table, engine }: TableTabProps) {
     ? new Set([...baseAvailableTabs].filter((tab) => tab !== "data-sample" && tab !== "table-size" && tab !== "partitions"))
     : baseAvailableTabs;
 
-  const [currentTab, setCurrentTab] = useState<string>(availableTabs.has("data-sample") ? "data-sample" : "metadata");
+  const initialTab = availableTabs.has("data-sample") ? "data-sample" : "metadata";
+  const [currentTab, setCurrentTab] = useState<string>(initialTab);
+  
+  // Track which tabs have been loaded (to load data only once)
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set([initialTab]));
 
   // Refs for each tab view
   const dataSampleRef = useRef<DataSampleViewRef>(null);
   const metadataRef = useRef<TableMetadataViewRef>(null);
   const tableSizeRef = useRef<TableSizeViewRef>(null);
   const partitionRef = useRef<PartitionSizeViewRef>(null);
+
+  // Mark tab as loaded when it becomes active for the first time
+  useEffect(() => {
+    setLoadedTabs((prev) => {
+      if (!prev.has(currentTab)) {
+        return new Set(prev).add(currentTab);
+      }
+      return prev;
+    });
+  }, [currentTab]);
 
   const handleRefresh = () => {
     switch (currentTab) {
@@ -87,40 +101,87 @@ export function TableTab({ database, table, engine }: TableTabProps) {
             </Button>
           )}
         </div>
-        {availableTabs.has("data-sample") && (
-          <TabsContent value="data-sample" className="flex-1 overflow-auto p-2 mt-0">
-            <DataSampleView ref={dataSampleRef} database={database} table={table} />
-          </TabsContent>
-        )}
-        {availableTabs.has("metadata") && (
-          <TabsContent value="metadata" className="flex-1 overflow-auto p-2 space-y-2 mt-0">
-            <TableMetadataView ref={metadataRef} database={database} table={table} />
-          </TabsContent>
-        )}
-        {availableTabs.has("table-size") && (
-          <TabsContent value="table-size" className="flex-1 overflow-auto p-2 mt-0">
-            <TableSizeView ref={tableSizeRef} database={database} table={table} />
-          </TabsContent>
-        )}
-        {availableTabs.has("partitions") && (
-          <TabsContent value="partitions" className="flex-1 overflow-auto p-2 mt-0">
-            <PartitionSizeView ref={partitionRef} database={database} table={table} />
-          </TabsContent>
-        )}
-        {availableTabs.has("query-log") && (
-          <TabsContent value="query-log" className="flex-1 overflow-auto p-4 mt-2">
-            <div className="h-full flex items-center justify-center text-muted-foreground">
-              Query Log content coming soon
+        <div className="flex-1 relative overflow-hidden">
+          {/* All tabs are always mounted, visibility controlled by CSS */}
+          {availableTabs.has("data-sample") && (
+            <div
+              className={`absolute inset-0 overflow-auto p-2 ${currentTab === "data-sample" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "data-sample"}
+            >
+              <DataSampleView 
+                ref={dataSampleRef} 
+                database={database} 
+                table={table}
+                autoLoad={loadedTabs.has("data-sample")}
+              />
             </div>
-          </TabsContent>
-        )}
-        {availableTabs.has("part-log") && (
-          <TabsContent value="part-log" className="flex-1 overflow-auto p-4 mt-2">
-            <div className="h-full flex items-center justify-center text-muted-foreground">
-              Part Log content coming soon
+          )}
+          {availableTabs.has("metadata") && (
+            <div
+              className={`absolute inset-0 overflow-auto p-2 space-y-2 ${currentTab === "metadata" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "metadata"}
+            >
+              <TableMetadataView 
+                ref={metadataRef} 
+                database={database} 
+                table={table}
+                autoLoad={loadedTabs.has("metadata")}
+              />
             </div>
-          </TabsContent>
-        )}
+          )}
+          {availableTabs.has("table-size") && (
+            <div
+              className={`absolute inset-0 overflow-auto p-2 ${currentTab === "table-size" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "table-size"}
+            >
+              <TableSizeView 
+                ref={tableSizeRef} 
+                database={database} 
+                table={table}
+                autoLoad={loadedTabs.has("table-size")}
+              />
+            </div>
+          )}
+          {availableTabs.has("partitions") && (
+            <div
+              className={`absolute inset-0 overflow-auto p-2 ${currentTab === "partitions" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "partitions"}
+            >
+              <PartitionSizeView 
+                ref={partitionRef} 
+                database={database} 
+                table={table}
+                autoLoad={loadedTabs.has("partitions")}
+              />
+            </div>
+          )}
+          {availableTabs.has("query-log") && (
+            <div
+              className={`absolute inset-0 overflow-auto p-4 mt-2 ${currentTab === "query-log" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "query-log"}
+            >
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Query Log content coming soon
+              </div>
+            </div>
+          )}
+          {availableTabs.has("part-log") && (
+            <div
+              className={`absolute inset-0 overflow-auto p-4 mt-2 ${currentTab === "part-log" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "part-log"}
+            >
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Part Log content coming soon
+              </div>
+            </div>
+          )}
+        </div>
       </Tabs>
     </div>
   );

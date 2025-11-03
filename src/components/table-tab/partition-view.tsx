@@ -19,6 +19,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 export interface PartitionViewProps {
   database: string;
   table: string;
+  autoLoad?: boolean;
 }
 
 export interface PartitionSizeViewRef {
@@ -38,7 +39,7 @@ type SortColumn = "partition" | "partCount" | "rows" | "diskSize" | "uncompresse
 type SortDirection = "asc" | "desc" | null;
 
 export const PartitionSizeView = forwardRef<PartitionSizeViewRef, PartitionViewProps>(
-  ({ database, table }, ref) => {
+  ({ database, table, autoLoad = false }, ref) => {
     const { selectedConnection } = useConnection();
     const [isLoading, setIsLoading] = useState(false);
     const [partitionSizeInfo, setPartitionSizeInfo] = useState<PartitionSizeInfo[]>([]);
@@ -154,7 +155,9 @@ ORDER BY
 
     useEffect(() => {
       isMountedRef.current = true;
-      fetchPartitionSize();
+      if (autoLoad || refreshTrigger > 0) {
+        fetchPartitionSize();
+      }
 
       return () => {
         isMountedRef.current = false;
@@ -167,7 +170,7 @@ ORDER BY
           dropPartitionCancellerRef.current = null;
         }
       };
-    }, [selectedConnection, database, table, refreshTrigger]);
+    }, [selectedConnection, database, table, refreshTrigger, autoLoad]);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {

@@ -9,6 +9,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 export interface DataSampleViewProps {
   database: string;
   table: string;
+  autoLoad?: boolean;
 }
 
 export interface DataSampleViewRef {
@@ -154,7 +155,7 @@ const formatValueForDisplay = (val: unknown): string => {
   return String(val);
 };
 
-export const DataSampleView = forwardRef<DataSampleViewRef, DataSampleViewProps>(({ database, table }, ref) => {
+export const DataSampleView = forwardRef<DataSampleViewRef, DataSampleViewProps>(({ database, table, autoLoad = false }, ref) => {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
@@ -297,7 +298,9 @@ export const DataSampleView = forwardRef<DataSampleViewRef, DataSampleViewProps>
 
   useEffect(() => {
     isMountedRef.current = true;
-    fetchData();
+    if (autoLoad) {
+      fetchData();
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -306,7 +309,7 @@ export const DataSampleView = forwardRef<DataSampleViewRef, DataSampleViewProps>
         apiCancellerRef.current = null;
       }
     };
-  }, [fetchData]);
+  }, [fetchData, autoLoad]);
 
   useImperativeHandle(ref, () => ({
     refresh: () => {

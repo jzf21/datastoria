@@ -9,6 +9,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 export interface TableMetadataViewProps {
   database: string;
   table: string;
+  autoLoad?: boolean;
 }
 
 export interface TableMetadataViewRef {
@@ -29,7 +30,8 @@ function TableDDLView({
   database,
   table,
   refreshTrigger,
-}: TableMetadataViewProps & { refreshTrigger?: number }) {
+  autoLoad = false,
+}: TableMetadataViewProps & { refreshTrigger?: number; autoLoad?: boolean }) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [tableData, setTableData] = useState<Record<string, unknown> | null>(null);
@@ -108,7 +110,9 @@ function TableDDLView({
 
   useEffect(() => {
     isMountedRef.current = true;
-    fetchDDL();
+    if (autoLoad || refreshTrigger > 0) {
+      fetchDDL();
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -117,7 +121,7 @@ function TableDDLView({
         apiCancellerRef.current = null;
       }
     };
-  }, [fetchDDL, refreshTrigger]);
+  }, [fetchDDL, refreshTrigger, autoLoad]);
 
   const renderCellValue = (columnName: string, value: unknown) => {
     if (value === null || value === undefined) {
@@ -190,7 +194,8 @@ function TableStructureView({
   database,
   table,
   refreshTrigger,
-}: TableMetadataViewProps & { refreshTrigger?: number }) {
+  autoLoad = false,
+}: TableMetadataViewProps & { refreshTrigger?: number; autoLoad?: boolean }) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [columns, setColumns] = useState<ColumnInfo[]>([]);
@@ -265,7 +270,9 @@ function TableStructureView({
 
   useEffect(() => {
     isMountedRef.current = true;
-    fetchStructure();
+    if (autoLoad || refreshTrigger > 0) {
+      fetchStructure();
+    }
 
     return () => {
       isMountedRef.current = false;
@@ -274,7 +281,7 @@ function TableStructureView({
         apiCancellerRef.current = null;
       }
     };
-  }, [fetchStructure, refreshTrigger]);
+  }, [fetchStructure, refreshTrigger, autoLoad]);
 
   return (
     <CollapsibleSection title="Table Structure" className="relative">
@@ -328,7 +335,7 @@ function TableStructureView({
 }
 
 export const TableMetadataView = forwardRef<TableMetadataViewRef, TableMetadataViewProps>(
-  ({ database, table }, ref) => {
+  ({ database, table, autoLoad = false }, ref) => {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     useImperativeHandle(ref, () => ({
@@ -339,8 +346,8 @@ export const TableMetadataView = forwardRef<TableMetadataViewRef, TableMetadataV
 
     return (
       <div className="space-y-2">
-        <TableDDLView database={database} table={table} refreshTrigger={refreshTrigger} />
-        <TableStructureView database={database} table={table} refreshTrigger={refreshTrigger} />
+        <TableDDLView database={database} table={table} refreshTrigger={refreshTrigger} autoLoad={autoLoad} />
+        <TableStructureView database={database} table={table} refreshTrigger={refreshTrigger} autoLoad={autoLoad} />
       </div>
     );
   }
