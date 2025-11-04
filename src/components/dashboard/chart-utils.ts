@@ -199,6 +199,19 @@ export interface StatDescriptor extends ChartDescriptor {
   };
 }
 
+export interface TimeseriesDescriptor extends ChartDescriptor {
+  type: "line" | "bar" | "area";
+
+  // Columns for time series data
+  columns: (ColumnDef | string)[];
+
+  // Y-axis configuration
+  yAxis?: YAxisOption[];
+
+  // Legend configuration
+  legend?: LegendSpec;
+}
+
 // Factory function to get the appropriate option builder
 function getChartOptionBuilder(chartType: string): ChartOptionBuilder {
   switch (chartType) {

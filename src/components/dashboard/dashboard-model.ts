@@ -115,12 +115,18 @@ export type HttpQuery = BaseQuery & {
 // Union type for all query types
 export type DashboardQuery = JsonQuery | HttpQuery;
 
+export type DashboardGroup = {
+  title: string;
+  charts: any[];
+  collapsed?: boolean;
+};
+
 export type Dashboard = {
   name: string;
   folder: string;
   title: string;
   filter: DashboardFilter;
-  charts: any[];
+  charts: (any | DashboardGroup)[];
 };
 
 export type DashboardFilterV2 = {

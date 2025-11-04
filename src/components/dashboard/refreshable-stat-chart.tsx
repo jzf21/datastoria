@@ -185,6 +185,9 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
 
     // State
     const [data, setData] = useState(0);
+    const valueTextRef = useRef<HTMLDivElement>(null);
+    const valueContainerRef = useRef<HTMLDivElement>(null);
+    const [fontSize, setFontSize] = useState(3); // Start with 3rem (text-5xl equivalent)
     const [offset] = useState(() =>
       descriptor.comparisonOption ? DateTimeExtension.parseOffsetExpression(descriptor.comparisonOption.offset) : 0
     );
@@ -195,6 +198,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     const [isLoadingOffset, setIsLoadingOffset] = useState(false);
     const [offsetError, setOffsetError] = useState("");
     const [error, setError] = useState("");
+    const [hasInitialData, setHasInitialData] = useState(false); // Track if we've ever received data
 
     // Helper functions
     const shouldShowMinimap = useCallback((): boolean => {
@@ -338,6 +342,9 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 setData(reducedValue);
                 setMinimapData(minimapDataResult);
                 setError("");
+                setHasInitialData(true);
+                setIsLoadingValue(false);
+                setIsLoadingMinimap(false);
 
                 console.trace(
                   `Updated state for stat [${descriptor.id}], data: ${reducedValue}, minimapData: ${minimapDataResult.length} points`
@@ -345,6 +352,9 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
               },
               (error) => {
                 console.error(error);
+                setError(error.errorMessage || "Failed to load data");
+                setIsLoadingValue(false);
+                setIsLoadingMinimap(false);
               }
             );
           } else {
@@ -367,29 +377,34 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                   const responsJson = response.data;
                   if (responsJson && responsJson.data.length > 0) {
                     setData(responsJson.data[0][0]);
+                    setHasInitialData(true);
                   } else {
                     setData(0);
                   }
                   setError("");
+                  setIsLoadingValue(false);
+                  setIsLoadingMinimap(false);
                 }
 
                 if (isOffset) {
                   setIsLoadingOffset(false);
-                } else {
-                  setIsLoadingValue(false);
-                  setIsLoadingMinimap(false);
                 }
               },
               (error) => {
-                setError(error.errorMessage);
+                setError(error.errorMessage || "Failed to load data");
+                setIsLoadingValue(false);
+                setIsLoadingMinimap(false);
               }
             );
           }
         } catch (error) {
           if (isOffset) {
             setOffsetError((error as Error).message);
+            setIsLoadingOffset(false);
           } else {
             setError((error as Error).message);
+            setIsLoadingValue(false);
+            setIsLoadingMinimap(false);
             console.error(error);
           }
         }
@@ -446,6 +461,77 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       initialCollapsed: false, // Stat chart is always "expanded"
       refreshInternal,
     });
+
+    // Auto-scale text to fit container
+    useEffect(() => {
+      const adjustFontSize = () => {
+        if (!valueTextRef.current || !valueContainerRef.current) return;
+        // Skip if loading and we don't have initial data yet (showing skeleton)
+        if (isLoadingValue && !hasInitialData) return;
+
+        const container = valueContainerRef.current;
+        const text = valueTextRef.current;
+        const containerWidth = container.offsetWidth;
+        const containerHeight = container.offsetHeight;
+
+        if (containerWidth === 0 || containerHeight === 0) return; // Not yet rendered
+
+        // Get the actual text content (skip if it's a skeleton)
+        const textContent = text.textContent?.trim() || "";
+        if (!textContent || textContent === "") return; // No text to measure
+
+        // Create a temporary hidden element to measure natural size
+        const tempElement = document.createElement("div");
+        tempElement.style.position = "absolute";
+        tempElement.style.visibility = "hidden";
+        tempElement.style.whiteSpace = "nowrap";
+        tempElement.style.fontSize = "3rem";
+        tempElement.style.fontWeight = "600"; // font-semibold
+        tempElement.style.fontFamily = getComputedStyle(text).fontFamily;
+        tempElement.textContent = textContent;
+        document.body.appendChild(tempElement);
+
+        // Force a reflow
+        void tempElement.offsetWidth;
+
+        const naturalWidth = tempElement.offsetWidth;
+        const naturalHeight = tempElement.offsetHeight;
+
+        // Clean up
+        document.body.removeChild(tempElement);
+
+        // If text fits, use default size
+        if (naturalWidth <= containerWidth && naturalHeight <= containerHeight) {
+          setFontSize(3);
+          return;
+        }
+
+        // Calculate scale factor based on both width and height constraints
+        const widthScale = containerWidth / naturalWidth;
+        const heightScale = containerHeight / naturalHeight;
+        const scale = Math.min(widthScale, heightScale, 1); // Don't scale up, only down
+
+        // Set new font size (3rem is the base size)
+        const newFontSize = Math.max(0.75, scale * 3); // Minimum 0.75rem
+        setFontSize(newFontSize);
+      };
+
+      // Use setTimeout to ensure DOM is updated
+      const timeoutId = setTimeout(adjustFontSize, 0);
+
+      // Also adjust on window resize
+      const resizeObserver = new ResizeObserver(() => {
+        setTimeout(adjustFontSize, 0);
+      });
+      if (valueContainerRef.current) {
+        resizeObserver.observe(valueContainerRef.current);
+      }
+
+      return () => {
+        clearTimeout(timeoutId);
+        resizeObserver.disconnect();
+      };
+    }, [data, isLoadingValue, hasInitialData]);
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -510,16 +596,29 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
           <CardTitle
             className={cn(
               descriptor.valueOption?.align ? "text-" + descriptor.valueOption.align : "text-center",
-              "text-5xl font-semibold tabular-nums"
+              "font-semibold tabular-nums"
             )}
           >
-            {isLoadingValue && data !== 0 ? (
-              <Skeleton className="w-20 h-10" />
-            ) : descriptor.valueOption?.format ? (
-              Formatter.getInstance().getFormatter(descriptor.valueOption.format)(data)
-            ) : (
-              data
-            )}
+            <div
+              ref={valueContainerRef}
+              className="h-16 flex items-center justify-center overflow-hidden px-2"
+            >
+              <div
+                ref={valueTextRef}
+                className="leading-none whitespace-nowrap"
+                style={{
+                  fontSize: `${fontSize}rem`,
+                }}
+              >
+                {isLoadingValue && !hasInitialData ? (
+                  <Skeleton className="w-20 h-10" />
+                ) : descriptor.valueOption?.format ? (
+                  Formatter.getInstance().getFormatter(descriptor.valueOption.format)(data)
+                ) : (
+                  data
+                )}
+              </div>
+            </div>
             {/* <NumberFlow value={data} format={{ notation: "compact", compactDisplay: "short" }} locales="en-GB" /> */}
           </CardTitle>
 

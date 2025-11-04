@@ -3,17 +3,38 @@
 import { connect } from "echarts";
 import { useCallback, useMemo, useRef } from "react";
 import type { ChartDescriptor } from "./chart-utils";
-import type { Dashboard } from "./dashboard-model";
+import { DashboardGroupSection } from "./dashboard-group-section";
+import type { Dashboard, DashboardGroup } from "./dashboard-model";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableStatComponent from "./refreshable-stat-chart";
+import RefreshableTimeseriesChart from "./refreshable-timeseries-chart";
 import TimeSpanSelector, { BUILT_IN_TIME_SPAN_LIST } from "./timespan-selector";
 
 interface DashboardViewProps {
   dashboard: Dashboard;
   searchParams?: Record<string, unknown> | URLSearchParams;
+  headerActions?: React.ReactNode;
 }
 
-const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams = {} }) => {
+// Helper function to check if an item is a DashboardGroup
+function isDashboardGroup(item: any): item is DashboardGroup {
+  return item && typeof item === "object" && "title" in item && "charts" in item && Array.isArray(item.charts);
+}
+
+// Helper function to flatten all charts from dashboard (including charts in groups)
+function getAllCharts(dashboard: Dashboard): ChartDescriptor[] {
+  const allCharts: ChartDescriptor[] = [];
+  dashboard.charts.forEach((item) => {
+    if (isDashboardGroup(item)) {
+      allCharts.push(...item.charts);
+    } else {
+      allCharts.push(item);
+    }
+  });
+  return allCharts;
+}
+
+const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams = {}, headerActions }) => {
   const inputFilterRef = useRef<HTMLInputElement>(undefined);
   const subComponentRefs = useRef<(RefreshableComponent | null)[]>([]);
   const filterRef = useRef<TimeSpanSelector>(null as any);
@@ -21,7 +42,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
   // Function to connect all chart instances together
   const connectAllCharts = useCallback(() => {
     const chartInstances: echarts.ECharts[] = subComponentRefs.current
-      .filter((ref): ref is RefreshableComponent => ref !== null && typeof (ref as unknown as { getEChartInstance?: () => echarts.ECharts }).getEChartInstance === "function")
+      .filter(
+        (ref): ref is RefreshableComponent =>
+          ref !== null &&
+          typeof (ref as unknown as { getEChartInstance?: () => echarts.ECharts }).getEChartInstance === "function"
+      )
       .map((ref) => {
         const component = ref as unknown as { getEChartInstance: () => echarts.ECharts };
         return component.getEChartInstance();
@@ -32,7 +57,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
       return;
     }
 
-    const chartNumber = dashboard.charts.filter((chart: ChartDescriptor) => chart.type !== "table").length;
+    const allCharts = getAllCharts(dashboard);
+    const chartNumber = allCharts.filter((chart: ChartDescriptor) => chart.type !== "table").length;
     if (chartInstances.length === chartNumber) {
       // Connect all echarts together on this page
       connect(chartInstances);
@@ -96,8 +122,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
   console.log("Rendering dashboard", dashboard?.name);
 
   return (
-    <>
-      <div className="flex pr-2 justify-end">
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Time span selector and header actions - fixed at top */}
+      <div className="flex-shrink-0 flex justify-end items-center gap-2 pt-2 px-2">
+        {headerActions}
         <TimeSpanSelector
           ref={filterRef}
           defaultTimeSpan={defaultTimeSpan}
@@ -105,46 +133,166 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
         />
       </div>
 
-      {/* Dashboard section */}
-      <div className="pt-1 flex-1 overflow-y-auto">
-        {dashboard && dashboard.charts && (
-          <div className="card-container flex flex-wrap">
-            {dashboard.charts.map((chart: ChartDescriptor, index) => (
-              <div
-                key={index}
-                className="p-1"
-                style={{
-                  width: `${chart.width >= 4 ? 100 : (chart.width / 4) * 100}%`,
-                }}
-              >
-                {/* {(chart.type === "line" || chart.type === "bar" || chart.type === "pie") && (
-                  <RefreshableChartComponent
-                    id={"chart_" + index}
-                    onIntervalClick={onClickChartInterval}
-                    onChartInstanceChanged={connectAllCharts}
-                    ref={(el) => {
-                      onSubComponentUpdated(el, index);
-                    }}
-                    descriptor={chart}
-                  />
-                )} */}
-                {chart.type === "stat" && (
-                  <RefreshableStatComponent
-                    ref={(el) => {
-                      onSubComponentUpdated(el, index);
-                    }}
-                    descriptor={chart as any}
-                    searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
-                  />
-                )}
+      {/* Dashboard section - scrollable */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pt-2 px-2">
+        {dashboard &&
+          dashboard.charts &&
+          (() => {
+            let globalChartIndex = 0;
+
+            // Group consecutive non-grouped charts together
+            const renderItems: Array<{
+              type: "group" | "charts";
+              data: DashboardGroup | ChartDescriptor[];
+              index: number;
+            }> = [];
+            let currentCharts: ChartDescriptor[] = [];
+            let currentChartsStartIndex = -1;
+
+            dashboard.charts.forEach((item, itemIndex) => {
+              if (isDashboardGroup(item)) {
+                // If we have collected charts, add them as a group
+                if (currentCharts.length > 0) {
+                  renderItems.push({
+                    type: "charts",
+                    data: currentCharts,
+                    index: currentChartsStartIndex,
+                  });
+                  currentCharts = [];
+                  currentChartsStartIndex = -1;
+                }
+                // Add the group
+                renderItems.push({
+                  type: "group",
+                  data: item,
+                  index: itemIndex,
+                });
+              } else {
+                // Collect consecutive charts
+                if (currentCharts.length === 0) {
+                  currentChartsStartIndex = itemIndex;
+                }
+                currentCharts.push(item as ChartDescriptor);
+              }
+            });
+
+            // Add any remaining collected charts
+            if (currentCharts.length > 0) {
+              renderItems.push({
+                type: "charts",
+                data: currentCharts,
+                index: currentChartsStartIndex,
+              });
+            }
+
+            return (
+              <div className="space-y-2">
+                {renderItems.map((renderItem) => {
+                  if (renderItem.type === "group") {
+                    // Render as a collapsible group
+                    const group = renderItem.data as DashboardGroup;
+                    const groupStartIndex = globalChartIndex;
+                    return (
+                      <DashboardGroupSection
+                        key={`group-${renderItem.index}`}
+                        title={group.title}
+                        defaultOpen={!group.collapsed}
+                      >
+                        <div className="card-container flex flex-wrap gap-1">
+                          {group.charts.map((chart: ChartDescriptor, chartIndex) => {
+                            const currentIndex = groupStartIndex + chartIndex;
+                            globalChartIndex++;
+                            // Calculate width accounting for gaps
+                            // For 4 columns with 3 gaps of 0.25rem each, we need to account for the gap space
+                            // Formula: calc(percentage - (number_of_gaps * gap_size) / number_of_items)
+                            // For width=1 (25%): calc(25% - 0.75rem / 4) = calc(25% - 0.1875rem)
+                            const widthPercent = chart.width >= 4 ? 100 : (chart.width / 4) * 100;
+                            // For a row of 4 charts, there are 3 gaps. Each chart should account for its share of gap space
+                            // Number of gaps in a full row = 3, so each chart accounts for 3/4 = 0.75 of a gap
+                            const gapAdjustment = chart.width >= 4 ? 0 : (3 * 0.25) / 4; // 0.1875rem per chart
+                            const widthStyle =
+                              chart.width >= 4 ? "100%" : `calc(${widthPercent}% - ${gapAdjustment}rem)`;
+                            return (
+                              <div
+                                key={`chart-${chartIndex}`}
+                                style={{
+                                  width: widthStyle,
+                                }}
+                              >
+                                {(chart.type === "line" || chart.type === "bar" || chart.type === "area") && (
+                                  <RefreshableTimeseriesChart
+                                    ref={(el) => {
+                                      onSubComponentUpdated(el, currentIndex);
+                                    }}
+                                    descriptor={chart as any}
+                                    searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                  />
+                                )}
+                                {chart.type === "stat" && (
+                                  <RefreshableStatComponent
+                                    ref={(el) => {
+                                      onSubComponentUpdated(el, currentIndex);
+                                    }}
+                                    descriptor={chart as any}
+                                    searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </DashboardGroupSection>
+                    );
+                  } else {
+                    // Render consecutive charts in a flex-wrap container
+                    const charts = renderItem.data as ChartDescriptor[];
+                    return (
+                      <div key={`charts-${renderItem.index}`} className="card-container flex flex-wrap gap-1">
+                        {charts.map((chart: ChartDescriptor, chartIndex) => {
+                          const currentIndex = globalChartIndex++;
+                          // Calculate width accounting for gaps (same logic as groups)
+                          const widthPercent = chart.width >= 4 ? 100 : (chart.width / 4) * 100;
+                          const gapAdjustment = chart.width >= 4 ? 0 : (3 * 0.25) / 4; // 0.1875rem per chart
+                          const widthStyle = chart.width >= 4 ? "100%" : `calc(${widthPercent}% - ${gapAdjustment}rem)`;
+                          return (
+                            <div
+                              key={`chart-${chartIndex}`}
+                              style={{
+                                width: widthStyle,
+                              }}
+                            >
+                              {(chart.type === "line" || chart.type === "bar" || chart.type === "area") && (
+                                <RefreshableTimeseriesChart
+                                  ref={(el) => {
+                                    onSubComponentUpdated(el, currentIndex);
+                                  }}
+                                  descriptor={chart as any}
+                                  searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                />
+                              )}
+                              {chart.type === "stat" && (
+                                <RefreshableStatComponent
+                                  ref={(el) => {
+                                    onSubComponentUpdated(el, currentIndex);
+                                  }}
+                                  descriptor={chart as any}
+                                  searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                })}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })()}
 
         <div className="h-[100px]">{/* Margin for scroll */}</div>
       </div>
-    </>
+    </div>
   );
 };
 
