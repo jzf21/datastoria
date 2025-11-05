@@ -14,8 +14,21 @@ import { Button } from "../ui/button";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { ChartContainer, ChartTooltip } from "../ui/chart";
 import { Skeleton } from "../ui/skeleton";
-import type { MinimapOption, Reducer, SQLQuery, StatDescriptor } from "./chart-utils";
+import { Dialog } from "../use-dialog";
+import type {
+  ChartDescriptor,
+  MinimapOption,
+  Reducer,
+  SQLQuery,
+  StatDescriptor,
+  TableDescriptor,
+  TimeseriesDescriptor,
+  TransposeTableDescriptor,
+} from "./chart-utils";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
+import RefreshableTableComponent from "./refreshable-table-component";
+import RefreshableTimeseriesChart from "./refreshable-timeseries-chart";
+import RefreshableTransposedTableComponent from "./refreshable-transposed-table-component";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
 
@@ -178,9 +191,51 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data
   );
 });
 
+// Helper component to render drilldown charts (avoids forwardRef recursion issues)
+const DrilldownChartRenderer: React.FC<{
+  descriptor: ChartDescriptor;
+  selectedTimeSpan?: TimeSpan;
+  searchParams?: URLSearchParams;
+}> = ({ descriptor, selectedTimeSpan, searchParams }) => {
+  if (descriptor.type === "stat") {
+    return (
+      <RefreshableStatComponent
+        descriptor={descriptor as StatDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  } else if (descriptor.type === "line" || descriptor.type === "bar" || descriptor.type === "area") {
+    return (
+      <RefreshableTimeseriesChart
+        descriptor={descriptor as TimeseriesDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  } else if (descriptor.type === "table") {
+    return (
+      <RefreshableTableComponent
+        descriptor={descriptor as TableDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  } else if (descriptor.type === "transpose-table") {
+    return (
+      <RefreshableTransposedTableComponent
+        descriptor={descriptor as TransposeTableDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  }
+  return null;
+};
+
 const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableStatComponentProps>(
   function RefreshableStatComponent(props, ref) {
-    const { descriptor } = props;
+    const { descriptor, selectedTimeSpan } = props;
     const { selectedConnection } = useConnection();
 
     // State
@@ -265,13 +320,12 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       }
     }, []);
 
-
     const loadData = useCallback(
       async (_param: RefreshParameter, isOffset: boolean = false) => {
         const showMinimap = shouldShowMinimap() && !isOffset;
 
         console.trace(
-          `Loading data for stat [${descriptor.id}], isOffset: ${isOffset}, showMinimap: ${showMinimap}, queryType: ${(descriptor.query as any)?.type}`
+          `Loading data for stat [${descriptor.id}], isOffset: ${isOffset}, showMinimap: ${showMinimap}, queryType: ${(descriptor.query as SQLQuery & { type?: string })?.type}`
         );
 
         // Don't clear previous data during reload to prevent flickering
@@ -409,7 +463,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
           }
         }
       },
-      [descriptor, shouldShowMinimap, getMinimapDataFromResponse, calculateReducedValue]
+      [descriptor, shouldShowMinimap, getMinimapDataFromResponse, calculateReducedValue, selectedConnection]
     );
 
     // Internal refresh function
@@ -435,13 +489,15 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
         // Load offset data
         if (offset !== 0) {
           const offsetTimeSpan: TimeSpan = {
-            startISO8601: DateTimeExtension.formatISO8601(
-              new Date(new Date(param.selectedTimeSpan.startISO8601).getTime() + offset * 1000)
-            ) || "",
+            startISO8601:
+              DateTimeExtension.formatISO8601(
+                new Date(new Date(param.selectedTimeSpan.startISO8601).getTime() + offset * 1000)
+              ) || "",
 
-            endISO8601: DateTimeExtension.formatISO8601(
-              new Date(new Date(param.selectedTimeSpan.endISO8601).getTime() + offset * 1000)
-            ) || "",
+            endISO8601:
+              DateTimeExtension.formatISO8601(
+                new Date(new Date(param.selectedTimeSpan.endISO8601).getTime() + offset * 1000)
+              ) || "",
           };
 
           const offsetParam: RefreshParameter = {
@@ -456,10 +512,15 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     );
 
     // Use shared refreshable hook (stat chart doesn't have collapse, but uses viewport checking)
+    const getInitialParams = React.useCallback(() => {
+      return props.selectedTimeSpan ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshParameter) : undefined;
+    }, [props.selectedTimeSpan]);
+
     const { componentRef, refresh, getLastRefreshParameter } = useRefreshable({
       componentId: descriptor.id,
       initialCollapsed: false, // Stat chart is always "expanded"
       refreshInternal,
+      getInitialParams,
     });
 
     // Auto-scale text to fit container
@@ -539,6 +600,74 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       getLastRefreshParameter,
     }));
 
+    // Get the first drilldown descriptor if available
+    const getFirstDrilldownDescriptor = useCallback((): ChartDescriptor | null => {
+      if (!descriptor.drilldown || Object.keys(descriptor.drilldown).length === 0) {
+        return null;
+      }
+      // Get the first descriptor from the drilldown map
+      const firstKey = Object.keys(descriptor.drilldown)[0];
+      return descriptor.drilldown[firstKey];
+    }, [descriptor.drilldown]);
+
+    // Render drilldown component based on descriptor type
+    const renderDrilldownComponent = useCallback(
+      (drilldownDescriptor: ChartDescriptor) => {
+        return (
+          <DrilldownChartRenderer
+            descriptor={drilldownDescriptor}
+            selectedTimeSpan={selectedTimeSpan}
+            searchParams={props.searchParams}
+          />
+        );
+      },
+      [props.searchParams, selectedTimeSpan]
+    );
+
+    // Handle drilldown click
+    const handleDrilldownClick = useCallback(() => {
+      const drilldownDescriptor = getFirstDrilldownDescriptor();
+      if (!drilldownDescriptor) {
+        return;
+      }
+
+      // Create a modified copy of the descriptor for drilldown
+      const modifiedDescriptor: ChartDescriptor = { ...drilldownDescriptor };
+
+      // Hide title in drilldown dialog
+      if (modifiedDescriptor.titleOption) {
+        modifiedDescriptor.titleOption = {
+          ...modifiedDescriptor.titleOption,
+          showTitle: false,
+        };
+      }
+
+      // Make table header sticky if it's a table
+      if (modifiedDescriptor.type === "table") {
+        const tableDescriptor = modifiedDescriptor as TableDescriptor;
+        tableDescriptor.headOption = {
+          ...tableDescriptor.headOption,
+          isSticky: true,
+        };
+      }
+
+      const title = modifiedDescriptor.titleOption?.title || "Drilldown";
+      const description = modifiedDescriptor.titleOption?.description;
+
+      Dialog.showDialog({
+        title,
+        description,
+        className: "max-w-[90vw] max-h-[90vh]",
+        disableContentScroll: false,
+        mainContent: <div className="w-full">{renderDrilldownComponent(modifiedDescriptor)}</div>,
+      });
+    }, [getFirstDrilldownDescriptor, renderDrilldownComponent]);
+
+    // Check if drilldown is available
+    const hasDrilldown = useCallback((): boolean => {
+      return descriptor.drilldown !== undefined && Object.keys(descriptor.drilldown).length > 0;
+    }, [descriptor.drilldown]);
+
     // Render comparison helper
     const renderComparison = () => {
       if (offset === 0) {
@@ -552,7 +681,8 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
             variant="link"
             size="sm"
             className="absolute right-2 top-2 text-xs flex items-center gap-1 hover:opacity-70 transition-opacity"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent triggering drilldown
               //ExceptionView.showExceptionInDialog(offsetError);
             }}
           >
@@ -588,29 +718,32 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       <Card ref={componentRef} className="@container/card relative">
         <FloatingProgressBar show={isLoadingValue} />
         <CardHeader className="pt-5 pb-1">
-          <CardDescription
-            className={descriptor.titleOption?.align ? "text-" + descriptor.titleOption.align : "text-center"}
-          >
-            {descriptor.titleOption?.title}
-          </CardDescription>
+          {descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false && (
+            <CardDescription
+              className={descriptor.titleOption?.align ? "text-" + descriptor.titleOption.align : "text-center"}
+            >
+              {descriptor.titleOption.title}
+            </CardDescription>
+          )}
           <CardTitle
             className={cn(
               descriptor.valueOption?.align ? "text-" + descriptor.valueOption.align : "text-center",
               "font-semibold tabular-nums"
             )}
           >
-            <div
-              ref={valueContainerRef}
-              className="h-16 flex items-center justify-center overflow-hidden px-2"
-            >
+            <div ref={valueContainerRef} className="h-16 flex items-center justify-center overflow-hidden px-2">
               <div
                 ref={valueTextRef}
-                className="leading-none whitespace-nowrap"
+                className={cn(
+                  "leading-none whitespace-nowrap",
+                  hasDrilldown() && "cursor-pointer underline transition-all"
+                )}
                 style={{
                   fontSize: `${fontSize}rem`,
                 }}
+                onClick={hasDrilldown() ? handleDrilldownClick : undefined}
               >
-                {isLoadingValue && !hasInitialData ? (
+                {!hasInitialData ? (
                   <Skeleton className="w-20 h-10" />
                 ) : descriptor.valueOption?.format ? (
                   Formatter.getInstance().getFormatter(descriptor.valueOption.format)(data)

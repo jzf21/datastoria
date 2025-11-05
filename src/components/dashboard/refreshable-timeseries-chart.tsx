@@ -6,16 +6,73 @@ import { DateTimeExtension } from "@/lib/datetime-utils";
 import { Formatter, type FormatName } from "@/lib/formatter";
 import { cn } from "@/lib/utils";
 import * as echarts from "echarts";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, EllipsisVertical, Minus } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import FloatingProgressBar from "../floating-progress-bar";
+import { useTheme } from "../theme-provider";
+import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Skeleton } from "../ui/skeleton";
+import { Dialog } from "../use-dialog";
 import type { SQLQuery, TimeseriesDescriptor } from "./chart-utils";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
+
+// Transform API rows/meta into chart-friendly data points (file-local)
+function transformRowsToChartData(
+  inputRows: unknown[],
+  inputMeta: Array<{ name: string; type?: string }>
+): Record<string, unknown>[] {
+  const first = inputRows[0];
+  const arrayFormat = Array.isArray(first);
+
+  return inputRows.map((row: unknown) => {
+    const dataPoint: Record<string, unknown> = {};
+
+    if (arrayFormat) {
+      const rowArray = row as unknown[];
+      inputMeta.forEach((colMeta: { name: string; type?: string }, index: number) => {
+        const value = rowArray[index];
+        const colName = colMeta.name;
+
+        if (colName.toLowerCase().includes("time") || colName.toLowerCase().includes("date") || colName === "t") {
+          if (typeof value === "string") {
+            dataPoint.timestamp = new Date(value).getTime();
+          } else if (typeof value === "number") {
+            dataPoint.timestamp = value > 1e10 ? value : value * 1000;
+          } else {
+            dataPoint.timestamp = new Date(String(value)).getTime();
+          }
+          dataPoint[colName] = dataPoint.timestamp;
+        } else {
+          dataPoint[colName] = value;
+        }
+      });
+    } else {
+      const rowObject = row as Record<string, unknown>;
+      Object.keys(rowObject).forEach((colName) => {
+        const value = rowObject[colName];
+        if (colName.toLowerCase().includes("time") || colName.toLowerCase().includes("date") || colName === "t") {
+          if (typeof value === "string") {
+            dataPoint.timestamp = new Date(value).getTime();
+          } else if (typeof value === "number") {
+            dataPoint.timestamp = value > 1e10 ? value : value * 1000;
+          } else {
+            dataPoint.timestamp = new Date(String(value)).getTime();
+          }
+          dataPoint[colName] = dataPoint.timestamp;
+        } else {
+          dataPoint[colName] = value;
+        }
+      });
+    }
+
+    return dataPoint;
+  });
+}
 
 interface RefreshableTimeseriesChartProps {
   // The timeseries descriptor configuration
@@ -23,6 +80,7 @@ interface RefreshableTimeseriesChartProps {
 
   // Runtime
   selectedTimeSpan?: TimeSpan;
+  inputFilter?: string;
 
   // Used for generating links
   searchParams?: URLSearchParams;
@@ -30,8 +88,9 @@ interface RefreshableTimeseriesChartProps {
 
 const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableTimeseriesChartProps>(
   function RefreshableTimeseriesChart(props, ref) {
-    const { descriptor } = props;
+    const { descriptor, selectedTimeSpan: propSelectedTimeSpan, inputFilter: propInputFilter } = props;
     const { selectedConnection } = useConnection();
+    const { theme } = useTheme();
 
     // Debug logging
     useEffect(() => {
@@ -52,43 +111,143 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
 
+    // Track dark mode state
+    const [isDark, setIsDark] = useState(() => {
+      if (typeof window !== "undefined") {
+        return window.document.documentElement.classList.contains("dark");
+      }
+      return false;
+    });
+
+    // Watch for theme changes
+    useEffect(() => {
+      const checkTheme = () => {
+        if (typeof window !== "undefined") {
+          const root = window.document.documentElement;
+          setIsDark(root.classList.contains("dark"));
+        }
+      };
+
+      // Initial check
+      checkTheme();
+
+      // Watch for theme changes via DOM class changes
+      const observer = new MutationObserver(checkTheme);
+      if (typeof window !== "undefined") {
+        observer.observe(window.document.documentElement, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+
+      // Also update when theme context changes
+      if (theme === "dark") {
+        setIsDark(true);
+      } else if (theme === "light") {
+        setIsDark(false);
+      } else if (theme === "system") {
+        // For system theme, check the actual rendered theme
+        if (typeof window !== "undefined") {
+          const root = window.document.documentElement;
+          setIsDark(root.classList.contains("dark"));
+        }
+      }
+
+      return () => observer.disconnect();
+    }, [theme]);
+
     // Refs
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartInstanceRef = useRef<echarts.ECharts | null>(null);
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
 
-    // Initialize echarts instance
-    useEffect(() => {
-      if (chartContainerRef.current && !chartInstanceRef.current) {
-        const chartInstance = echarts.init(chartContainerRef.current);
-        chartInstanceRef.current = chartInstance;
-
-        // Handle window resize
-        const handleResize = () => {
-          chartInstance.resize();
-        };
-        window.addEventListener("resize", handleResize);
-
-        return () => {
-          window.removeEventListener("resize", handleResize);
-          chartInstance.dispose();
-          chartInstanceRef.current = null;
-        };
-      }
-    }, []);
-
     // Infer format from metric name
     const inferFormatFromMetricName = useCallback((metricName: string): FormatName => {
       const lowerName = metricName.toLowerCase();
+
+      // Check for bytes first
       if (lowerName.includes("bytes")) {
         return "binary_size";
-      } else if (lowerName.includes("microseconds")) {
+      }
+
+      // Parse division operations to detect unit conversions
+      // Example: divide(avg(ProfileEvent_OSCPUVirtualTimeMicroseconds), 1000000)
+      const divideMatch = lowerName.match(/divide\s*\([^,]+,\s*(\d+)\)/);
+      if (divideMatch) {
+        const divisor = parseInt(divideMatch[1], 10);
+
+        // Extract the inner expression (everything before the comma in divide)
+        // Handle nested parentheses by finding the matching comma
+        const divideStart = lowerName.indexOf("divide(");
+        if (divideStart !== -1) {
+          let parenCount = 0;
+          let commaPos = -1;
+          for (let i = divideStart + 7; i < lowerName.length; i++) {
+            if (lowerName[i] === "(") parenCount++;
+            else if (lowerName[i] === ")") {
+              if (parenCount === 0) break;
+              parenCount--;
+            } else if (lowerName[i] === "," && parenCount === 0) {
+              commaPos = i;
+              break;
+            }
+          }
+
+          if (commaPos !== -1) {
+            const innerExpression = lowerName.substring(divideStart + 7, commaPos);
+
+            // Determine original unit from inner expression
+            let originalUnit: "nanosecond" | "microsecond" | "millisecond" | null = null;
+            if (innerExpression.includes("nanoseconds")) {
+              originalUnit = "nanosecond";
+            } else if (innerExpression.includes("microseconds")) {
+              originalUnit = "microsecond";
+            } else if (innerExpression.includes("milliseconds")) {
+              originalUnit = "millisecond";
+            }
+
+            // If we found an original unit, calculate the resulting unit
+            if (originalUnit) {
+              // Calculate conversion factors (units per second)
+              const conversionFactors: Record<string, number> = {
+                nanosecond: 1e9, // nanoseconds per second
+                microsecond: 1e6, // microseconds per second
+                millisecond: 1e3, // milliseconds per second
+              };
+
+              const originalFactor = conversionFactors[originalUnit];
+              const resultFactor = originalFactor / divisor;
+
+              // Determine resulting format based on the result factor
+              // resultFactor represents the number of original units per second after division
+              if (resultFactor >= 1e9) {
+                // Still in nanoseconds range (e.g., divide by 1)
+                return "nanosecond";
+              } else if (resultFactor >= 1e6) {
+                // In microseconds range (e.g., divide nanoseconds by 1000)
+                return "microsecond";
+              } else if (resultFactor >= 1e3) {
+                // In milliseconds range (e.g., divide microseconds by 1000)
+                return "millisecond";
+              } else if (resultFactor >= 1) {
+                // In seconds range (e.g., divide microseconds by 1e6, or milliseconds by 1e3)
+                // Use millisecond format which displays "s" for values >= 1000ms
+                return "millisecond";
+              }
+            }
+          }
+        }
+      }
+
+      // Fallback to simple keyword matching if no division detected
+      if (lowerName.includes("microseconds")) {
         return "microsecond";
       } else if (lowerName.includes("milliseconds")) {
         return "millisecond";
       } else if (lowerName.includes("nanoseconds")) {
         return "nanosecond";
       }
+
       return "short_number";
     }, []);
 
@@ -106,44 +265,73 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
             text: "No data",
             left: "center",
             top: "center",
-            textStyle: {
-              color: "#999",
-            },
           },
+          backgroundColor: "transparent",
         });
         return;
       }
 
       try {
-        // Find timestamp column
+        // Find timestamp column (prefer meta-defined names like 't' over the derived 'timestamp')
         const firstRow = data[0];
-        const timestampKey = Object.keys(firstRow).find(
-          (key) => key.toLowerCase().includes("time") || key.toLowerCase().includes("date") || key === "timestamp" || key === "t"
-        ) || "t";
+
+        const metaNames = meta.map((m) => m.name);
+        const pickTimestampFromMeta = () => {
+          // common timestamp names first
+          if (metaNames.includes("t")) return "t";
+          const metaTime = metaNames.find((n) => {
+            const lower = n.toLowerCase();
+            return lower.includes("time") || lower.includes("date");
+          });
+          if (metaTime) return metaTime;
+          // Fallback to derived 'timestamp' in transformed rows
+          if (Object.prototype.hasOwnProperty.call(firstRow, "timestamp")) return "timestamp";
+          return "t";
+        };
+        const timestampKey = pickTimestampFromMeta();
 
         // Identify columns: timestamp, labels (group by columns), and metrics
-        const allColumns = meta.length > 0 
-          ? meta.map((m) => m.name)
-          : Object.keys(firstRow);
-        
-        // Explicitly exclude timestamp column from label columns
-        const labelColumns = allColumns.filter((col) => {
-          const lower = col.toLowerCase();
-          // Explicitly exclude the timestamp key and any time-related columns
-          return col !== timestampKey && 
-                 col.toLowerCase() !== timestampKey.toLowerCase() &&
-                 !lower.includes("time") && 
-                 !lower.includes("date") &&
-                 !col.includes("(") && // Metrics usually have function names like avg(...)
-                 !col.includes("sum(") &&
-                 !col.includes("count(") &&
-                 !col.includes("avg(") &&
-                 !col.includes("min(") &&
-                 !col.includes("max(");
-        });
+        const allColumns = meta.length > 0 ? meta.map((m) => m.name) : Object.keys(firstRow);
 
-        const metricColumns = allColumns.filter((col) => {
-          return col !== timestampKey && !labelColumns.includes(col);
+        // Helper checks
+        const isTimeColumn = (name: string) => {
+          const lower = name.toLowerCase();
+          return (
+            name === timestampKey ||
+            name.toLowerCase() === timestampKey.toLowerCase() ||
+            lower.includes("time") ||
+            lower.includes("date") ||
+            name === "t"
+          );
+        };
+        const isNumericType = (type?: string) => {
+          if (!type) return false;
+          // ClickHouse numeric types
+          return /(u?int|float|double|decimal)/i.test(type) && !/date|datetime/i.test(type);
+        };
+        const sampleIsNumeric = (col: string) => {
+          // check a few rows for numeric value
+          for (let i = 0; i < Math.min(5, data.length); i++) {
+            const v = (data[i] as Record<string, unknown>)[col];
+            if (v === null || v === undefined) continue;
+            if (typeof v === "number") return true;
+            if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return true;
+            return false;
+          }
+          return false;
+        };
+
+        // Classify non-time columns: numeric -> metric, otherwise label
+        const candidateCols = allColumns.filter((c) => !isTimeColumn(c));
+        const metricColumns: string[] = [];
+        const labelColumns: string[] = [];
+        candidateCols.forEach((col) => {
+          const metaType = meta.find((m) => m.name === col)?.type;
+          if (isNumericType(metaType) || sampleIsNumeric(col)) {
+            metricColumns.push(col);
+          } else {
+            labelColumns.push(col);
+          }
         });
 
         console.log(`[TimeseriesChart ${descriptor.id}] Column classification:`, {
@@ -185,12 +373,12 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           // Group data by label combinations for each metric
           metricColumns.forEach((metricCol) => {
             const labelGroups = new Map<string, Array<{ timestamp: number; value: number }>>();
-            
+
             data.forEach((row) => {
               const ts = row[timestampKey] as number;
               const timestamp = typeof ts === "number" && ts > 1e10 ? ts : ts * 1000;
               const value = row[metricCol];
-              
+
               // Convert value to number
               let numValue: number;
               if (typeof value === "number") {
@@ -205,7 +393,9 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
               // Build label key from all label columns, explicitly excluding timestamp
               // Filter out timestamp values if they somehow got included
               const labelKeyParts = labelColumns
-                .filter((labelCol) => labelCol !== timestampKey && labelCol.toLowerCase() !== timestampKey.toLowerCase())
+                .filter(
+                  (labelCol) => labelCol !== timestampKey && labelCol.toLowerCase() !== timestampKey.toLowerCase()
+                )
                 .map((labelCol) => {
                   const value = row[labelCol];
                   // Skip if value looks like a timestamp (large number)
@@ -215,16 +405,17 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                   // Convert to string, treating empty string as 'empty-hostname' for hostname-like columns
                   const strValue = String(value || "");
                   // If it's empty and the column name suggests it's a hostname identifier, use 'empty-hostname'
-                  if (strValue === "" && (labelCol.toLowerCase().includes("host") || labelCol.toLowerCase().includes("hostname"))) {
+                  if (
+                    strValue === "" &&
+                    (labelCol.toLowerCase().includes("host") || labelCol.toLowerCase().includes("hostname"))
+                  ) {
                     return "empty-hostname";
                   }
                   return strValue;
                 })
                 .filter((part) => part !== null);
-              
-              const labelKey = labelKeyParts.length > 0 
-                ? labelKeyParts.join(" - ") 
-                : metricCol; // Fallback to metric name if no valid labels
+
+              const labelKey = labelKeyParts.length > 0 ? labelKeyParts.join(" - ") : metricCol; // Fallback to metric name if no valid labels
 
               if (!labelGroups.has(labelKey)) {
                 labelGroups.set(labelKey, []);
@@ -273,7 +464,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
             const seriesData: (number | null)[] = timestamps.map((tsMs) => {
               const row = timestampMap.get(tsMs);
               if (!row) return null;
-              
+
               const value = row[metricCol];
               if (typeof value === "number") {
                 return value;
@@ -299,33 +490,36 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
         // Build y-axis configuration - don't use label names
         const yAxisOption = descriptor.yAxis?.[0] || {};
-        const yAxis: echarts.EChartsOption["yAxis"] = [{
-          type: "value",
-          name: "", // Don't show label names
-          min: yAxisOption.min,
-          minInterval: yAxisOption.minInterval,
-          interval: yAxisOption.interval,
-          inverse: yAxisOption.inverse,
-          splitLine: { show: true },
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: {
-            formatter: (value: number) => {
-              // Use first metric's format for y-axis labels
-              if (metricColumns.length > 0) {
-                const format = inferFormatFromMetricName(metricColumns[0]);
-                const formatter = FormatterInstance.getFormatter(format);
-                const formatted = formatter(value);
-                // Ensure we return a string
-                return typeof formatted === "string" ? formatted : String(formatted);
-              }
-              return String(value);
+        const yAxis: echarts.EChartsOption["yAxis"] = [
+          {
+            type: "value",
+            name: "", // Don't show label names
+            min: yAxisOption.min,
+            minInterval: yAxisOption.minInterval,
+            interval: yAxisOption.interval,
+            inverse: yAxisOption.inverse,
+            splitLine: { show: true },
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: {
+              formatter: (value: number) => {
+                // Use first metric's format for y-axis labels
+                if (metricColumns.length > 0) {
+                  const format = inferFormatFromMetricName(metricColumns[0]);
+                  const formatter = FormatterInstance.getFormatter(format);
+                  const formatted = formatter(value);
+                  // Ensure we return a string
+                  return typeof formatted === "string" ? formatted : String(formatted);
+                }
+                return String(value);
+              },
             },
           },
-        }];
+        ];
 
         // Build final echarts option
         const option: echarts.EChartsOption = {
+          backgroundColor: "transparent",
           title: {
             show: false,
           },
@@ -341,7 +535,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
               const firstParam = params[0] as { axisValue: string };
               const timestamp = firstParam.axisValue;
               let result = `<div style="margin-bottom: 4px;">${timestamp}</div>`;
-              
+
               params.forEach((param: { value: number | null; seriesName: string; color: string }) => {
                 const value = param.value;
                 if (value !== null && value !== undefined) {
@@ -355,11 +549,11 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                     // Series name is the metric column name
                     metricCol = param.seriesName;
                   }
-                  
+
                   const format = metricCol ? inferFormatFromMetricName(metricCol) : "short_number";
                   const formatter = FormatterInstance.getFormatter(format);
                   const formattedValue = formatter(value);
-                  
+
                   result += `<div style="margin-top: 2px;">
                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:${param.color};margin-right:5px;"></span>
                     ${param.seriesName}: <strong>${formattedValue}</strong>
@@ -374,6 +568,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
             show: series.length > 0,
             top: 0,
             type: "scroll",
+            icon: "circle",
           },
           grid: {
             left: "3%",
@@ -392,7 +587,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
         };
 
         chartInstanceRef.current.setOption(option, true);
-        
+
         // Resize after setting option to ensure proper rendering
         setTimeout(() => {
           if (chartInstanceRef.current) {
@@ -404,6 +599,9 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
         setError(err instanceof Error ? err.message : "Error updating chart");
       }
     }, [data, descriptor, detectedColumns, meta, inferFormatFromMetricName]);
+
+    // Track last successfully loaded parameters to avoid duplicate API calls
+    const lastLoadedParamsRef = useRef<RefreshParameter | null>(null);
 
     // Load data from API
     const loadData = useCallback(
@@ -420,6 +618,12 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
         if (!param.selectedTimeSpan) {
           setError("Please choose time span.");
+          return;
+        }
+
+        // Check if we're loading with the same parameters (avoid duplicate API calls)
+        if (lastLoadedParamsRef.current && JSON.stringify(lastLoadedParamsRef.current) === JSON.stringify(param)) {
+          console.trace(`[TimeseriesChart ${descriptor.id}] Skipping loadData - parameters unchanged`);
           return;
         }
 
@@ -442,7 +646,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           const startTime = new Date(param.selectedTimeSpan.startISO8601);
           const endTime = new Date(param.selectedTimeSpan.endISO8601);
           const seconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-          
+
           // Calculate rounding based on time span (default to 1/100 of the range, minimum 1 second)
           const rounding = Math.max(1, Math.floor(seconds / 100));
 
@@ -455,12 +659,16 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
           // Log the SQL for debugging
           console.log(`[TimeseriesChart ${descriptor.id}] Executing SQL:`, finalSql);
-          console.log(`[TimeseriesChart ${descriptor.id}] Parameters: param_rounding=${rounding}, param_seconds=${seconds}`);
+          console.log(
+            `[TimeseriesChart ${descriptor.id}] Parameters: param_rounding=${rounding}, param_seconds=${seconds}`
+          );
           console.log(`[TimeseriesChart ${descriptor.id}] TimeSpan:`, param.selectedTimeSpan);
 
           // Check if there are any remaining old-style placeholders (for backward compatibility)
           if (finalSql.includes("{rounding}") || finalSql.includes("{seconds}")) {
-            console.warn(`[TimeseriesChart ${descriptor.id}] Warning: Old-style placeholders found in SQL (use {param_rounding:UInt32} and {param_seconds:UInt32})`);
+            console.warn(
+              `[TimeseriesChart ${descriptor.id}] Warning: Old-style placeholders found in SQL (use {param_rounding:UInt32} and {param_seconds:UInt32})`
+            );
           }
 
           // Store finalSql in a variable accessible to error handler
@@ -492,97 +700,58 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                 console.log(`[TimeseriesChart ${descriptor.id}] Data format:`, isArrayFormat ? "array" : "object");
                 console.log(`[TimeseriesChart ${descriptor.id}] First row sample:`, firstRow);
 
-                // Transform data for chart
-                const transformedData = rows.map((row: unknown) => {
-                  const dataPoint: Record<string, unknown> = {};
-
-                  if (isArrayFormat) {
-                    // Array format: row is [value1, value2, ...]
-                    const rowArray = row as unknown[];
-                    meta.forEach((colMeta: { name: string; type?: string }, index: number) => {
-                      const value = rowArray[index];
-                      const colName = colMeta.name;
-                      
-                      // Handle timestamp column (common names: timestamp, time, _time, t, etc.)
-                      if (colName.toLowerCase().includes("time") || colName.toLowerCase().includes("date") || colName === "t") {
-                        // Convert to timestamp if it's a string
-                        if (typeof value === "string") {
-                          dataPoint.timestamp = new Date(value).getTime();
-                        } else if (typeof value === "number") {
-                          // If it's already a number, treat as Unix timestamp (seconds or milliseconds)
-                          // ClickHouse typically returns Unix timestamps in seconds
-                          dataPoint.timestamp = value > 1e10 ? value : value * 1000;
-                        } else {
-                          dataPoint.timestamp = new Date(String(value)).getTime();
-                        }
-                        // Also store with original name for compatibility
-                        dataPoint[colName] = dataPoint.timestamp;
-                      } else {
-                        dataPoint[colName] = value;
-                      }
-                    });
-                  } else {
-                    // Object format: row is {column1: value1, column2: value2, ...}
-                    const rowObject = row as Record<string, unknown>;
-                    Object.keys(rowObject).forEach((colName) => {
-                      const value = rowObject[colName];
-                      
-                      // Handle timestamp column (common names: timestamp, time, _time, t, etc.)
-                      if (colName.toLowerCase().includes("time") || colName.toLowerCase().includes("date") || colName === "t") {
-                        // Convert to timestamp if it's a string
-                        if (typeof value === "string") {
-                          dataPoint.timestamp = new Date(value).getTime();
-                        } else if (typeof value === "number") {
-                          // If it's already a number, treat as Unix timestamp (seconds or milliseconds)
-                          // ClickHouse typically returns Unix timestamps in seconds
-                          dataPoint.timestamp = value > 1e10 ? value : value * 1000;
-                        } else {
-                          dataPoint.timestamp = new Date(String(value)).getTime();
-                        }
-                        // Also store with original name for compatibility
-                        dataPoint[colName] = dataPoint.timestamp;
-                      } else {
-                        dataPoint[colName] = value;
-                      }
-                    });
-                  }
-                  
-                  return dataPoint;
-                });
+                const transformedData = transformRowsToChartData(rows, meta);
 
                 // Store meta for later use in chart rendering
                 setMeta(meta);
 
                 // Auto-detect columns if not specified in descriptor
-                if (descriptor.columns.length === 0 || (descriptor.columns.length === 1 && typeof descriptor.columns[0] === "string" && descriptor.columns[0] === "value")) {
+                if (
+                  descriptor.columns.length === 0 ||
+                  (descriptor.columns.length === 1 &&
+                    typeof descriptor.columns[0] === "string" &&
+                    descriptor.columns[0] === "value")
+                ) {
                   // Find metric columns (exclude timestamp and label columns)
                   let metricColumns: string[];
-                  
+
                   if (isArrayFormat && meta.length > 0) {
                     // Use meta for array format
                     metricColumns = meta
                       .map((colMeta: { name: string; type?: string }) => colMeta.name)
                       .filter((name: string) => {
                         const lower = name.toLowerCase();
-                        return !lower.includes("time") && 
-                               !lower.includes("date") && 
-                               name !== "t" &&
-                               (name.includes("(") || name.includes("sum(") || name.includes("count(") || name.includes("avg(") || name.includes("min(") || name.includes("max("));
+                        return (
+                          !lower.includes("time") &&
+                          !lower.includes("date") &&
+                          name !== "t" &&
+                          (name.includes("(") ||
+                            name.includes("sum(") ||
+                            name.includes("count(") ||
+                            name.includes("avg(") ||
+                            name.includes("min(") ||
+                            name.includes("max("))
+                        );
                       });
                   } else {
                     // Use object keys for object format
                     const firstRowObj = rows[0] as Record<string, unknown>;
-                    metricColumns = Object.keys(firstRowObj).filter(
-                      (name: string) => {
-                        const lower = name.toLowerCase();
-                        return !lower.includes("time") && 
-                               !lower.includes("date") && 
-                               name !== "t" &&
-                               (name.includes("(") || name.includes("sum(") || name.includes("count(") || name.includes("avg(") || name.includes("min(") || name.includes("max("));
-                      }
-                    );
+                    metricColumns = Object.keys(firstRowObj).filter((name: string) => {
+                      const lower = name.toLowerCase();
+                      return (
+                        !lower.includes("time") &&
+                        !lower.includes("date") &&
+                        name !== "t" &&
+                        (name.includes("(") ||
+                          name.includes("sum(") ||
+                          name.includes("count(") ||
+                          name.includes("avg(") ||
+                          name.includes("min(") ||
+                          name.includes("max("))
+                      );
+                    });
                   }
-                  
+
                   if (metricColumns.length > 0) {
                     setDetectedColumns(metricColumns);
                   }
@@ -592,6 +761,8 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
                 setData(transformedData);
                 setError("");
+                // Mark that we successfully loaded with these parameters
+                lastLoadedParamsRef.current = param;
               } catch (err) {
                 console.error("Error processing chart response:", err);
                 const errorMessage = err instanceof Error ? err.message : String(err);
@@ -645,38 +816,78 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           return;
         }
 
+        // loadData already has duplicate check - it will skip if parameters haven't changed
         loadData(param);
       },
       [descriptor, loadData]
     );
 
     // Use shared refreshable hook
+    const getInitialParams = useCallback(() => {
+      return propSelectedTimeSpan
+        ? ({ inputFilter: propInputFilter, selectedTimeSpan: propSelectedTimeSpan } as RefreshParameter)
+        : undefined;
+    }, [propSelectedTimeSpan, propInputFilter]);
+
     const { componentRef, isCollapsed, setIsCollapsed, refresh, getLastRefreshParameter } = useRefreshable({
       componentId: descriptor.id,
       initialCollapsed: descriptor.isCollapsed ?? false,
       refreshInternal,
+      getInitialParams,
     });
 
-    // Resize chart when expanded/collapsed state changes
+    // Initial load when component mounts or when props change
+    // No manual initial refresh here; useRefreshable handles it via getInitialParams
+
+    // Initialize echarts instance with theme support
     useEffect(() => {
-      if (chartInstanceRef.current && !isCollapsed) {
-        // Use setTimeout to ensure DOM is updated before resizing
-        const timer = setTimeout(() => {
-          if (chartInstanceRef.current && chartContainerRef.current) {
-            chartInstanceRef.current.resize();
-            // Re-render chart with current data when expanded
-            if (data && data.length > 0) {
-              // Trigger a re-render by calling setOption again
-              const currentOption = chartInstanceRef.current.getOption();
-              if (currentOption) {
-                chartInstanceRef.current.setOption(currentOption as echarts.EChartsOption, false);
-              }
-            }
-          }
-        }, 100);
-        return () => clearTimeout(timer);
+      if (!chartContainerRef.current) {
+        return;
       }
-    }, [isCollapsed, data]);
+
+      // Dispose existing instance if theme changed
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.dispose();
+        chartInstanceRef.current = null;
+      }
+
+      // Initialize with dark theme if in dark mode
+      const chartTheme = isDark ? "dark" : undefined;
+      const chartInstance = echarts.init(chartContainerRef.current, chartTheme);
+      chartInstanceRef.current = chartInstance;
+
+      // Handle window resize
+      const handleResize = () => {
+        if (chartInstanceRef.current) {
+          chartInstanceRef.current.resize();
+        }
+      };
+      window.addEventListener("resize", handleResize);
+
+      return () => {
+        window.removeEventListener("resize", handleResize);
+        if (chartInstanceRef.current) {
+          chartInstanceRef.current.dispose();
+          chartInstanceRef.current = null;
+        }
+      };
+    }, [isDark]);
+
+    // Resize chart when expanded/collapsed state changes (since content is now hidden, not unmounted)
+    useEffect(() => {
+      if (!chartInstanceRef.current) {
+        return;
+      }
+
+      // Use requestAnimationFrame to wait for DOM update
+      const frameId = requestAnimationFrame(() => {
+        if (chartInstanceRef.current) {
+          chartInstanceRef.current.resize();
+        }
+      });
+
+      return () => cancelAnimationFrame(frameId);
+    }, [isCollapsed]);
 
     // Expose methods via ref (including getEChartInstance for echarts connection)
     useImperativeHandle(ref, () => ({
@@ -695,7 +906,87 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
       };
     }, []);
 
-    const hasTitle = !!descriptor.titleOption?.title;
+    // Show raw data dialog
+    const showRawDataDialog = useCallback(
+      (e) => {
+        e.stopPropagation();
+        if (data.length === 0) {
+          Dialog.alert({
+            title: "No Data",
+            description: "There is no data to display.",
+          });
+          return;
+        }
+
+        // Get all unique column names from the data
+        const allColumns = new Set<string>();
+        data.forEach((row) => {
+          Object.keys(row).forEach((key) => allColumns.add(key));
+        });
+        const rawColumns = Array.from(allColumns);
+
+        Dialog.showDialog({
+          title: "Query Result - " + descriptor.titleOption?.title,
+          description: `Showing ${data.length} row(s) of raw query result data`,
+          className: "max-w-[50vw] max-h-[80vh]",
+          disableContentScroll: true,
+          mainContent: (
+            <div className="overflow-auto max-h-[60vh] bg-background">
+              <table className="w-full caption-bottom text-sm border-collapse">
+                <thead className="sticky top-0 z-10 bg-background [&_tr]:border-b">
+                  <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                    {rawColumns.map((colName) => (
+                      <th
+                        key={colName}
+                        className="px-4 py-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap bg-background"
+                      >
+                        {colName}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
+                  {data.map((row, rowIndex) => (
+                    <tr
+                      key={rowIndex}
+                      className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                    >
+                      {rawColumns.map((colName) => {
+                        const value = row[colName];
+                        // Format the value for display
+                        let displayValue: React.ReactNode;
+                        if (value === null || value === undefined) {
+                          displayValue = <span className="text-muted-foreground">-</span>;
+                        } else if (colName === "timestamp" && typeof value === "number") {
+                          // Only format the 'timestamp' column (added by the component) as date/time
+                          // Convert to milliseconds if it's in seconds (timestamp < 1e10)
+                          const timestampMs = value > 1e10 ? value : value * 1000;
+                          const date = new Date(timestampMs);
+                          const formatted = DateTimeExtension.formatDateTime(date, "yyyy-MM-dd HH:mm:ss");
+                          displayValue = <span>{formatted || date.toISOString()}</span>;
+                        } else if (typeof value === "object") {
+                          displayValue = <span className="font-mono text-xs">{JSON.stringify(value, null, 2)}</span>;
+                        } else {
+                          displayValue = <span>{String(value)}</span>;
+                        }
+                        return (
+                          <td key={colName} className="p-2 align-middle whitespace-nowrap">
+                            {displayValue}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ),
+        });
+      },
+      [data]
+    );
+
+    const hasTitle = !!descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false;
 
     return (
       <Card ref={componentRef} className="@container/card relative">
@@ -703,35 +994,88 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
         <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
           {hasTitle && descriptor.titleOption && (
             <CardHeader className="p-0">
-              <CollapsibleTrigger className="w-full">
-                <div className={cn("flex items-center p-3 bg-muted/50 transition-colors gap-2 hover:bg-muted")}>
-                  <ChevronRight
-                    className={cn("h-4 w-4 transition-transform duration-200 shrink-0", !isCollapsed && "rotate-90")}
-                  />
-                  <div className="flex-1 text-left">
-                    <CardDescription
-                      className={cn(
-                        descriptor.titleOption.align ? "text-" + descriptor.titleOption.align : "text-left",
-                        "font-semibold text-foreground m-0"
-                      )}
-                    >
-                      {descriptor.titleOption.title}
-                    </CardDescription>
-                    {descriptor.titleOption.description && (
-                      <CardDescription className="text-xs mt-1 m-0">
-                        {descriptor.titleOption.description}
+              <div className="flex items-center">
+                <CollapsibleTrigger className="flex-1">
+                  <div className={cn("flex items-center p-2 bg-muted/50 transition-colors gap-2 hover:bg-muted")}>
+                    <ChevronRight
+                      className={cn("h-4 w-4 transition-transform duration-200 shrink-0", !isCollapsed && "rotate-90")}
+                    />
+                    <div className="flex-1 text-left">
+                      <CardDescription
+                        className={cn(
+                          descriptor.titleOption.align ? "text-" + descriptor.titleOption.align : "text-left",
+                          "font-semibold text-foreground m-0"
+                        )}
+                      >
+                        {descriptor.titleOption.title}
                       </CardDescription>
-                    )}
+                      {descriptor.titleOption.description && (
+                        <CardDescription className="text-xs mt-1 m-0">
+                          {descriptor.titleOption.description}
+                        </CardDescription>
+                      )}
+                    </div>
+                    <div className="pr-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6 p-0 flex items-center justify-center hover:ring-2 hover:ring-foreground/20"
+                            title="More options"
+                            aria-label="More options"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <EllipsisVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                </div>
-              </CollapsibleTrigger>
+                </CollapsibleTrigger>
+              </div>
             </CardHeader>
           )}
           {!hasTitle && descriptor.titleOption && (
             <CardHeader className="pt-5 pb-3">
-              {descriptor.titleOption.description && (
-                <CardDescription className="text-xs">{descriptor.titleOption.description}</CardDescription>
-              )}
+              <div className="flex items-center justify-between">
+                {descriptor.titleOption.description && (
+                  <CardDescription className="text-xs">{descriptor.titleOption.description}</CardDescription>
+                )}
+                <div className="ml-auto">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Minus className="h-4 w-4" />
+                        <span className="sr-only">More options</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </CardHeader>
+          )}
+          {!descriptor.titleOption && (
+            <CardHeader className="p-0">
+              <div className="flex items-center justify-end pr-2 pt-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Minus className="h-4 w-4" />
+                      <span className="sr-only">More options</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
           )}
           <CollapsibleContent>
@@ -764,4 +1108,3 @@ RefreshableTimeseriesChart.displayName = "RefreshableTimeseriesChart";
 
 export default RefreshableTimeseriesChart;
 export type { RefreshableTimeseriesChartProps };
-

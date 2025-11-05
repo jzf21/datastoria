@@ -2,11 +2,12 @@
 
 import { connect } from "echarts";
 import { useCallback, useMemo, useRef } from "react";
-import type { ChartDescriptor } from "./chart-utils";
+import type { ChartDescriptor, StatDescriptor, TimeseriesDescriptor } from "./chart-utils";
 import { DashboardGroupSection } from "./dashboard-group-section";
 import type { Dashboard, DashboardGroup } from "./dashboard-model";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableStatComponent from "./refreshable-stat-chart";
+ 
 import RefreshableTimeseriesChart from "./refreshable-timeseries-chart";
 import TimeSpanSelector, { BUILT_IN_TIME_SPAN_LIST } from "./timespan-selector";
 
@@ -14,11 +15,19 @@ interface DashboardViewProps {
   dashboard: Dashboard;
   searchParams?: Record<string, unknown> | URLSearchParams;
   headerActions?: React.ReactNode;
+
+  children?: React.ReactNode;
 }
 
 // Helper function to check if an item is a DashboardGroup
-function isDashboardGroup(item: any): item is DashboardGroup {
-  return item && typeof item === "object" && "title" in item && "charts" in item && Array.isArray(item.charts);
+function isDashboardGroup(item: unknown): item is DashboardGroup {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    "title" in item &&
+    "charts" in item &&
+    Array.isArray((item as { charts: unknown }).charts)
+  );
 }
 
 // Helper function to flatten all charts from dashboard (including charts in groups)
@@ -34,10 +43,11 @@ function getAllCharts(dashboard: Dashboard): ChartDescriptor[] {
   return allCharts;
 }
 
-const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams = {}, headerActions }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams = {}, headerActions, children }) => {
   const inputFilterRef = useRef<HTMLInputElement>(undefined);
   const subComponentRefs = useRef<(RefreshableComponent | null)[]>([]);
-  const filterRef = useRef<TimeSpanSelector>(null as any);
+  const filterRef = useRef<TimeSpanSelector | null>(null);
+
 
   // Function to connect all chart instances together
   const connectAllCharts = useCallback(() => {
@@ -66,31 +76,17 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
   }, [dashboard]);
 
   // Callback when the sub component is mounted or unmounted
+  // Charts are now responsible for their own initial loading via props
   const onSubComponentUpdated = useCallback(
     (subComponent: RefreshableComponent | null, index: number) => {
       subComponentRefs.current[index] = subComponent;
-
-      if (subComponent === null) {
-        // Skip the unmounted event
-        return;
-      }
-
-      if (subComponent && typeof subComponent.refresh === "function") {
-        // Load data for the sub component once it's rendered
-        subComponent.refresh({
-          inputFilter: inputFilterRef.current?.value,
-          selectedTimeSpan: filterRef.current?.getSelectedTimeSpan().calculateAbsoluteTimeSpan(),
-        });
-      }
-
       connectAllCharts();
     },
-    // We need to access properties of dashboard which is set after this component is loaded
     [connectAllCharts]
   );
 
   const refreshAllCharts = useCallback(() => {
-    if (filterRef.current === undefined) {
+    if (!filterRef.current) {
       return;
     }
 
@@ -117,7 +113,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
   const defaultTimeSpan = useMemo(() => {
     // Otherwise, use the default "Last 15 Mins"
     return BUILT_IN_TIME_SPAN_LIST[3];
-  }, [dashboard?.filter]);
+  }, []);
+
+  // No initial refresh here; each component handles its own initial refresh via useRefreshable
 
   console.log("Rendering dashboard", dashboard?.name);
 
@@ -219,21 +217,24 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                                   width: widthStyle,
                                 }}
                               >
-                                {(chart.type === "line" || chart.type === "bar" || chart.type === "area") && (
-                                  <RefreshableTimeseriesChart
-                                    ref={(el) => {
-                                      onSubComponentUpdated(el, currentIndex);
-                                    }}
-                                    descriptor={chart as any}
-                                    searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
-                                  />
-                                )}
+                              {(chart.type === "line" || chart.type === "bar" || chart.type === "area") && (
+                                <RefreshableTimeseriesChart
+                                  ref={(el) => {
+                                    onSubComponentUpdated(el, currentIndex);
+                                  }}
+                                  descriptor={chart as TimeseriesDescriptor}
+                                  selectedTimeSpan={filterRef.current?.getSelectedTimeSpan()?.calculateAbsoluteTimeSpan()}
+                                  inputFilter={inputFilterRef.current?.value}
+                                  searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                />
+                              )}
                                 {chart.type === "stat" && (
                                   <RefreshableStatComponent
                                     ref={(el) => {
                                       onSubComponentUpdated(el, currentIndex);
                                     }}
-                                    descriptor={chart as any}
+                                    descriptor={chart as StatDescriptor}
+                                    selectedTimeSpan={filterRef.current?.getSelectedTimeSpan()?.calculateAbsoluteTimeSpan()}
                                     searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                                   />
                                 )}
@@ -254,7 +255,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                           const widthPercent = chart.width >= 4 ? 100 : (chart.width / 4) * 100;
                           const gapAdjustment = chart.width >= 4 ? 0 : (3 * 0.25) / 4; // 0.1875rem per chart
                           const widthStyle = chart.width >= 4 ? "100%" : `calc(${widthPercent}% - ${gapAdjustment}rem)`;
-                          return (
+                      return (
                             <div
                               key={`chart-${chartIndex}`}
                               style={{
@@ -266,7 +267,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                                   ref={(el) => {
                                     onSubComponentUpdated(el, currentIndex);
                                   }}
-                                  descriptor={chart as any}
+                                  descriptor={chart as TimeseriesDescriptor}
+                                  selectedTimeSpan={filterRef.current?.getSelectedTimeSpan()?.calculateAbsoluteTimeSpan()}
+                                  inputFilter={inputFilterRef.current?.value}
                                   searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                                 />
                               )}
@@ -275,7 +278,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                                   ref={(el) => {
                                     onSubComponentUpdated(el, currentIndex);
                                   }}
-                                  descriptor={chart as any}
+                                  descriptor={chart as StatDescriptor}
+                                  selectedTimeSpan={filterRef.current?.getSelectedTimeSpan()?.calculateAbsoluteTimeSpan()}
                                   searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                                 />
                               )}
@@ -286,6 +290,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                     );
                   }
                 })}
+                {children}
               </div>
             );
           })()}

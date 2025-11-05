@@ -5,6 +5,9 @@ interface UseRefreshableOptions {
   componentId?: string;
   initialCollapsed?: boolean;
   refreshInternal: (param: RefreshParameter) => void;
+  // Provide initial parameters so the hook can trigger the first refresh automatically
+  // Components should memoize this function with useCallback and include their dependencies
+  getInitialParams?: () => RefreshParameter | undefined;
 }
 
 interface UseRefreshableReturn {
@@ -27,6 +30,7 @@ export function useRefreshable({
   componentId,
   initialCollapsed = false,
   refreshInternal,
+  getInitialParams,
 }: UseRefreshableOptions): UseRefreshableReturn {
   // State
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
@@ -38,13 +42,58 @@ export function useRefreshable({
   const refreshParameterRef = useRef<RefreshParameter | undefined>(undefined);
   const lastRefreshParamRef = useRef<RefreshParameter | undefined>(undefined);
 
-  // Check if component is in viewport
+  // Check if component is actually visible (not hidden by collapsed parents, and in viewport)
   const isComponentInView = useCallback((): boolean => {
-    if (componentRef.current) {
-      const rect = componentRef.current.getBoundingClientRect();
-      return rect.top >= 0 && rect.top < (window.innerHeight || document.documentElement.clientHeight);
+    if (!componentRef.current) {
+      return false;
     }
-    return false;
+
+    const element = componentRef.current;
+
+    // Check if element is actually visible (not hidden by collapsed parents)
+    // Elements inside collapsed CollapsibleContent have display: none or height: 0
+    const rect = element.getBoundingClientRect();
+    const isVisible = rect.width > 0 && rect.height > 0;
+    
+    if (!isVisible) {
+      return false;
+    }
+
+    // Check if any parent is hidden (collapsed)
+    // Only check up to body element to avoid false positives
+    let parent: HTMLElement | null = element.parentElement;
+    while (parent && parent !== document.body) {
+      const style = window.getComputedStyle(parent);
+      // Check if parent is hidden via display: none or visibility: hidden
+      if (style.display === 'none' || style.visibility === 'hidden') {
+        return false;
+      }
+      // Check if parent has hidden attribute
+      if (parent.hasAttribute('hidden')) {
+        return false;
+      }
+      // Check if parent has collapsed content (CollapsibleContent when closed)
+      // CollapsibleContent uses data-state="closed" with hidden class
+      // But we need to check if this parent itself is the CollapsibleContent, not just any parent with data-state
+      if (parent.hasAttribute('data-state') && parent.getAttribute('data-state') === 'closed') {
+        // Only treat as hidden if the computed style confirms it (display: none from the data-state:closed class)
+        if (style.display === 'none') {
+          return false;
+        }
+      }
+      parent = parent.parentElement;
+    }
+
+    // Check if element is in viewport (with some margin for elements at the edge)
+    // Element is considered in viewport if any part of it is visible
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const elementBottom = rect.bottom;
+    const elementTop = rect.top;
+    
+    // Element is in viewport if:
+    // - Top is above bottom of viewport AND
+    // - Bottom is below top of viewport
+    return elementTop < viewportHeight && elementBottom > 0;
   }, []);
 
   // Check if component should refresh (not collapsed AND in viewport)
@@ -62,38 +111,68 @@ export function useRefreshable({
         return;
       }
 
-      lastRefreshParamRef.current = param;
+      // Store the parameter for potential deferred execution
       refreshParameterRef.current = param;
 
+      // Re-check visibility at the time of refresh (it may have changed)
+      const isCurrentlyVisible = isComponentInView();
+      const shouldRefreshNow = !isCollapsed && isCurrentlyVisible;
+
       console.trace(
-        `Component [${componentId || "unknown"}] refresh called, isCollapsed: ${isCollapsed}, isInView: ${isComponentInView()}, hasTimeSpan: ${!!param.selectedTimeSpan}`
+        `Component [${componentId || "unknown"}] refresh called, isCollapsed: ${isCollapsed}, isInView: ${isCurrentlyVisible}, shouldRefresh: ${shouldRefreshNow}, hasTimeSpan: ${!!param.selectedTimeSpan}`
       );
 
       // Only refresh if NOT collapsed AND in viewport
-      if (shouldRefresh()) {
+      if (shouldRefreshNow) {
+        // Only update lastRefreshParamRef after successfully executing refresh
         refreshInternal(param);
+        lastRefreshParamRef.current = param;
         setNeedRefresh(false);
       } else {
         // Mark that refresh is needed when component becomes visible/expanded
+        // Don't update lastRefreshParamRef here - we haven't executed yet
         setNeedRefresh(true);
+        console.trace(
+          `Component [${componentId || "unknown"}] refresh deferred - will refresh when visible. isCollapsed: ${isCollapsed}, isInView: ${isCurrentlyVisible}`
+        );
       }
     },
-    [componentId, isCollapsed, isComponentInView, shouldRefresh, refreshInternal]
+    [componentId, isCollapsed, isComponentInView, refreshInternal]
   );
 
   const getLastRefreshParameter = useCallback((): RefreshParameter => {
     return refreshParameterRef.current || {};
   }, []);
 
+  // Trigger initial refresh (deferred until visible if needed)
+  useEffect(() => {
+    if (!getInitialParams) return;
+    const params = getInitialParams();
+    if (!params) return;
+    // Delegate to refresh which handles visibility and de-duplication
+    refresh(params);
+    // getInitialParams should be memoized by callers
+  }, [getInitialParams, refresh]);
+
   // Handle collapsed state changes - refresh when expanded if needed
   useEffect(() => {
     if (!isCollapsed && needRefresh && shouldRefresh()) {
-      console.trace(`Component [${componentId || "unknown"}] expanding and refreshing...`);
       const currentParam = refreshParameterRef.current;
       if (currentParam) {
-        refreshInternal(currentParam);
+        // Check if parameters have actually changed before refreshing
+        // If parameters haven't changed, don't re-fetch - just clear the needRefresh flag
+        if (lastRefreshParamRef.current && JSON.stringify(lastRefreshParamRef.current) === JSON.stringify(currentParam)) {
+          console.trace(`Component [${componentId || "unknown"}] expanding but parameters unchanged - skipping refresh`);
+          setNeedRefresh(false);
+        } else {
+          console.trace(`Component [${componentId || "unknown"}] expanding and refreshing with new parameters...`);
+          refreshInternal(currentParam);
+          lastRefreshParamRef.current = currentParam;
+          setNeedRefresh(false);
+        }
+      } else {
+        setNeedRefresh(false);
       }
-      setNeedRefresh(false);
     }
   }, [isCollapsed, needRefresh, shouldRefresh, componentId, refreshInternal]);
 
@@ -101,13 +180,28 @@ export function useRefreshable({
   useEffect(() => {
     const handleIntersection = (entries: IntersectionObserverEntry[]) => {
       const entry = entries[0];
-      if (entry.isIntersecting && needRefresh && shouldRefresh()) {
-        console.trace(`Component [${componentId || "unknown"}] entering viewport and refreshing...`);
+      // Trigger if element is intersecting and visible
+      if (entry.isIntersecting && entry.intersectionRatio > 0 && shouldRefresh()) {
+        // Double-check visibility using our more thorough check
+        if (!isComponentInView()) {
+          return;
+        }
+
         const currentParam = refreshParameterRef.current;
         if (currentParam) {
-          refreshInternal(currentParam);
+          // Check if parameters have actually changed before refreshing
+          if (lastRefreshParamRef.current && JSON.stringify(lastRefreshParamRef.current) === JSON.stringify(currentParam)) {
+            console.trace(`Component [${componentId || "unknown"}] entering viewport but parameters unchanged - skipping refresh`);
+            setNeedRefresh(false);
+          } else {
+            console.trace(`Component [${componentId || "unknown"}] entering viewport and refreshing...`);
+            refreshInternal(currentParam);
+            lastRefreshParamRef.current = currentParam;
+            setNeedRefresh(false);
+          }
         }
-        setNeedRefresh(false);
+        // Note: If currentParam is undefined, we don't set needRefresh to false
+        // This allows the component to refresh later when parameters become available
       }
     };
 
@@ -115,7 +209,7 @@ export function useRefreshable({
     observerRef.current = new IntersectionObserver(handleIntersection, {
       root: null,
       rootMargin: "0px",
-      threshold: 0.1,
+      threshold: [0, 0.1], // Observe both when entering and when fully visible
     });
 
     if (currentComponent) {
@@ -127,7 +221,7 @@ export function useRefreshable({
         observerRef.current.unobserve(currentComponent);
       }
     };
-  }, [componentId, needRefresh, shouldRefresh, refreshInternal]);
+  }, [componentId, needRefresh, shouldRefresh, refreshInternal, isComponentInView]);
 
   return {
     componentRef,

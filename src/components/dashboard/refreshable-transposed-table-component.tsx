@@ -156,10 +156,15 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
     );
 
     // Use shared refreshable hook
+    const getInitialParams = useCallback(() => {
+      return props.selectedTimeSpan ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshParameter) : undefined;
+    }, [props.selectedTimeSpan]);
+
     const { componentRef, isCollapsed, setIsCollapsed, refresh, getLastRefreshParameter } = useRefreshable({
       componentId: descriptor.id,
       initialCollapsed: descriptor.isCollapsed ?? false,
       refreshInternal,
+      getInitialParams,
     });
 
     // Expose methods via ref

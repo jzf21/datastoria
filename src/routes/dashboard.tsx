@@ -1,13 +1,15 @@
-import type { TimeseriesDescriptor } from "@/components/dashboard/chart-utils";
+import type { StatDescriptor, TableDescriptor, TimeseriesDescriptor } from "@/components/dashboard/chart-utils";
 import DashboardContainer from "@/components/dashboard/dashboard-container";
+import { DashboardGroupSection } from "@/components/dashboard/dashboard-group-section";
 import type { Dashboard, DashboardGroup } from "@/components/dashboard/dashboard-model";
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/use-dialog";
 import { Api, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, EllipsisVertical } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 export const Route = createFileRoute("/dashboard")({
@@ -21,120 +23,159 @@ const predefinedDashboard = {
   filter: {},
   charts: [
     {
-      type: "stat",
-      titleOption: {
-        title: "Server UP Time",
-      },
-      width: 1,
-      description: "How long the server has been running",
-      query: {
-        sql: "SELECT uptime() * 1000",
-      },
-      valueOption: {
-        format: "timeDuration",
-      },
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Server Version",
-      },
-      width: 1,
-      description: "The version of the server",
-      query: {
-        sql: "SELECT version()",
-      },
-      valueOption: {},
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Databases",
-      },
-      width: 1,
-      description: "The number of databases on the server",
-      query: {
-        sql: "SELECT count() FROM system.databases",
-      },
-      valueOption: {},
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Tables",
-      },
-      width: 1,
-      description: "The number of databases on the server",
-      query: {
-        sql: "SELECT count() FROM system.tables",
-      },
-      valueOption: {},
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Total Size of tables",
-      },
-      width: 1,
-      description: "Total size of all active parts",
-      query: {
-        sql: `SELECT sum(bytes_on_disk) FROM system.parts WHERE active = 1`,
-      },
-      valueOption: {
-        format: "binary_size",
-      },
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Used Storage",
-      },
-      width: 1,
-      description: "The number of databases on the server",
-      query: {
-        sql: `SELECT round((1 - sum(free_space) / sum(total_space)) * 100, 2) AS used_percent
-        FROM system.disks`,
-      },
-      valueOption: {
-        format: "percentage",
-      },
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Ongoing Merges",
-      },
-      width: 1,
-      description: "The number of ongoing merges",
-      query: {
-        sql: `SELECT count() FROM system.merges`,
-      },
-      valueOption: {},
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Ongoing Mutations",
-      },
-      width: 1,
-      description: "The number of ongoing mutations",
-      query: {
-        sql: `SELECT count() FROM system.mutations WHERE is_done = 0`,
-      },
-      valueOption: {},
-    },
-    {
-      type: "stat",
-      titleOption: {
-        title: "Running queries",
-      },
-      width: 1,
-      description: "The number of running queries",
-      query: {
-        sql: `SELECT count() FROM system.processes`,
-      },
-      valueOption: {},
-    },
+      title: "Server Status",
+      isCollapsed: false,
+      charts: [
+        {
+          type: "stat",
+          titleOption: {
+            title: "Server UP Time",
+          },
+          width: 1,
+          description: "How long the server has been running",
+          query: {
+            sql: "SELECT uptime() * 1000",
+          },
+          valueOption: {
+            format: "timeDuration",
+          },
+        },
+        {
+          type: "stat",
+          titleOption: {
+            title: "Server Version",
+          },
+          width: 1,
+          description: "The version of the server",
+          query: {
+            sql: "SELECT version()",
+          },
+          valueOption: {},
+        },
+        {
+          type: "stat",
+          titleOption: {
+            title: "Databases",
+          },
+          width: 1,
+          description: "The number of databases on the server",
+          query: {
+            sql: "SELECT count() FROM system.databases",
+          },
+          valueOption: {},
+        },
+        {
+          type: "stat",
+          titleOption: {
+            title: "Tables",
+          },
+          width: 1,
+          description: "The number of databases on the server",
+          query: {
+            sql: "SELECT count() FROM system.tables",
+          },
+          valueOption: {},
+        },
+        {
+          type: "stat",
+          titleOption: {
+            title: "Total Size of tables",
+          },
+          width: 1,
+          description: "Total size of all active parts",
+          query: {
+            sql: `SELECT sum(bytes_on_disk) FROM system.parts WHERE active = 1`,
+          },
+          valueOption: {
+            format: "binary_size",
+          },
+          drilldown: {
+            "table-size": {
+              type: "table",
+              titleOption: {
+                title: "Table Size",
+                description: "The size of all tables",
+              },
+              columns: [
+                {
+                  name: "database",
+                  title: "Database",
+                },
+                {
+                  name: "table",
+                  title: "Table",
+                },
+                {
+                  name: "size",
+                  title: "Size",
+                  format: "binary_size",
+                },
+              ],
+              sortOption: {
+                initialSort: {
+                  column: "size",
+                  direction: "desc",
+                },
+              },
+              query: {
+                sql: `SELECT database, table, sum(bytes_on_disk) as size FROM system.parts WHERE active = 1 GROUP BY database, table ORDER BY size DESC`,
+              },
+            } as TableDescriptor,
+          },
+        } as unknown as StatDescriptor,
+        {
+          type: "stat",
+          titleOption: {
+            title: "Used Storage",
+          },
+          width: 1,
+          description: "The number of databases on the server",
+          query: {
+            sql: `SELECT round((1 - sum(free_space) / sum(total_space)) * 100, 2) AS used_percent
+              FROM system.disks`,
+          },
+          valueOption: {
+            format: "percentage",
+          },
+        },
+        {
+          type: "stat",
+          titleOption: {
+            title: "Ongoing Merges",
+          },
+          width: 1,
+          description: "The number of ongoing merges",
+          query: {
+            sql: `SELECT count() FROM system.merges`,
+          },
+          valueOption: {},
+        },
+        {
+          type: "stat",
+          titleOption: {
+            title: "Ongoing Mutations",
+          },
+          width: 1,
+          description: "The number of ongoing mutations",
+          query: {
+            sql: `SELECT count() FROM system.mutations WHERE is_done = 0`,
+          },
+          valueOption: {},
+        },
+        {
+          type: "stat",
+          titleOption: {
+            title: "Running queries",
+          },
+          width: 1,
+          description: "The number of running queries",
+          query: {
+            sql: `SELECT count() FROM system.processes`,
+          },
+          valueOption: {},
+        },
+      ],
+    } as DashboardGroup,
   ],
 } as Dashboard;
 
@@ -261,10 +302,10 @@ function DashboardPage() {
             // Convert each row to a timeseries chart, grouped by dashboard name
             const dashboardGroups: DashboardGroup[] = [];
             const skipped: SkippedDashboard[] = [];
-            
+
             dashboardMap.forEach((dashboardRows, dashboardName) => {
               const groupCharts: TimeseriesDescriptor[] = [];
-              
+
               dashboardRows.forEach((row, index) => {
                 const columns = ["value"]; // Default column name
 
@@ -348,19 +389,20 @@ function DashboardPage() {
               }
             });
 
-            // Update skipped dashboards state
-            setSkippedDashboards(skipped);
+            // We no longer track skipped dashboards in state; they are rendered as a final group
 
             // Merge predefined dashboard charts with groups from system.dashboards
+            const mergedCharts = [...predefinedDashboard.charts, ...dashboardGroups] as Dashboard["charts"];
+
+            // Track skipped dashboards in state for separate rendering
+            setSkippedDashboards(skipped);
+
             const mergedDashboard: Dashboard = {
               name: predefinedDashboard.name,
               folder: predefinedDashboard.folder,
               title: predefinedDashboard.title,
               filter: predefinedDashboard.filter,
-              charts: [
-                ...predefinedDashboard.charts,
-                ...dashboardGroups,
-              ],
+              charts: mergedCharts,
             };
 
             setDashboard(mergedDashboard);
@@ -456,60 +498,7 @@ function DashboardPage() {
     );
   }, [selectedConnection, fetchDashboards]);
 
-  const showSkippedDashboardsDialog = useCallback(() => {
-    Dialog.showDialog({
-      title: "Skipped Dashboards",
-      description: "The following dashboards were skipped because they reference tables that are not available:",
-      mainContent: (
-        <div className="space-y-4">
-          {skippedDashboards.map((skipped, index) => (
-            <div key={index} className="border rounded-lg p-4 space-y-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-semibold">{skipped.title}</h4>
-                  <p className="text-sm text-muted-foreground">Dashboard: {skipped.dashboard}</p>
-                  <p className="text-sm text-yellow-600 dark:text-yellow-500 mt-1">Reason: {skipped.reason}</p>
-                </div>
-              </div>
-              <details className="mt-2">
-                <summary className="text-sm cursor-pointer text-muted-foreground hover:text-foreground">
-                  View Query
-                </summary>
-                <div className="mt-2 overflow-x-auto">
-                  <ThemedSyntaxHighlighter language="sql" customStyle={{ margin: 0, borderRadius: "0.375rem" }}>
-                    {skipped.query}
-                  </ThemedSyntaxHighlighter>
-                </div>
-              </details>
-            </div>
-          ))}
-        </div>
-      ),
-      className: "max-w-[800px] max-h-[80vh]",
-      dialogButtons: [
-        {
-          text: "OK",
-          onClick: async () => true,
-          default: true,
-        },
-      ],
-    });
-  }, [skippedDashboards]);
-
-  const headerActions =
-    skippedDashboards.length > 0 ? (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={showSkippedDashboardsDialog}
-        className="text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400"
-      >
-        <AlertTriangle className="h-4 w-4 mr-2" />
-        <span>
-          {skippedDashboards.length} dashboard{skippedDashboards.length > 1 ? "s" : ""} skipped
-        </span>
-      </Button>
-    ) : null;
+  const headerActions = null;
 
   if (error) {
     return (
@@ -526,7 +515,67 @@ function DashboardPage() {
 
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 49px)" }}>
-      <DashboardContainer dashboard={dashboard} headerActions={headerActions} />
+      <DashboardContainer dashboard={dashboard} headerActions={headerActions}>
+        {skippedDashboards.length > 0 && (
+          <DashboardGroupSection
+            title={
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="font-semibold">Skipped Dashboards</span>
+              </div>
+            }
+            defaultOpen={false}
+          >
+            <div className="card-container flex flex-wrap gap-1">
+              {skippedDashboards.map((s, i) => (
+                <div key={`skipped-${i}`} style={{ width: `calc(${(1 / 4) * 100}% - ${(3 * 0.25) / 4}rem)` }}>
+                  <Card className="relative">
+                    <CardHeader className="p-0">
+                      <div className="flex items-center p-2 bg-muted/50 transition-colors gap-2">
+                        <div className="flex-1 text-left">
+                          <CardTitle className="m-0 text-left text-base">{s.title}</CardTitle>
+                        </div>
+                        <div className="pr-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6 p-0 flex items-center justify-center hover:ring-2 hover:ring-foreground/20"
+                            title="Show query"
+                            aria-label="Show query"
+                            onClick={() => {
+                              Dialog.showDialog({
+                                title: s.title || "Query",
+                                description: s.dashboard ? `Dashboard: ${s.dashboard}` : undefined,
+                                className: "max-w-[800px] max-h-[80vh]",
+                                mainContent: (
+                                  <div className="mt-2 overflow-x-auto">
+                                    <ThemedSyntaxHighlighter
+                                      language="sql"
+                                      customStyle={{ margin: 0, borderRadius: "0.375rem" }}
+                                    >
+                                      {s.query || ""}
+                                    </ThemedSyntaxHighlighter>
+                                  </div>
+                                ),
+                                dialogButtons: [{ text: "OK", onClick: async () => true, default: true }],
+                              });
+                            }}
+                          >
+                            <EllipsisVertical className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="text-sm ">
+                      <div className="pt-6">Reason: {s.reason}</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          </DashboardGroupSection>
+        )}
+      </DashboardContainer>
     </div>
   );
 }

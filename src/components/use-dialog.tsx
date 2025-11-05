@@ -9,6 +9,7 @@ import {
   DialogTitle,
   Dialog as DialogUI,
 } from "@/components/ui/dialog";
+import { ConnectionProvider } from "@/lib/connection/ConnectionContext";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
 import { useEffect, useState } from "react";
@@ -40,6 +41,11 @@ export interface DialogProps {
    * If true, disables the backdrop overlay and prevents closing by clicking outside.
    */
   disableBackdrop?: boolean;
+  /**
+   * If true, disables the content scroll (removes overflow-auto from content wrapper).
+   * Default is false (content is scrollable).
+   */
+  disableContentScroll?: boolean;
 }
 
 interface InternalDialogProps extends DialogProps {
@@ -101,7 +107,9 @@ const AlertDialogComponent = (dialogProps: InternalDialogProps) => {
           <DialogTitle>{dialogProps.title}</DialogTitle>
           <DialogDescription>{dialogProps.description}</DialogDescription>
         </DialogHeader>
-        <div className="flex-grow my-2 overflow-auto">{dialogProps.mainContent}</div>
+        <div className={cn("flex-grow my-2", !dialogProps.disableContentScroll && "overflow-auto")}>
+          {dialogProps.mainContent}
+        </div>
         {dialogProps.dialogButtons && dialogProps.dialogButtons.length > 0 && (
           <DialogFooter className="mt-auto">
             {dialogProps.dialogButtons.map((button, index) => {
@@ -184,7 +192,9 @@ export class Dialog {
         enableSystem={false}
         disableTransitionOnChange={false}
       >
-        <AlertDialogComponent {...dialogProps} dispose={dispose} />
+        <ConnectionProvider>
+          <AlertDialogComponent {...dialogProps} dispose={dispose} />
+        </ConnectionProvider>
       </ThemeProvider>
     );
   }

@@ -74,16 +74,16 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [sort, setSort] = useState<{ column: string | null; direction: "asc" | "desc" | null }>({
-      column: descriptor.initialSort?.column || null,
-      direction: descriptor.initialSort?.direction || null,
+      column: descriptor.sortOption?.initialSort?.column || null,
+      direction: descriptor.sortOption?.initialSort?.direction || null,
     });
 
     // Refs
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
     // Ref to store current sort state for synchronous access in loadData
     const sortRef = useRef<{ column: string | null; direction: "asc" | "desc" | null }>({
-      column: descriptor.initialSort?.column || null,
-      direction: descriptor.initialSort?.direction || null,
+      column: descriptor.sortOption?.initialSort?.column || null,
+      direction: descriptor.sortOption?.initialSort?.direction || null,
     });
 
     // Normalize columns: convert string columns to ColumnDef objects
@@ -149,7 +149,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           // Apply server-side sorting if enabled
           // Use sortRef for synchronous access to current sort state
           let finalSql = query.sql;
-          if (descriptor.serverSideSorting && sortRef.current.column && sortRef.current.direction) {
+          if (descriptor.sortOption?.serverSideSorting && sortRef.current.column && sortRef.current.direction) {
             finalSql = replaceOrderByClause(query.sql, sortRef.current.column, sortRef.current.direction);
           }
 
@@ -255,10 +255,15 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     );
 
     // Use shared refreshable hook
+    const getInitialParams = useCallback(() => {
+      return props.selectedTimeSpan ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshParameter) : undefined;
+    }, [props.selectedTimeSpan]);
+
     const { componentRef, isCollapsed, setIsCollapsed, refresh, getLastRefreshParameter } = useRefreshable({
       componentId: descriptor.id,
       initialCollapsed: descriptor.isCollapsed ?? false,
       refreshInternal,
+      getInitialParams,
     });
 
     // Store refresh function in ref for use in handleSort
@@ -266,6 +271,16 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     useEffect(() => {
       refreshRef.current = refresh;
     }, [refresh]);
+
+    // Preserve inputFilter behavior: refresh when it changes
+    useEffect(() => {
+      const inputFilter =
+        props.searchParams instanceof URLSearchParams ? props.searchParams.get("filter")?.toString() || "" : "";
+      if (inputFilter) {
+        refresh({ inputFilter, selectedTimeSpan: props.selectedTimeSpan });
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props.searchParams]);
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -386,12 +401,12 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         sortRef.current = newSort;
 
         // If server-side sorting is enabled, trigger a refresh with the new sort
-        if (descriptor.serverSideSorting) {
+        if (descriptor.sortOption?.serverSideSorting) {
           const refreshParam = { inputFilter: `sort_${Date.now()}_${newSort.column}_${newSort.direction}` };
           refreshRef.current(refreshParam);
         }
       },
-      [columns, sort, descriptor.serverSideSorting]
+      [columns, sort, descriptor.sortOption]
     );
 
     // Get sort icon for column
@@ -419,7 +434,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     // Sorted data - only apply client-side sorting if server-side sorting is disabled
     const sortedData = useMemo(() => {
       // If server-side sorting is enabled, return data as-is (already sorted by server)
-      if (descriptor.serverSideSorting) {
+      if (descriptor.sortOption?.serverSideSorting) {
         return data;
       }
 
@@ -446,7 +461,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
 
         return sort.direction === "asc" ? comparison : -comparison;
       });
-    }, [data, sort, descriptor.serverSideSorting]);
+    }, [data, sort, descriptor.sortOption]);
 
     // Render functions for TableBody
     const renderError = useCallback(() => {
@@ -525,7 +540,84 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       );
     }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue]);
 
-    const hasTitle = !!descriptor.titleOption?.title;
+    const hasTitle = !!descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false;
+    const isStickyHeader = descriptor.headOption?.isSticky === true;
+
+    // Render functions for direct table structure (when sticky header is enabled)
+    const renderErrorDirect = useCallback(() => {
+      if (!error) return null;
+      return (
+        <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+          <td colSpan={columns.length} className="p-4 align-middle text-center text-destructive !p-8">
+            <div className="flex flex-col items-center justify-center h-[72px] gap-2">
+              <p className="font-semibold">Error loading table data:</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          </td>
+        </tr>
+      );
+    }, [error, columns.length]);
+
+    const renderLoadingDirect = useCallback(() => {
+      if (!isLoading || data.length > 0) return null;
+      return (
+        <>
+          {Array.from({ length: 3 }).map((_, index) => (
+            <tr key={index} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+              {columns.map((column) => (
+                <td key={column.name} className={cn("p-4 align-middle", getCellAlignmentClass(column), "whitespace-nowrap !p-2")}>
+                  <Skeleton className="h-5 w-full" />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </>
+      );
+    }, [isLoading, data.length, columns, getCellAlignmentClass]);
+
+    const renderNoDataDirect = useCallback(() => {
+      if (error || isLoading || data.length > 0) return null;
+      return (
+        <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+          <td colSpan={columns.length} className="p-4 align-middle text-center text-muted-foreground !p-8">
+            <div className="flex items-center justify-center h-[72px]">No data found</div>
+          </td>
+        </tr>
+      );
+    }, [error, isLoading, data.length, columns.length]);
+
+    const renderDataDirect = useCallback(() => {
+      if (error || data.length === 0) return null;
+      return (
+        <>
+          {sortedData.map((row, rowIndex) => (
+            <tr key={rowIndex} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+              {columns.map((column) => {
+                // Handle action columns
+                if (column.renderAction) {
+                  return (
+                    <td
+                      key={column.name}
+                      className={cn("p-4 align-middle", getCellAlignmentClass(column), "whitespace-nowrap !p-2")}
+                    >
+                      {column.renderAction(row, rowIndex)}
+                    </td>
+                  );
+                }
+
+                // Regular data columns
+                const value = row[column.name];
+                return (
+                  <td key={column.name} className={cn("p-4 align-middle", getCellAlignmentClass(column), "whitespace-nowrap !p-2")}>
+                    {formatCellValue(value, column)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </>
+      );
+    }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue]);
 
     return (
       <Card ref={componentRef} className="@container/card relative">
@@ -557,56 +649,97 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
               </CollapsibleTrigger>
             </CardHeader>
           )}
-          {!hasTitle && descriptor.titleOption && (
-            <CardHeader className="pt-5 pb-3">
-              {descriptor.titleOption.description && (
-                <CardDescription className="text-xs">{descriptor.titleOption.description}</CardDescription>
-              )}
-            </CardHeader>
-          )}
           <CollapsibleContent>
-            <CardContent className="px-0 p-0 overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {columns.map((column) => {
-                      const isSortable = column.sortable !== false && column.renderAction === undefined;
-                      return (
-                        <TableHead
-                          key={column.name}
-                          className={cn(
-                            getCellAlignmentClass(column),
-                            column.width && `w-[${column.width}px]`,
-                            column.minWidth && `min-w-[${column.minWidth}px]`,
-                            "whitespace-nowrap",
-                            isSortable && "cursor-pointer hover:bg-muted/50 select-none h-10"
-                          )}
-                          style={{
-                            width: column.width ? `${column.width}px` : undefined,
-                            minWidth: column.minWidth ? `${column.minWidth}px` : undefined,
-                          }}
-                          onClick={() => isSortable && handleSort(column.name)}
-                        >
-                          {isLoading && data.length === 0 ? (
-                            <Skeleton className="h-5 w-20" />
-                          ) : (
-                            <>
-                              {column.title || column.name}
-                              {isSortable && getSortIcon(column.name)}
-                            </>
-                          )}
-                        </TableHead>
-                      );
-                    })}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {renderError()}
-                  {renderLoading()}
-                  {renderNoData()}
-                  {renderData()}
-                </TableBody>
-              </Table>
+            <CardContent className={cn("px-0 p-0", !isStickyHeader && "overflow-auto", isStickyHeader && "max-h-[60vh] overflow-auto")}>
+              {isStickyHeader ? (
+                // Use direct table structure for sticky header to avoid nested scroll containers
+                <div className="relative w-full">
+                  <table className="w-full caption-bottom text-sm">
+                    <thead className={cn("[&_tr]:border-b sticky top-0 z-10 bg-background")}>
+                      <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                        {columns.map((column) => {
+                          const isSortable = column.sortable !== false && column.renderAction === undefined;
+                          return (
+                            <th
+                              key={column.name}
+                              className={cn(
+                                "px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+                                getCellAlignmentClass(column),
+                                column.width && `w-[${column.width}px]`,
+                                column.minWidth && `min-w-[${column.minWidth}px]`,
+                                "whitespace-nowrap",
+                                isSortable && "cursor-pointer hover:bg-muted/50 select-none h-10"
+                              )}
+                              style={{
+                                width: column.width ? `${column.width}px` : undefined,
+                                minWidth: column.minWidth ? `${column.minWidth}px` : undefined,
+                              }}
+                              onClick={() => isSortable && handleSort(column.name)}
+                            >
+                              {isLoading && data.length === 0 ? (
+                                <Skeleton className="h-5 w-20" />
+                              ) : (
+                                <>
+                                  {column.title || column.name}
+                                  {isSortable && getSortIcon(column.name)}
+                                </>
+                              )}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody className="[&_tr:last-child]:border-0">
+                      {renderErrorDirect()}
+                      {renderLoadingDirect()}
+                      {renderNoDataDirect()}
+                      {renderDataDirect()}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {columns.map((column) => {
+                        const isSortable = column.sortable !== false && column.renderAction === undefined;
+                        return (
+                          <TableHead
+                            key={column.name}
+                            className={cn(
+                              getCellAlignmentClass(column),
+                              column.width && `w-[${column.width}px]`,
+                              column.minWidth && `min-w-[${column.minWidth}px]`,
+                              "whitespace-nowrap",
+                              isSortable && "cursor-pointer hover:bg-muted/50 select-none h-10"
+                            )}
+                            style={{
+                              width: column.width ? `${column.width}px` : undefined,
+                              minWidth: column.minWidth ? `${column.minWidth}px` : undefined,
+                            }}
+                            onClick={() => isSortable && handleSort(column.name)}
+                          >
+                            {isLoading && data.length === 0 ? (
+                              <Skeleton className="h-5 w-20" />
+                            ) : (
+                              <>
+                                {column.title || column.name}
+                                {isSortable && getSortIcon(column.name)}
+                              </>
+                            )}
+                          </TableHead>
+                        );
+                      })}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {renderError()}
+                    {renderLoading()}
+                    {renderNoData()}
+                    {renderData()}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </CollapsibleContent>
         </Collapsible>

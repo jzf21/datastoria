@@ -4,10 +4,11 @@ import { ChevronRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 export interface DashboardGroupSectionProps {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   defaultOpen?: boolean;
   className?: string;
+  titleClassName?: string;
 }
 
 export function DashboardGroupSection({
@@ -15,6 +16,7 @@ export function DashboardGroupSection({
   children,
   defaultOpen = true,
   className,
+  titleClassName,
 }: DashboardGroupSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -33,7 +35,7 @@ export function DashboardGroupSection({
               isOpen && "rotate-90"
             )}
           />
-          <h3 className="text-md font-semibold">{title}</h3>
+          <h3 className={cn("text-md font-semibold", titleClassName)}>{title}</h3>
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent className="w-full py-1">

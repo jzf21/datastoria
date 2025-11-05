@@ -8,7 +8,7 @@ interface ConnectionContextType {
   setSelectedConnection: (conn: Connection | null) => void;
 }
 
-const ConnectionContext = createContext<ConnectionContextType>({
+export const ConnectionContext = createContext<ConnectionContextType>({
   selectedConnection: null,
   setSelectedConnection: () => {
     console.warn('setSelectedConnection not implemented');

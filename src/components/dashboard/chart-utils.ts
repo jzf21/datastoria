@@ -1,7 +1,10 @@
 import type { FormatName } from "@/lib/formatter";
 import type { ChartOptionBuilder, ChartRenderer } from "./chart-pie";
 import { PieChartOptionBuilder, PieChartRenderer } from "./chart-pie";
-import { TimeSeriesChartBuilder as TimeSeriesChartBuilderImpl, TimeSeriesRenderer as TimeSeriesRendererImpl } from "./chart-timeseries";
+import {
+  TimeSeriesChartBuilder as TimeSeriesChartBuilderImpl,
+  TimeSeriesRenderer as TimeSeriesRendererImpl,
+} from "./chart-timeseries";
 
 export interface FormatterFn {
   (value: string | number | Date): string | React.ReactNode;
@@ -70,6 +73,9 @@ export interface TitleOption {
 
   // Default to center
   align?: "left" | "center" | "right";
+
+  // Default to true. If false, the title bar will not be rendered
+  showTitle?: boolean;
 }
 
 export interface ColumnDef {
@@ -112,18 +118,6 @@ export interface JsonQuery extends SQLQuery {
   window?: any;
 }
 
-export interface AlertExpression {
-  id?: string;
-  expressionText: string;
-  select: { name: string; field?: string };
-  from?: string;
-  where?: string;
-  offset?: string;
-  groupBy?: any[];
-  window?: any;
-  alertExpected?: number | { type: string; value: number; text: string };
-}
-
 export interface ChartDescriptor {
   type: string; // "line" | "bar" | "pie" | "scatter" | "heatmap" | "table" | "map" | "custom" | "stat"
   id?: string;
@@ -137,13 +131,14 @@ export interface ChartDescriptor {
   height?: number;
 
   query: SQLQuery;
+
+  /**
+   * key - for table, the key is column name. If it's '_row', then a action column is added
+   */
+  drilldown?: Record<string, ChartDescriptor>;
 }
 
-export interface TableDescriptor extends ChartDescriptor {
-  type: "table";
-
-  columns: (ColumnDef | string)[];
-
+export interface SortOption {
   // Initial sorting configuration
   initialSort?: {
     column: string;
@@ -153,6 +148,24 @@ export interface TableDescriptor extends ChartDescriptor {
   // Enable server-side sorting. When enabled, sorting will modify the SQL ORDER BY clause
   // and re-execute the query instead of sorting client-side
   serverSideSorting?: boolean;
+}
+
+export interface HeadOption {
+  // If true, the table header will be sticky (fixed at top when scrolling)
+  // Default to false
+  isSticky?: boolean;
+}
+
+export interface TableDescriptor extends ChartDescriptor {
+  type: "table";
+
+  columns: (ColumnDef | string)[];
+
+  // Sorting configuration
+  sortOption?: SortOption;
+
+  // Header configuration
+  headOption?: HeadOption;
 }
 
 // Custom renderer for specific keys in transposed table
