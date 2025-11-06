@@ -6,7 +6,7 @@ import { DateTimeExtension } from "@/lib/datetime-utils";
 import { cn } from "@/lib/utils";
 import * as echarts from "echarts";
 import { ChevronRight, EllipsisVertical, Minus } from "lucide-react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Formatter, type FormatName } from "../../lib/formatter";
 import FloatingProgressBar from "../floating-progress-bar";
 import { useTheme } from "../theme-provider";
@@ -16,10 +16,93 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/colla
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Skeleton } from "../ui/skeleton";
 import { Dialog } from "../use-dialog";
-import type { SQLQuery, TimeseriesDescriptor } from "./chart-utils";
+import type {
+  ChartDescriptor,
+  SQLQuery,
+  StatDescriptor,
+  TableDescriptor,
+  TimeseriesDescriptor,
+  TransposeTableDescriptor,
+} from "./chart-utils";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
+import RefreshableStatComponent from "./refreshable-stat-chart";
+import RefreshableTableComponent from "./refreshable-table-component";
+import RefreshableTransposedTableComponent from "./refreshable-transposed-table-component";
+import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
+
+// Wrapper component that uses imperative refresh instead of remounting
+// This prevents the drilldown component from losing its state when the time span changes
+const DrilldownChartRendererWithRefresh: React.FC<{
+  descriptor: ChartDescriptor;
+  selectedTimeSpan?: TimeSpan;
+  searchParams?: URLSearchParams;
+}> = ({ descriptor, selectedTimeSpan, searchParams }) => {
+  const componentRef = useRef<RefreshableComponent | null>(null);
+  const prevTimeSpanRef = useRef<TimeSpan | undefined>(selectedTimeSpan);
+
+  // Callback ref to capture the component instance
+  const setComponentRef = useCallback((instance: RefreshableComponent | null) => {
+    componentRef.current = instance;
+  }, []);
+
+  // Call refresh imperatively when selectedTimeSpan changes
+  useEffect(() => {
+    if (componentRef.current && selectedTimeSpan) {
+      // On initial mount or when time span changes, refresh imperatively
+      if (
+        !prevTimeSpanRef.current ||
+        prevTimeSpanRef.current.startISO8601 !== selectedTimeSpan.startISO8601 ||
+        prevTimeSpanRef.current.endISO8601 !== selectedTimeSpan.endISO8601
+      ) {
+        // Time span changed (or initial mount), refresh imperatively
+        componentRef.current.refresh({ selectedTimeSpan });
+      }
+    }
+    prevTimeSpanRef.current = selectedTimeSpan;
+  }, [selectedTimeSpan]);
+
+  // Render with stable key (not including timeSpan) and ref
+  if (descriptor.type === "stat") {
+    return (
+      <RefreshableStatComponent
+        ref={setComponentRef}
+        descriptor={descriptor as StatDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  } else if (descriptor.type === "line" || descriptor.type === "bar" || descriptor.type === "area") {
+    return (
+      <RefreshableTimeseriesChart
+        ref={setComponentRef}
+        descriptor={descriptor as TimeseriesDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  } else if (descriptor.type === "table") {
+    return (
+      <RefreshableTableComponent
+        ref={setComponentRef}
+        descriptor={descriptor as TableDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  } else if (descriptor.type === "transpose-table") {
+    return (
+      <RefreshableTransposedTableComponent
+        ref={setComponentRef}
+        descriptor={descriptor as TransposeTableDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        searchParams={searchParams}
+      />
+    );
+  }
+  return null;
+};
 
 // Transform API rows/meta into chart-friendly data points (file-local)
 function transformRowsToChartData(
@@ -28,6 +111,47 @@ function transformRowsToChartData(
 ): Record<string, unknown>[] {
   const first = inputRows[0];
   const arrayFormat = Array.isArray(first);
+
+  // Helper function to check if a column is a timestamp column (not a metric)
+  const isTimestampColumn = (colName: string, colType?: string): boolean => {
+    const lower = colName.toLowerCase();
+
+    // Exact matches for common timestamp column names
+    if (colName === "t" || colName === "timestamp" || lower === "time" || lower === "date") {
+      return true;
+    }
+
+    // Check by type if available (DateTime, Date, etc.)
+    if (colType) {
+      const typeLower = colType.toLowerCase();
+      if (typeLower.includes("datetime") || typeLower.includes("date") || typeLower.includes("timestamp")) {
+        return true;
+      }
+    }
+
+    // Check by naming pattern: ends with _time with specific prefixes, or contains timestamp
+    // But exclude metric columns like cpu_time, query_time, OSCPUVirtualTimeMicroseconds, etc.
+    if (
+      lower.endsWith("_time") &&
+      (lower.startsWith("event_") ||
+        lower.startsWith("start_") ||
+        lower.startsWith("end_") ||
+        lower.includes("timestamp"))
+    ) {
+      return true;
+    }
+    if (
+      lower.startsWith("time_") ||
+      (lower.includes("timestamp") &&
+        !lower.includes("microseconds") &&
+        !lower.includes("milliseconds") &&
+        !lower.includes("nanoseconds"))
+    ) {
+      return true;
+    }
+
+    return false;
+  };
 
   return inputRows.map((row: unknown) => {
     const dataPoint: Record<string, unknown> = {};
@@ -38,7 +162,7 @@ function transformRowsToChartData(
         const value = rowArray[index];
         const colName = colMeta.name;
 
-        if (colName.toLowerCase().includes("time") || colName.toLowerCase().includes("date") || colName === "t") {
+        if (isTimestampColumn(colName, colMeta.type)) {
           if (typeof value === "string") {
             dataPoint.timestamp = new Date(value).getTime();
           } else if (typeof value === "number") {
@@ -55,7 +179,9 @@ function transformRowsToChartData(
       const rowObject = row as Record<string, unknown>;
       Object.keys(rowObject).forEach((colName) => {
         const value = rowObject[colName];
-        if (colName.toLowerCase().includes("time") || colName.toLowerCase().includes("date") || colName === "t") {
+        // Find the column type from meta if available
+        const colMeta = inputMeta.find((m) => m.name === colName);
+        if (isTimestampColumn(colName, colMeta?.type)) {
           if (typeof value === "string") {
             dataPoint.timestamp = new Date(value).getTime();
           } else if (typeof value === "number") {
@@ -110,6 +236,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
     const [meta, setMeta] = useState<Array<{ name: string; type?: string }>>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    const [selectedTimeRange, setSelectedTimeRange] = useState<TimeSpan | null>(null);
 
     // Track dark mode state
     const [isDark, setIsDark] = useState(() => {
@@ -160,6 +287,12 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartInstanceRef = useRef<echarts.ECharts | null>(null);
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
+    const timestampsRef = useRef<number[]>([]);
+
+    // Check if drilldown is available (defined early for use in chart update)
+    const hasDrilldown = useCallback((): boolean => {
+      return descriptor.drilldown !== undefined && Object.keys(descriptor.drilldown).length > 0;
+    }, [descriptor.drilldown]);
 
     // Infer format from metric name
     const inferFormatFromMetricName = useCallback((metricName: string): FormatName => {
@@ -293,16 +426,44 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
         // Identify columns: timestamp, labels (group by columns), and metrics
         const allColumns = meta.length > 0 ? meta.map((m) => m.name) : Object.keys(firstRow);
 
-        // Helper checks
+        // Helper checks - more precise timestamp detection
         const isTimeColumn = (name: string) => {
+          // Exact match with timestamp key
+          if (name === timestampKey || name.toLowerCase() === timestampKey.toLowerCase()) {
+            return true;
+          }
+
           const lower = name.toLowerCase();
-          return (
-            name === timestampKey ||
-            name.toLowerCase() === timestampKey.toLowerCase() ||
-            lower.includes("time") ||
-            lower.includes("date") ||
-            name === "t"
-          );
+          // Exact matches for common timestamp column names
+          if (name === "t" || name === "timestamp" || lower === "time" || lower === "date") {
+            return true;
+          }
+
+          // Check by type if available
+          const metaType = meta.find((m) => m.name === name)?.type;
+          if (metaType) {
+            const typeLower = metaType.toLowerCase();
+            if (typeLower.includes("datetime") || typeLower.includes("date") || typeLower.includes("timestamp")) {
+              return true;
+            }
+          }
+
+          // Check by naming pattern: ends with _time with specific prefixes, or contains timestamp
+          // But exclude metric columns like cpu_time, query_time, etc.
+          if (
+            lower.endsWith("_time") &&
+            (lower.startsWith("event_") ||
+              lower.startsWith("start_") ||
+              lower.startsWith("end_") ||
+              lower.includes("timestamp"))
+          ) {
+            return true;
+          }
+          if (lower.startsWith("time_") || lower.includes("timestamp")) {
+            return true;
+          }
+
+          return false;
         };
         const isNumericType = (type?: string) => {
           if (!type) return false;
@@ -350,6 +511,9 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
             })
           )
         ).sort((a, b) => a - b);
+
+        // Store timestamps in ref for brush event handler
+        timestampsRef.current = timestamps;
 
         // Build x-axis data
         const xAxisData: string[] = timestamps.map((ts) => {
@@ -523,6 +687,18 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           title: {
             show: false,
           },
+          toolbox: {
+            show: false,
+          },
+          brush: hasDrilldown()
+            ? {
+                xAxisIndex: "all",
+                brushLink: "all",
+                outOfBrush: {
+                  colorAlpha: 0.1,
+                },
+              }
+            : undefined,
           tooltip: {
             trigger: "axis",
             axisPointer: {
@@ -588,17 +764,88 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
         chartInstanceRef.current.setOption(option, true);
 
+        // Add brush event handler if drilldown is enabled
+        if (hasDrilldown() && chartInstanceRef.current) {
+          // Enable brush selection using dispatchAction
+          chartInstanceRef.current.dispatchAction({
+            type: "takeGlobalCursor",
+            key: "brush",
+            brushOption: {
+              brushType: "lineX",
+              brushMode: "single",
+            },
+          });
+
+          chartInstanceRef.current.off("brushEnd");
+          chartInstanceRef.current.off("brushSelected");
+          chartInstanceRef.current.off("brush");
+          const handleBrush = (...args: unknown[]) => {
+            const params = args[0] as {
+              batch?: Array<{
+                areas?: Array<{ coordRange?: [number, number] | number[] }>;
+              }>;
+              brushComponents?: Array<{ coordRange?: [number, number] | number[] }>;
+              areas?: Array<{ coordRange?: [number, number] | number[] }>;
+            };
+            const timestamps = timestampsRef.current;
+            if (!timestamps || timestamps.length === 0) return;
+
+            // ECharts brush event structure: try batch.areas first (brushSelected event), then brushComponents/areas
+            let brushAreas: Array<{ coordRange?: [number, number] | number[] }> = [];
+            if (params.batch && params.batch.length > 0 && params.batch[0].areas) {
+              brushAreas = params.batch[0].areas;
+            } else if (params.brushComponents) {
+              brushAreas = params.brushComponents;
+            } else if (params.areas) {
+              brushAreas = params.areas;
+            }
+
+            if (brushAreas.length > 0) {
+              const brushArea = brushAreas[0];
+              // For category axis, coordRange is [startIndex, endIndex]
+              if (brushArea.coordRange && Array.isArray(brushArea.coordRange) && brushArea.coordRange.length === 2) {
+                const [startIndex, endIndex] = brushArea.coordRange;
+
+                // Get the actual timestamps from the stored array
+                if (startIndex >= 0 && endIndex < timestamps.length && startIndex <= endIndex) {
+                  const startTimestamp = timestamps[Math.floor(startIndex)];
+                  const endTimestamp = timestamps[Math.ceil(endIndex)];
+
+                  const selectedTimeSpan: TimeSpan = {
+                    startISO8601: DateTimeExtension.formatISO8601(new Date(startTimestamp)) || "",
+                    endISO8601: DateTimeExtension.formatISO8601(new Date(endTimestamp)) || "",
+                  };
+
+                  setSelectedTimeRange(selectedTimeSpan);
+                  return;
+                }
+              }
+            }
+            // Brush cleared or invalid selection
+            setSelectedTimeRange(null);
+          };
+
+          chartInstanceRef.current.on("brushEnd", handleBrush);
+        }
+
         // Resize after setting option to ensure proper rendering
-        setTimeout(() => {
+        // Use multiple resize calls to handle cases where container size changes
+        requestAnimationFrame(() => {
           if (chartInstanceRef.current) {
             chartInstanceRef.current.resize();
+            // Second resize after a short delay to catch any layout changes
+            setTimeout(() => {
+              if (chartInstanceRef.current) {
+                chartInstanceRef.current.resize();
+              }
+            }, 100);
           }
-        }, 50);
+        });
       } catch (err) {
         console.error("Error updating chart:", err);
         setError(err instanceof Error ? err.message : "Error updating chart");
       }
-    }, [data, descriptor, detectedColumns, meta, inferFormatFromMetricName]);
+    }, [data, descriptor, detectedColumns, meta, inferFormatFromMetricName, hasDrilldown]);
 
     // Track last successfully loaded parameters to avoid duplicate API calls
     const lastLoadedParamsRef = useRef<RefreshParameter | null>(null);
@@ -642,26 +889,11 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           // Build query from descriptor
           const query = Object.assign({}, descriptor.query) as SQLQuery;
 
-          // Calculate rounding and seconds from selectedTimeSpan
-          const startTime = new Date(param.selectedTimeSpan.startISO8601);
-          const endTime = new Date(param.selectedTimeSpan.endISO8601);
-          const seconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-
-          // Calculate rounding based on time span (default to 1/100 of the range, minimum 1 second)
-          const rounding = Math.max(1, Math.floor(seconds / 100));
-
-          // Replace template parameters with ClickHouse parameter syntax
-          // {rounding} -> {param_rounding:UInt32}
-          // {seconds} -> {param_seconds:UInt32}
-          let finalSql = query.sql;
-          finalSql = finalSql.replace(/{rounding:UInt32}/g, String(rounding));
-          finalSql = finalSql.replace(/{seconds:UInt32}/g, String(seconds));
+          // Replace time span template parameters in SQL
+          const finalSql = replaceTimeSpanParams(query.sql, param.selectedTimeSpan);
 
           // Log the SQL for debugging
           console.log(`[TimeseriesChart ${descriptor.id}] Executing SQL:`, finalSql);
-          console.log(
-            `[TimeseriesChart ${descriptor.id}] Parameters: param_rounding=${rounding}, param_seconds=${seconds}`
-          );
           console.log(`[TimeseriesChart ${descriptor.id}] TimeSpan:`, param.selectedTimeSpan);
 
           // Check if there are any remaining old-style placeholders (for backward compatibility)
@@ -706,50 +938,68 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                 setMeta(meta);
 
                 // Auto-detect columns if not specified in descriptor
+                const columns = descriptor.columns || [];
                 if (
-                  descriptor.columns.length === 0 ||
-                  (descriptor.columns.length === 1 &&
-                    typeof descriptor.columns[0] === "string" &&
-                    descriptor.columns[0] === "value")
+                  columns.length === 0 ||
+                  (columns.length === 1 && typeof columns[0] === "string" && columns[0] === "value")
                 ) {
                   // Find metric columns (exclude timestamp and label columns)
                   let metricColumns: string[];
 
+                  // Helper function to identify timestamp column
+                  // Common timestamp column names: t, timestamp, time, date, event_time, start_time, end_time, etc.
+                  const isTimestampColumn = (name: string, colType?: string): boolean => {
+                    const lower = name.toLowerCase();
+                    // Check by exact name first (most common cases)
+                    if (name === "t" || name === "timestamp" || lower === "time" || lower === "date") {
+                      return true;
+                    }
+                    // Check by type if available (DateTime, Date, etc.)
+                    if (colType) {
+                      const typeLower = colType.toLowerCase();
+                      if (
+                        typeLower.includes("datetime") ||
+                        typeLower.includes("date") ||
+                        typeLower.includes("timestamp")
+                      ) {
+                        return true;
+                      }
+                    }
+                    // Check by naming pattern: ends with _time, starts with time_, or contains timestamp
+                    // But exclude columns like cpu_time, query_time, etc. that are metrics
+                    if (
+                      lower.endsWith("_time") &&
+                      (lower.startsWith("event_") ||
+                        lower.startsWith("start_") ||
+                        lower.startsWith("end_") ||
+                        lower.includes("timestamp"))
+                    ) {
+                      return true;
+                    }
+                    if (lower.startsWith("time_") || lower.includes("timestamp")) {
+                      return true;
+                    }
+                    return false;
+                  };
+
                   if (isArrayFormat && meta.length > 0) {
-                    // Use meta for array format
-                    metricColumns = meta
-                      .map((colMeta: { name: string; type?: string }) => colMeta.name)
-                      .filter((name: string) => {
-                        const lower = name.toLowerCase();
-                        return (
-                          !lower.includes("time") &&
-                          !lower.includes("date") &&
-                          name !== "t" &&
-                          (name.includes("(") ||
-                            name.includes("sum(") ||
-                            name.includes("count(") ||
-                            name.includes("avg(") ||
-                            name.includes("min(") ||
-                            name.includes("max("))
-                        );
-                      });
-                  } else {
-                    // Use object keys for object format
+                    // Use meta for array format - we have type information
+                    const allColumns = meta.map((colMeta: { name: string; type?: string }) => colMeta.name);
+                    // Identify timestamp column using both name and type
+                    const timestampCol = meta.find((colMeta: { name: string; type?: string }) =>
+                      isTimestampColumn(colMeta.name, colMeta.type)
+                    )?.name;
+                    metricColumns = allColumns.filter((name: string) => name !== timestampCol);
+                  } else if (rows.length > 0) {
+                    // Use object keys for object format - no type info, rely on naming
                     const firstRowObj = rows[0] as Record<string, unknown>;
-                    metricColumns = Object.keys(firstRowObj).filter((name: string) => {
-                      const lower = name.toLowerCase();
-                      return (
-                        !lower.includes("time") &&
-                        !lower.includes("date") &&
-                        name !== "t" &&
-                        (name.includes("(") ||
-                          name.includes("sum(") ||
-                          name.includes("count(") ||
-                          name.includes("avg(") ||
-                          name.includes("min(") ||
-                          name.includes("max("))
-                      );
-                    });
+                    const allColumns = Object.keys(firstRowObj);
+                    // Identify timestamp column by name only
+                    const timestampCol = allColumns.find((name: string) => isTimestampColumn(name));
+                    metricColumns = allColumns.filter((name: string) => name !== timestampCol);
+                  } else {
+                    // No rows available, set empty array
+                    metricColumns = [];
                   }
 
                   if (metricColumns.length > 0) {
@@ -864,7 +1114,32 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
       };
       window.addEventListener("resize", handleResize);
 
+      // Use ResizeObserver to watch for container size changes
+      const resizeObserver = new ResizeObserver(() => {
+        if (chartInstanceRef.current) {
+          // Use requestAnimationFrame to ensure DOM has updated
+          requestAnimationFrame(() => {
+            if (chartInstanceRef.current) {
+              chartInstanceRef.current.resize();
+            }
+          });
+        }
+      });
+
+      if (chartContainerRef.current) {
+        resizeObserver.observe(chartContainerRef.current);
+      }
+
+      // Initial resize after a short delay to ensure container has final dimensions
+      const initialResizeTimeout = setTimeout(() => {
+        if (chartInstanceRef.current) {
+          chartInstanceRef.current.resize();
+        }
+      }, 100);
+
       return () => {
+        clearTimeout(initialResizeTimeout);
+        resizeObserver.disconnect();
         window.removeEventListener("resize", handleResize);
         if (chartInstanceRef.current) {
           chartInstanceRef.current.dispose();
@@ -879,14 +1154,34 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
         return;
       }
 
-      // Use requestAnimationFrame to wait for DOM update
-      const frameId = requestAnimationFrame(() => {
-        if (chartInstanceRef.current) {
-          chartInstanceRef.current.resize();
-        }
+      // Use multiple animation frames and a timeout to ensure proper resize
+      // This handles cases where the container becomes visible after being hidden
+      let frameId2: number | null = null;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+      const frameId1 = requestAnimationFrame(() => {
+        frameId2 = requestAnimationFrame(() => {
+          if (chartInstanceRef.current) {
+            chartInstanceRef.current.resize();
+            // Additional resize after a delay to catch any delayed layout changes
+            timeoutId = setTimeout(() => {
+              if (chartInstanceRef.current) {
+                chartInstanceRef.current.resize();
+              }
+            }, 150);
+          }
+        });
       });
 
-      return () => cancelAnimationFrame(frameId);
+      return () => {
+        cancelAnimationFrame(frameId1);
+        if (frameId2 !== null) {
+          cancelAnimationFrame(frameId2);
+        }
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+      };
     }, [isCollapsed]);
 
     // Expose methods via ref (including getEChartInstance for echarts connection)
@@ -906,9 +1201,49 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
       };
     }, []);
 
+    // Get the first drilldown descriptor if available
+    const getFirstDrilldownDescriptor = useCallback((): ChartDescriptor | null => {
+      if (!descriptor.drilldown || Object.keys(descriptor.drilldown).length === 0) {
+        return null;
+      }
+      // Get the first descriptor from the drilldown map
+      const firstKey = Object.keys(descriptor.drilldown)[0];
+      return descriptor.drilldown[firstKey];
+    }, [descriptor.drilldown]);
+
+    // Render drilldown component based on descriptor type
+    // Use stable key and imperative refresh to prevent remounting
+    const renderDrilldownComponent = useCallback(
+      (drilldownDescriptor: ChartDescriptor, timeSpan: TimeSpan) => {
+        // Create a modified copy of the descriptor for drilldown
+        // Always hide title in drilldown by explicitly setting showTitle to false
+        const modifiedDescriptor: ChartDescriptor = {
+          ...drilldownDescriptor,
+          titleOption: drilldownDescriptor.titleOption
+            ? {
+                ...drilldownDescriptor.titleOption,
+                showTitle: false, // Explicitly set to false to hide title
+                // Keep title and description for potential future use, but hide it
+              }
+            : undefined, // If no titleOption, keep it undefined
+        };
+
+        // Use stable key (not including timeSpan) and wrapper that calls refresh imperatively
+        return (
+          <DrilldownChartRendererWithRefresh
+            key={`drilldown-${modifiedDescriptor.id || "default"}`}
+            descriptor={modifiedDescriptor}
+            selectedTimeSpan={timeSpan}
+            searchParams={props.searchParams}
+          />
+        );
+      },
+      [props.searchParams]
+    );
+
     // Show raw data dialog
     const showRawDataDialog = useCallback(
-      (e) => {
+      (e: React.MouseEvent) => {
         e.stopPropagation();
         if (data.length === 0) {
           Dialog.alert({
@@ -983,10 +1318,23 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           ),
         });
       },
-      [data]
+      [data, descriptor.titleOption?.title]
     );
 
     const hasTitle = !!descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false;
+
+    // Memoize drilldown component to prevent unnecessary remounts
+    // This ensures the table component doesn't lose its state when parent re-renders
+    const drilldownComponent = useMemo(() => {
+      if (!hasDrilldown() || !selectedTimeRange) {
+        return null;
+      }
+      const drilldownDescriptor = getFirstDrilldownDescriptor();
+      if (!drilldownDescriptor) {
+        return null;
+      }
+      return renderDrilldownComponent(drilldownDescriptor, selectedTimeRange);
+    }, [hasDrilldown, selectedTimeRange, getFirstDrilldownDescriptor, renderDrilldownComponent]);
 
     return (
       <Card ref={componentRef} className="@container/card relative">
@@ -1019,9 +1367,9 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-6 w-6 p-0 flex items-center justify-center hover:ring-2 hover:ring-foreground/20"
+                            className="h-6 w-6 p-0 flex items-center justify-center bg-transparent hover:bg-muted hover:ring-2 hover:ring-foreground/20"
                             title="More options"
                             aria-label="More options"
                             onClick={(e) => e.stopPropagation()}
@@ -1029,7 +1377,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                             <EllipsisVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" sideOffset={0}>
                           <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1090,11 +1438,18 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                   <Skeleton className="h-full w-full" />
                 </div>
               ) : (
-                <div
-                  ref={chartContainerRef}
-                  className="h-[300px] w-full"
-                  style={{ minHeight: descriptor.height ? `${descriptor.height}px` : undefined }}
-                />
+                <>
+                  <div
+                    ref={chartContainerRef}
+                    className="h-[300px] w-full"
+                    style={{
+                      minHeight: descriptor.height ? `${descriptor.height}px` : undefined,
+                      width: "100%",
+                      minWidth: 0, // Ensure flex children can shrink
+                    }}
+                  />
+                  {drilldownComponent && <div>{drilldownComponent}</div>}
+                </>
               )}
             </CardContent>
           </CollapsibleContent>

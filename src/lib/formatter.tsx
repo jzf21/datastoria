@@ -3,6 +3,7 @@ import { Dialog } from "@/components/use-dialog";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { DateTimeExtension } from "./datetime-utils";
+import { StringUtils } from "./string-utils";
 
 // Helper function to format a value for display in table
 function formatValueForDisplay(val: unknown, formatNumbers: boolean = false): string {
@@ -12,12 +13,12 @@ function formatValueForDisplay(val: unknown, formatNumbers: boolean = false): st
   if (typeof val === "object") {
     return JSON.stringify(val);
   }
-  
+
   // Format numbers with comma_number if requested
   if (formatNumbers && typeof val === "number") {
     return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
-  
+
   return String(val);
 }
 
@@ -322,6 +323,44 @@ export class Formatter {
           title="Click to view full text"
         >
           {truncated}
+        </span>
+      );
+    };
+
+    // SQL formatter - for SQL queries, shows truncated text with click-to-expand dialog
+    this._formatters["sql"] = (v, props, params) => {
+      if (v === null || v === undefined) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+
+      // Get truncation length from params (default: 50)
+      const truncateLength = (params && params[0]) || (props && props.formatArgs && props.formatArgs[0]) || 50;
+
+      const stringValue = String(v);
+      const truncatedValue =
+        stringValue.length > truncateLength ? stringValue.substring(0, truncateLength) + "..." : stringValue;
+
+      return (
+        <span
+          className="cursor-pointer hover:text-primary underline decoration-dotted"
+          onClick={(e) => {
+            e.stopPropagation();
+            Dialog.showDialog({
+              title: "SQL Query",
+              description: "Full SQL query text",
+              mainContent: (
+                <div className="overflow-auto">
+                  <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "14px", margin: 0 }}>
+                    {StringUtils.prettyFormatQuery(stringValue)}
+                  </ThemedSyntaxHighlighter>
+                </div>
+              ),
+              className: "max-w-4xl max-h-[80vh]",
+            });
+          }}
+          title="Click to view full SQL"
+        >
+          {truncatedValue}
         </span>
       );
     };

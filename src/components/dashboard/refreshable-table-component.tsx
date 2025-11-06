@@ -2,20 +2,18 @@
 
 import { Api, type ApiCanceller, type ApiErrorResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
-import { StringUtils } from "@/lib/string-utils";
 import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Formatter, type FormatName } from "../../lib/formatter";
 import FloatingProgressBar from "../floating-progress-bar";
-import { ThemedSyntaxHighlighter } from "../themed-syntax-highlighter";
 import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import { Dialog } from "../use-dialog";
 import type { ColumnDef, SQLQuery, TableDescriptor } from "./chart-utils";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
+import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
 
@@ -204,7 +202,6 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           const query = Object.assign({}, descriptor.query) as SQLQuery;
 
           // If query has interval (time series), we might need to update it with selectedTimeSpan
-          // For now, we'll use the query as-is, but in the future we can inject timeSpan parameters
           if (param.selectedTimeSpan && query.interval) {
             query.interval = {
               ...query.interval,
@@ -213,11 +210,15 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
             };
           }
 
+          // Replace time span template parameters in SQL (e.g., {rounding:UInt32}, {seconds:UInt32}, etc.)
+          let finalSql = param.selectedTimeSpan
+            ? replaceTimeSpanParams(query.sql, param.selectedTimeSpan)
+            : query.sql;
+
           // Apply server-side sorting if enabled
           // Use sortRef for synchronous access to current sort state
-          let finalSql = query.sql;
           if (descriptor.sortOption?.serverSideSorting && sortRef.current.column && sortRef.current.direction) {
-            finalSql = replaceOrderByClause(query.sql, sortRef.current.column, sortRef.current.direction);
+            finalSql = replaceOrderByClause(finalSql, sortRef.current.column, sortRef.current.direction);
           }
 
           // Create AbortController for cancellation
@@ -425,36 +426,6 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         return <span className="text-muted-foreground">-</span>;
       }
 
-      // Special handling for SQL format
-      if (columnDef.format === "sql") {
-        const stringValue = String(value);
-        const truncatedValue = stringValue.length > 50 ? stringValue.substring(0, 50) + "..." : stringValue;
-        return (
-          <span
-            className="cursor-pointer hover:text-primary underline decoration-dotted"
-            onClick={(e) => {
-              e.stopPropagation();
-              Dialog.showDialog({
-                title: "SQL Query",
-                description: "Full SQL query text",
-                mainContent: (
-                  <div className="overflow-auto">
-                    <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "14px", margin: 0 }}>
-                      {StringUtils.prettyFormatQuery(stringValue)}
-                    </ThemedSyntaxHighlighter>
-                  </div>
-                ),
-                className: "max-w-4xl max-h-[80vh]",
-                dialogButtons: [{ text: "Close", onClick: async () => true, default: true }],
-              });
-            }}
-            title="Click to view full SQL"
-          >
-            {truncatedValue}
-          </span>
-        );
-      }
-
       // Apply format if specified
       if (columnDef.format) {
         const formatter = Formatter.getInstance().getFormatter(columnDef.format);
@@ -600,6 +571,8 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     }, [error, columns.length]);
 
     const renderLoading = useCallback(() => {
+      // Only show skeleton when loading AND no existing data
+      // If data exists, keep showing it during refresh (no skeleton)
       if (!isLoading || data.length > 0) return null;
       return (
         <>
@@ -661,7 +634,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       );
     }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue]);
 
-    const hasTitle = !!descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false;
+    const hasTitle = !!descriptor.titleOption && descriptor.titleOption?.showTitle !== false;
     const isStickyHeader = descriptor.headOption?.isSticky === true;
 
     // Render functions for direct table structure (when sticky header is enabled)
@@ -680,6 +653,8 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     }, [error, columns.length]);
 
     const renderLoadingDirect = useCallback(() => {
+      // Only show skeleton when loading AND no existing data
+      // If data exists, keep showing it during refresh (no skeleton)
       if (!isLoading || data.length > 0) return null;
       return (
         <>

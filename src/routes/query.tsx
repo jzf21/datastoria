@@ -1,5 +1,8 @@
 import { DependencyTab } from "@/components/dependency-tab/dependency-tab";
-import { DependencyTabManager, type OpenDependencyTabEventDetail } from "@/components/dependency-tab/dependency-tab-manager";
+import {
+  DependencyTabManager,
+  type OpenDependencyTabEventDetail,
+} from "@/components/dependency-tab/dependency-tab-manager";
 import { QueryTab } from "@/components/query-tab/query-tab";
 import { SchemaTreeView } from "@/components/schema/schema-tree-view";
 import { TableTab } from "@/components/table-tab/table-tab";
@@ -105,7 +108,10 @@ function RouteComponent() {
 
   // Activate pending tab after it's added to the list
   useEffect(() => {
-    if (pendingTabId && (tableTabs.some((t) => t.id === pendingTabId) || dependencyTabs.some((t) => t.id === pendingTabId))) {
+    if (
+      pendingTabId &&
+      (tableTabs.some((t) => t.id === pendingTabId) || dependencyTabs.some((t) => t.id === pendingTabId))
+    ) {
       setActiveTab(pendingTabId);
       setPendingTabId(null);
     }
@@ -128,30 +134,78 @@ function RouteComponent() {
     }
   }, [activeTab, tableTabs, dependencyTabs]);
 
+  // Helper function to get the previous tab ID
+  const getPreviousTabId = useCallback(
+    (tabId: string, tableTabsList: TableTabInfo[], dependencyTabsList: DependencyTabInfo[]) => {
+      // Check if it's a table tab
+      const tableIndex = tableTabsList.findIndex((t) => t.id === tabId);
+      if (tableIndex !== -1) {
+        // If it's the first table tab
+        if (tableIndex === 0) {
+          // If there are dependency tabs, return the last one
+          if (dependencyTabsList.length > 0) {
+            return dependencyTabsList[dependencyTabsList.length - 1].id;
+          }
+          // Otherwise return query tab
+          return "query";
+        }
+        // Otherwise return the previous table tab
+        return tableTabsList[tableIndex - 1].id;
+      }
+
+      // Check if it's a dependency tab
+      const dependencyIndex = dependencyTabsList.findIndex((t) => t.id === tabId);
+      if (dependencyIndex !== -1) {
+        // If it's the first dependency tab, return query tab
+        if (dependencyIndex === 0) {
+          return "query";
+        }
+        // Otherwise return the previous dependency tab
+        return dependencyTabsList[dependencyIndex - 1].id;
+      }
+
+      // Fallback to query tab
+      return "query";
+    },
+    []
+  );
+
   // Handle closing a table tab
   const handleCloseTableTab = useCallback(
     (tabId: string, event: React.MouseEvent) => {
       event.stopPropagation();
-      setTableTabs((prevTabs) => prevTabs.filter((t) => t.id !== tabId));
-      // If the closed tab was active, switch to query tab
+      // If the closed tab was active, find the previous tab
       if (activeTab === tabId) {
-        setActiveTab("query");
+        setTableTabs((prevTabs) => {
+          const newTabs = prevTabs.filter((t) => t.id !== tabId);
+          const previousTabId = getPreviousTabId(tabId, prevTabs, dependencyTabs);
+          setActiveTab(previousTabId);
+          return newTabs;
+        });
+      } else {
+        setTableTabs((prevTabs) => prevTabs.filter((t) => t.id !== tabId));
       }
     },
-    [activeTab]
+    [activeTab, dependencyTabs, getPreviousTabId]
   );
 
   // Handle closing a dependency tab
   const handleCloseDependencyTab = useCallback(
     (tabId: string, event: React.MouseEvent) => {
       event.stopPropagation();
-      setDependencyTabs((prevTabs) => prevTabs.filter((t) => t.id !== tabId));
-      // If the closed tab was active, switch to query tab
+      // If the closed tab was active, find the previous tab
       if (activeTab === tabId) {
-        setActiveTab("query");
+        setDependencyTabs((prevTabs) => {
+          const newTabs = prevTabs.filter((t) => t.id !== tabId);
+          const previousTabId = getPreviousTabId(tabId, tableTabs, prevTabs);
+          setActiveTab(previousTabId);
+          return newTabs;
+        });
+      } else {
+        setDependencyTabs((prevTabs) => prevTabs.filter((t) => t.id !== tabId));
       }
     },
-    [activeTab]
+    [activeTab, tableTabs, getPreviousTabId]
   );
 
   // Handle closing tabs to the right of a given tab
@@ -275,8 +329,8 @@ function RouteComponent() {
   }, [selectedConnection?.name, handleCloseAll]);
 
   return (
-    <div className="h-[calc(100vh-3.0625rem)] w-full flex">
-      <PanelGroup direction="horizontal" className="h-full w-full">
+    <div className="h-full w-full flex min-w-0 overflow-hidden">
+      <PanelGroup direction="horizontal" className="h-full w-full min-w-0">
         {/* Left Panel: Schema Tree View */}
         <Panel defaultSize={20} minSize={10} className="border-r bg-background">
           <SchemaTreeView />
@@ -288,7 +342,7 @@ function RouteComponent() {
         <Panel defaultSize={80} minSize={50} className="bg-background">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full w-full flex flex-col">
             <div ref={tabsScrollContainerRef} className="w-full overflow-x-auto border-b bg-background h-9">
-              <TabsList className="inline-flex min-w-full justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
+              <TabsList className="inline-flex justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
                 <ContextMenu>
                   <ContextMenuTrigger asChild>
                     <div className="inline-flex items-center flex-shrink-0">
@@ -301,14 +355,23 @@ function RouteComponent() {
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem onClick={() => handleCloseTabsToRight("query")} disabled={tableTabs.length === 0 && dependencyTabs.length === 0}>
+                    <ContextMenuItem
+                      onClick={() => handleCloseTabsToRight("query")}
+                      disabled={tableTabs.length === 0 && dependencyTabs.length === 0}
+                    >
                       Close to the right
                     </ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem onClick={() => handleCloseOthers("query")} disabled={tableTabs.length === 0 && dependencyTabs.length === 0}>
+                    <ContextMenuItem
+                      onClick={() => handleCloseOthers("query")}
+                      disabled={tableTabs.length === 0 && dependencyTabs.length === 0}
+                    >
                       Close others
                     </ContextMenuItem>
-                    <ContextMenuItem onClick={handleCloseAll} disabled={tableTabs.length === 0 && dependencyTabs.length === 0}>
+                    <ContextMenuItem
+                      onClick={handleCloseAll}
+                      disabled={tableTabs.length === 0 && dependencyTabs.length === 0}
+                    >
                       Close all
                     </ContextMenuItem>
                   </ContextMenuContent>
@@ -321,9 +384,7 @@ function RouteComponent() {
                           value={tab.id}
                           className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent pr-8"
                         >
-                          <span>
-                            Dependencies: {tab.database}
-                          </span>
+                          <span>Dependencies: {tab.database}</span>
                         </TabsTrigger>
                         <button
                           onClick={(e) => handleCloseDependencyTab(tab.id, e)}
@@ -337,9 +398,15 @@ function RouteComponent() {
                     <ContextMenuContent>
                       <ContextMenuItem
                         onClick={() => {
-                          setDependencyTabs((prevTabs) => prevTabs.filter((t) => t.id !== tab.id));
                           if (activeTab === tab.id) {
-                            setActiveTab("query");
+                            setDependencyTabs((prevTabs) => {
+                              const newTabs = prevTabs.filter((t) => t.id !== tab.id);
+                              const previousTabId = getPreviousTabId(tab.id, tableTabs, prevTabs);
+                              setActiveTab(previousTabId);
+                              return newTabs;
+                            });
+                          } else {
+                            setDependencyTabs((prevTabs) => prevTabs.filter((t) => t.id !== tab.id));
                           }
                         }}
                       >
@@ -352,10 +419,16 @@ function RouteComponent() {
                         Close to the right
                       </ContextMenuItem>
                       <ContextMenuSeparator />
-                      <ContextMenuItem onClick={() => handleCloseOthers(tab.id)} disabled={dependencyTabs.length === 1 && tableTabs.length === 0}>
+                      <ContextMenuItem
+                        onClick={() => handleCloseOthers(tab.id)}
+                        disabled={dependencyTabs.length === 1 && tableTabs.length === 0}
+                      >
                         Close others
                       </ContextMenuItem>
-                      <ContextMenuItem onClick={handleCloseAll} disabled={dependencyTabs.length === 0 && tableTabs.length === 0}>
+                      <ContextMenuItem
+                        onClick={handleCloseAll}
+                        disabled={dependencyTabs.length === 0 && tableTabs.length === 0}
+                      >
                         Close all
                       </ContextMenuItem>
                     </ContextMenuContent>
@@ -385,9 +458,15 @@ function RouteComponent() {
                     <ContextMenuContent>
                       <ContextMenuItem
                         onClick={() => {
-                          setTableTabs((prevTabs) => prevTabs.filter((t) => t.id !== tab.id));
                           if (activeTab === tab.id) {
-                            setActiveTab("query");
+                            setTableTabs((prevTabs) => {
+                              const newTabs = prevTabs.filter((t) => t.id !== tab.id);
+                              const previousTabId = getPreviousTabId(tab.id, prevTabs, dependencyTabs);
+                              setActiveTab(previousTabId);
+                              return newTabs;
+                            });
+                          } else {
+                            setTableTabs((prevTabs) => prevTabs.filter((t) => t.id !== tab.id));
                           }
                         }}
                       >
@@ -400,10 +479,16 @@ function RouteComponent() {
                         Close to the right
                       </ContextMenuItem>
                       <ContextMenuSeparator />
-                      <ContextMenuItem onClick={() => handleCloseOthers(tab.id)} disabled={tableTabs.length === 1 && dependencyTabs.length === 0}>
+                      <ContextMenuItem
+                        onClick={() => handleCloseOthers(tab.id)}
+                        disabled={tableTabs.length === 1 && dependencyTabs.length === 0}
+                      >
                         Close others
                       </ContextMenuItem>
-                      <ContextMenuItem onClick={handleCloseAll} disabled={tableTabs.length === 0 && dependencyTabs.length === 0}>
+                      <ContextMenuItem
+                        onClick={handleCloseAll}
+                        disabled={tableTabs.length === 0 && dependencyTabs.length === 0}
+                      >
                         Close all
                       </ContextMenuItem>
                     </ContextMenuContent>

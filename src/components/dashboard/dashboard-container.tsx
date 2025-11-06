@@ -1,20 +1,27 @@
 "use client";
 
 import { connect } from "echarts";
-import { useCallback, useMemo, useRef } from "react";
-import type { ChartDescriptor, StatDescriptor, TimeseriesDescriptor } from "./chart-utils";
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import type { ChartDescriptor, StatDescriptor, TableDescriptor, TimeseriesDescriptor } from "./chart-utils";
 import { DashboardGroupSection } from "./dashboard-group-section";
 import type { Dashboard, DashboardGroup } from "./dashboard-model";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableStatComponent from "./refreshable-stat-chart";
-
+import RefreshableTableComponent from "./refreshable-table-component";
 import RefreshableTimeseriesChart from "./refreshable-timeseries-chart";
+import type { TimeSpan } from "./timespan-selector";
 import TimeSpanSelector, { BUILT_IN_TIME_SPAN_LIST } from "./timespan-selector";
+
+export interface DashboardContainerRef {
+  refresh: (timeSpan?: TimeSpan) => void;
+}
 
 interface DashboardViewProps {
   dashboard: Dashboard;
   searchParams?: Record<string, unknown> | URLSearchParams;
   headerActions?: React.ReactNode;
+  hideTimeSpanSelector?: boolean;
+  externalTimeSpan?: TimeSpan;
 
   children?: React.ReactNode;
 }
@@ -43,7 +50,8 @@ function getAllCharts(dashboard: Dashboard): ChartDescriptor[] {
   return allCharts;
 }
 
-const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams = {}, headerActions, children }) => {
+const DashboardContainer = forwardRef<DashboardContainerRef, DashboardViewProps>(
+  ({ dashboard, searchParams = {}, headerActions, hideTimeSpanSelector = false, externalTimeSpan, children }, ref) => {
   const inputFilterRef = useRef<HTMLInputElement>(undefined);
   const subComponentRefs = useRef<(RefreshableComponent | null)[]>([]);
   const filterRef = useRef<TimeSpanSelector | null>(null);
@@ -84,67 +92,93 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
     [connectAllCharts]
   );
 
-  const refreshAllCharts = useCallback(() => {
-    if (!filterRef.current) {
-      return;
-    }
-
-    console.trace("Refreshing all charts/tables...");
-    const refreshParam = {
-      selectedTimeSpan: filterRef.current.getSelectedTimeSpan().calculateAbsoluteTimeSpan(),
-    } as RefreshParameter;
-    filterRef.current.getSelectedTimeSpan();
-    subComponentRefs.current.forEach((chart) => {
-      if (chart !== null) {
-        chart.refresh(refreshParam);
+    const refreshAllCharts = useCallback((overrideTimeSpan?: TimeSpan) => {
+      let timeSpan: TimeSpan | undefined;
+      
+      // Use override time span if provided, otherwise use external or filter ref
+      if (overrideTimeSpan) {
+        timeSpan = overrideTimeSpan;
+      } else if (hideTimeSpanSelector && externalTimeSpan) {
+        timeSpan = externalTimeSpan;
+      } else if (filterRef.current) {
+        timeSpan = filterRef.current.getSelectedTimeSpan()?.calculateAbsoluteTimeSpan();
       }
-    });
-  }, []);
+      
+      if (!timeSpan) {
+        return;
+      }
 
-  const onQueryConditionChange = useCallback(() => {
-    // Start a timer to refresh all charts so that the refresh does not block any UI updates
-    setTimeout(() => {
-      refreshAllCharts();
-    }, 10);
-  }, [refreshAllCharts]);
+      console.trace("Refreshing all charts/tables...");
+      const refreshParam = {
+        selectedTimeSpan: timeSpan,
+      } as RefreshParameter;
+      subComponentRefs.current.forEach((chart) => {
+        if (chart !== null) {
+          chart.refresh(refreshParam);
+        }
+      });
+    }, [hideTimeSpanSelector, externalTimeSpan]);
 
-  // Provide a default DisplayTimeSpan instance if not provided or if it's not an instance
-  const defaultTimeSpan = useMemo(() => {
-    // Otherwise, use the default "Last 15 Mins"
-    return BUILT_IN_TIME_SPAN_LIST[3];
-  }, []);
+    // Expose refresh method via imperative handle
+    useImperativeHandle(ref, () => ({
+      refresh: (timeSpan?: TimeSpan) => {
+        refreshAllCharts(timeSpan);
+      },
+    }), [refreshAllCharts]);
 
-  // Get the current selected time span with fallback to default
-  // This ensures charts always get a valid time span, even when filterRef is not ready yet
-  const getCurrentTimeSpan = useCallback(() => {
-    if (filterRef.current) {
-      return filterRef.current.getSelectedTimeSpan()?.calculateAbsoluteTimeSpan();
-    }
-    // Fallback to default time span when filterRef is not ready
-    // This allows charts to trigger their initial load immediately
-    return defaultTimeSpan.calculateAbsoluteTimeSpan();
-  }, [defaultTimeSpan]);
+    const onQueryConditionChange = useCallback(() => {
+      // Start a timer to refresh all charts so that the refresh does not block any UI updates
+      setTimeout(() => {
+        refreshAllCharts();
+      }, 10);
+    }, [refreshAllCharts]);
 
-  // No initial refresh here; each component handles its own initial refresh via useRefreshable
-  // Charts will get the default time span initially, then refresh when TimeSpanSelector
-  // triggers onSelectedSpanChanged (which happens on mount via componentDidUpdate)
+    // Provide a default DisplayTimeSpan instance if not provided or if it's not an instance
+    const defaultTimeSpan = useMemo(() => {
+      // Otherwise, use the default "Last 15 Mins"
+      return BUILT_IN_TIME_SPAN_LIST[3];
+    }, []);
 
-  console.log("Rendering dashboard", dashboard?.name);
+    // Get the current selected time span with fallback to default
+    // This ensures charts always get a valid time span, even when filterRef is not ready yet
+    const getCurrentTimeSpan = useCallback(() => {
+      // Use external time span if provided and time span selector is hidden
+      if (hideTimeSpanSelector && externalTimeSpan) {
+        return externalTimeSpan;
+      }
+      if (filterRef.current) {
+        return filterRef.current.getSelectedTimeSpan()?.calculateAbsoluteTimeSpan();
+      }
+      // Fallback to default time span when filterRef is not ready
+      // This allows charts to trigger their initial load immediately
+      return defaultTimeSpan.calculateAbsoluteTimeSpan();
+    }, [defaultTimeSpan, hideTimeSpanSelector, externalTimeSpan]);
 
-  return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Time span selector and header actions - fixed at top */}
-      <div className="flex-shrink-0 flex justify-end items-center gap-2 pt-2 px-2">
-        {headerActions}
-        <TimeSpanSelector
-          ref={filterRef}
-          defaultTimeSpan={defaultTimeSpan}
-          onSelectedSpanChanged={onQueryConditionChange}
-        />
-      </div>
+    // No initial refresh here; each component handles its own initial refresh via useRefreshable
+    // Charts will get the default time span initially, then refresh when TimeSpanSelector
+    // triggers onSelectedSpanChanged (which happens on mount via componentDidUpdate)
+
+    console.log("Rendering dashboard", dashboard?.name);
+
+    return (
+      <div className="h-full flex flex-col overflow-hidden">
+        {/* Time span selector and header actions - fixed at top */}
+        {(headerActions || !hideTimeSpanSelector) && (
+          <div className="flex-shrink-0 flex justify-end items-center gap-2 pt-2 pb-2">
+            {headerActions}
+            {!hideTimeSpanSelector && (
+              <TimeSpanSelector
+                ref={filterRef}
+                size="sm"
+                defaultTimeSpan={defaultTimeSpan}
+                onSelectedSpanChanged={onQueryConditionChange}
+              />
+            )}
+          </div>
+        )}
 
       {/* Dashboard section - scrollable */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden pt-2 px-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {dashboard &&
           dashboard.charts &&
           (() => {
@@ -208,7 +242,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                         title={group.title}
                         defaultOpen={!group.collapsed}
                       >
-                        <div className="card-container flex flex-wrap gap-1">
+                        <div className="card-container flex flex-wrap gap-x-1 gap-y-2">
                           {group.charts.map((chart: ChartDescriptor, chartIndex) => {
                             const currentIndex = groupStartIndex + chartIndex;
                             globalChartIndex++;
@@ -250,6 +284,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                                     searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                                   />
                                 )}
+                                {chart.type === "table" && (
+                                  <RefreshableTableComponent
+                                    ref={(el) => {
+                                      onSubComponentUpdated(el, currentIndex);
+                                    }}
+                                    descriptor={chart as TableDescriptor}
+                                    selectedTimeSpan={getCurrentTimeSpan()}
+                                    searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                  />
+                                )}
                               </div>
                             );
                           })}
@@ -260,7 +304,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                     // Render consecutive charts in a flex-wrap container
                     const charts = renderItem.data as ChartDescriptor[];
                     return (
-                      <div key={`charts-${renderItem.index}`} className="card-container flex flex-wrap gap-1">
+                      <div key={`charts-${renderItem.index}`} className="card-container flex flex-wrap gap-x-1 gap-y-2">
                         {charts.map((chart: ChartDescriptor, chartIndex) => {
                           const currentIndex = globalChartIndex++;
                           // Calculate width accounting for gaps (same logic as groups)
@@ -295,6 +339,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
                                   searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                                 />
                               )}
+                              {chart.type === "table" && (
+                                <RefreshableTableComponent
+                                  ref={(el) => {
+                                    onSubComponentUpdated(el, currentIndex);
+                                  }}
+                                  descriptor={chart as TableDescriptor}
+                                  selectedTimeSpan={getCurrentTimeSpan()}
+                                  searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                />
+                              )}
                             </div>
                           );
                         })}
@@ -311,6 +365,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ dashboard, searchParams =
       </div>
     </div>
   );
-};
+});
 
-export default DashboardView;
+DashboardContainer.displayName = "DashboardView";
+
+export default DashboardContainer;

@@ -199,87 +199,6 @@ export const PartitionSizeView = forwardRef<RefreshableTabViewRef, PartitionView
 
     // Create table descriptor
     const tableDescriptor = useMemo<TableDescriptor>(() => {
-      const columns: ColumnDef[] = [
-        {
-          name: "partition",
-          title: "Partition",
-          align: "center",
-          sortable: true,
-        },
-        {
-          name: "partCount",
-          title: "Part Count",
-          sortable: true,
-          align: "center",
-          format: "comma_number",
-        },
-        {
-          name: "rows",
-          title: "Rows",
-          sortable: true,
-          align: "center",
-          format: "comma_number",
-        },
-        {
-          name: "diskSize",
-          title: "On Disk Size",
-          sortable: true,
-          align: "center",
-          format: "binary_size",
-        },
-        {
-          name: "uncompressedSize",
-          title: "Uncompressed Size",
-          sortable: true,
-          align: "center",
-          format: "binary_size",
-        },
-        {
-          name: "compressRatio",
-          title: "Compress Ratio (%)",
-          sortable: true,
-          align: "center",
-        },
-        {
-          name: "action",
-          title: "Action",
-          align: "center",
-          sortable: false,
-          renderAction: (row: Record<string, unknown>) => {
-            const partition = String(row.partition || "");
-            return (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDropPartitionClick(partition)}
-                className="h-4 w-4 p-0"
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            );
-          },
-        },
-      ];
-
-      const sql = `
-SELECT 
-    partition,
-    count(1) as partCount,
-    sum(rows) as rows,
-    sum(bytes_on_disk) AS diskSize,
-    sum(data_uncompressed_bytes) AS uncompressedSize,
-    round(sum(data_compressed_bytes) / sum(data_uncompressed_bytes) * 100, 0) AS compressRatio
-FROM
-    system.parts
-WHERE 
-    database = '${database}' 
-    AND table = '${table}'
-    AND active = 1
-GROUP BY 
-    partition
-ORDER BY 
-    diskSize DESC`;
-
       return {
         type: "table",
         id: `partition-view-${database}-${table}`,
@@ -290,7 +209,24 @@ ORDER BY
         isCollapsed: false,
         width: 100,
         query: {
-          sql: sql,
+          sql: `
+SELECT 
+    partition,
+    count(1) as partCount,
+    sum(rows) as rows,
+    sum(bytes_on_disk) AS diskSize,
+    sum(data_uncompressed_bytes) AS uncompressedSize,
+    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 0) || ' : 1' AS compressRatio
+FROM
+    system.parts
+WHERE 
+    database = '${database}' 
+    AND table = '${table}'
+    AND active = 1
+GROUP BY 
+    partition
+ORDER BY 
+    partition DESC`,
           headers: {
             "Content-Type": "text/plain",
           },
@@ -298,10 +234,73 @@ ORDER BY
             default_format: "JSON",
           },
         },
-        columns: columns,
-        initialSort: {
-          column: "partition",
-          direction: "desc",
+        columns: [
+          {
+            name: "partition",
+            title: "Partition",
+            align: "center",
+            sortable: true,
+          },
+          {
+            name: "partCount",
+            title: "Part Count",
+            sortable: true,
+            align: "center",
+            format: "comma_number",
+          },
+          {
+            name: "rows",
+            title: "Rows",
+            sortable: true,
+            align: "center",
+            format: "comma_number",
+          },
+          {
+            name: "diskSize",
+            title: "On Disk Size",
+            sortable: true,
+            align: "center",
+            format: "binary_size",
+          },
+          {
+            name: "uncompressedSize",
+            title: "Uncompressed Size",
+            sortable: true,
+            align: "center",
+            format: "binary_size",
+          },
+          {
+            name: "compressRatio",
+            title: "Compress Ratio",
+            sortable: true,
+            align: "center",
+          },
+          {
+            name: "action",
+            title: "Action",
+            align: "center",
+            sortable: false,
+            renderAction: (row: Record<string, unknown>) => {
+              const partition = String(row.partition || "");
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDropPartitionClick(partition)}
+                  className="h-4 w-4 p-0"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              );
+            },
+          },
+        ] as ColumnDef[],
+
+        sortOption: {
+          initialSort: {
+            column: "partition",
+            direction: "desc",
+          },
         },
       };
     }, [database, table, handleDropPartitionClick]);

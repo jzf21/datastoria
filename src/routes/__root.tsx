@@ -10,7 +10,7 @@ function RootComponent() {
   return (
     <SidebarProvider open={false}>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="min-w-0 overflow-x-hidden h-screen">
         <Outlet />
       </SidebarInset>
     </SidebarProvider>

@@ -46,7 +46,7 @@ interface ConnectionSelectorProps {
 export function ConnectionSelector(
   {
     trigger,
-    popoverClassName = "w-[300px] p-0",
+    popoverClassName = "w-[400px] p-0",
     sideOffset,
     side,
   }: ConnectionSelectorProps = {} as ConnectionSelectorProps
@@ -166,7 +166,7 @@ export function ConnectionSelector(
             >
               <CommandInput placeholder="Search connections..." className="!h-10" />
               <CommandList className="!rounded-none">
-                <CommandEmpty>No connections found.</CommandEmpty>
+                <CommandEmpty className="p-3 text-center">No connections found</CommandEmpty>
                 {connections.length > 0 && (
                   <CommandGroup className="!py-1 !px-1 !rounded-none">
                     {connections.map((conn) => {

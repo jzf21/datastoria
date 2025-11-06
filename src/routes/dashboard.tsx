@@ -475,12 +475,12 @@ ORDER BY elapsed DESC
                   format: "binary_size",
                 },
                 {
-                  "name": "peak_memory_usage",
+                  name: "peak_memory_usage",
                   align: "center",
                   format: "binary_size",
                 },
                 {
-                  "name": "ProfileEvents",
+                  name: "ProfileEvents",
                   align: "center",
                   format: "map",
                 },
@@ -831,8 +831,9 @@ function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 49px)" }}>
+    <div className="flex flex-col px-2" style={{ height: "calc(100vh - 49px)" }}>
       <DashboardContainer dashboard={dashboard} headerActions={headerActions}>
+        {/* Render the skipped dashboards if any at the bottom of the container */}
         {skippedDashboards.length > 0 && (
           <DashboardGroupSection
             title={

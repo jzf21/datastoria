@@ -42,7 +42,7 @@ export function AppSidebar() {
               <ConnectionSelector
                 trigger={
                   <SidebarMenuButton
-                    tooltip={selectedConnection ? `${selectedConnection.name}@${selectedConnection.url}` : "Select Connection"}
+                    tooltip={selectedConnection ? `Current connection: ${selectedConnection.name}@${selectedConnection.url}` : "Select Connection"}
                     size="lg"
                     className="justify-center"
                   >
