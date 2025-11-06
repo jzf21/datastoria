@@ -29,6 +29,17 @@ const predefinedDashboard = {
         {
           type: "stat",
           titleOption: {
+            title: "Server Version",
+          },
+          width: 1,
+          description: "The version of the server",
+          query: {
+            sql: "SELECT version()",
+          },
+        },
+        {
+          type: "stat",
+          titleOption: {
             title: "Server UP Time",
           },
           width: 1,
@@ -40,18 +51,7 @@ const predefinedDashboard = {
             format: "timeDuration",
           },
         },
-        {
-          type: "stat",
-          titleOption: {
-            title: "Server Version",
-          },
-          width: 1,
-          description: "The version of the server",
-          query: {
-            sql: "SELECT version()",
-          },
-          valueOption: {},
-        },
+
         {
           type: "stat",
           titleOption: {
@@ -428,7 +428,68 @@ ORDER BY elapsed DESC
           query: {
             sql: `SELECT count() FROM system.processes`,
           },
-          valueOption: {},
+          drilldown: {
+            "running-queries": {
+              type: "table",
+              titleOption: {
+                title: "Running Queries",
+                description: "The running queries",
+              },
+              columns: [
+                {
+                  name: "query_kind",
+                  align: "center",
+                },
+                {
+                  name: "query",
+                  format: "sql",
+                },
+                {
+                  name: "elapsed",
+                  align: "center",
+                  format: "seconds",
+                },
+                {
+                  name: "read_rows",
+                  align: "center",
+                  format: "comma_number",
+                },
+                {
+                  name: "read_bytes",
+                  align: "center",
+                  format: "binary_size",
+                },
+                {
+                  name: "written_rows",
+                  align: "center",
+                  format: "comma_number",
+                },
+                {
+                  name: "written_bytes",
+                  align: "center",
+                  format: "binary_size",
+                },
+                {
+                  name: "memory_usage",
+                  align: "center",
+                  format: "binary_size",
+                },
+                {
+                  "name": "peak_memory_usage",
+                  align: "center",
+                  format: "binary_size",
+                },
+                {
+                  "name": "ProfileEvents",
+                  align: "center",
+                  format: "map",
+                },
+              ],
+              query: {
+                sql: `SELECT * FROM system.processes`,
+              },
+            } as TableDescriptor,
+          },
         },
       ],
     } as DashboardGroup,

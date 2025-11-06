@@ -1,12 +1,12 @@
 "use client";
 
-import { Api, type ApiCanceller, type ApiErrorResponse, type ApiResponse } from "@/lib/api";
+import { Api, type ApiCanceller, type ApiErrorResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { StringUtils } from "@/lib/string-utils";
 import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Formatter } from "../../lib/formatter";
+import { Formatter, type FormatName } from "../../lib/formatter";
 import FloatingProgressBar from "../floating-progress-bar";
 import { ThemedSyntaxHighlighter } from "../themed-syntax-highlighter";
 import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
@@ -96,6 +96,73 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       });
     }, [descriptor.columns]);
 
+    // Infer column format based on sample data
+    const inferColumnFormat = useCallback((columnName: string, sampleRows: Record<string, unknown>[]): string | undefined => {
+      if (sampleRows.length === 0) return undefined;
+
+      // Sample up to 10 rows to infer type
+      const sampleSize = Math.min(10, sampleRows.length);
+      const samples = sampleRows.slice(0, sampleSize).map(row => row[columnName]);
+
+      // Check if all samples are null/undefined
+      const allNull = samples.every(val => val === null || val === undefined);
+      if (allNull) return undefined;
+
+      // Find first non-null sample
+      const firstNonNull = samples.find(val => val !== null && val !== undefined);
+      if (firstNonNull === undefined) return undefined;
+
+      // Check for complex types
+      const isArray = Array.isArray(firstNonNull);
+      const isObject = typeof firstNonNull === "object" && firstNonNull !== null && !isArray;
+      const isMap = isObject && Object.keys(firstNonNull as Record<string, unknown>).length > 0;
+
+      // Check for Map type first (separate from other complex types)
+      if (isMap) {
+        const allMaps = samples
+          .filter(val => val !== null && val !== undefined)
+          .every(val => typeof val === "object" && !Array.isArray(val) && val !== null);
+        
+        if (allMaps) {
+          return "map";
+        }
+      }
+
+      // Check for Array or other complex types
+      if (isArray) {
+        const allArrays = samples
+          .filter(val => val !== null && val !== undefined)
+          .every(val => Array.isArray(val));
+
+        if (allArrays) {
+          return "complexType";
+        }
+      }
+
+      // Check for other objects (non-map, non-array)
+      if (isObject && !isMap) {
+        const allObjects = samples
+          .filter(val => val !== null && val !== undefined)
+          .every(val => typeof val === "object" && !Array.isArray(val) && val !== null);
+
+        if (allObjects) {
+          return "complexType";
+        }
+      }
+
+      // Check for long strings
+      const stringValues = samples
+        .filter(val => val !== null && val !== undefined)
+        .map(val => typeof val === "object" ? JSON.stringify(val) : String(val));
+      
+      const maxLength = Math.max(...stringValues.map(s => s.length));
+      if (maxLength > 200) {
+        return "truncatedText";
+      }
+
+      return undefined;
+    }, []);
+
     // Initialize columns from descriptor
     useEffect(() => {
       setColumns(normalizeColumns());
@@ -153,81 +220,134 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
             finalSql = replaceOrderByClause(query.sql, sortRef.current.column, sortRef.current.direction);
           }
 
+          // Create AbortController for cancellation
+          const abortController = new AbortController();
+          const canceller: ApiCanceller = {
+            cancel: () => {
+              abortController.abort();
+            },
+          };
+          apiCancellerRef.current = canceller;
+
           const api = Api.create(selectedConnection);
-          const canceller = api.executeSQL(
-            {
-              sql: finalSql,
-              headers: query.headers,
-              params: {
-                default_format: "JSON",
-                output_format_json_quote_64bit_integers: 0,
-                ...query.params,
+          
+          try {
+            const response = await api.executeAsync(
+              {
+                sql: finalSql,
+                headers: query.headers,
+                params: {
+                  default_format: "JSON",
+                  output_format_json_quote_64bit_integers: 0,
+                  ...query.params,
+                },
               },
-            },
-            (response: ApiResponse) => {
-              try {
-                const responseData = response.data;
+              abortController.signal
+            );
 
-                // JSON format returns { meta: [...], data: [...], rows: number, statistics: {...} }
-                const rows = responseData.data || [];
-                const meta = responseData.meta || [];
+            // Check if request was aborted
+            if (abortController.signal.aborted) {
+              setIsLoading(false);
+              return;
+            }
 
-                // Build column map from descriptor columns
-                const columnMap = new Map<string, ColumnDef>();
-                const descriptorColumns = normalizeColumns();
-                descriptorColumns.forEach((colDef) => {
-                  columnMap.set(colDef.name, colDef);
-                });
+            const responseData = response.data;
 
-                // Build meta map for quick lookup
-                const metaMap = new Map<string, { name: string; type?: string }>();
-                meta.forEach((colMeta: { name: string; type?: string }) => {
-                  metaMap.set(colMeta.name, colMeta);
-                });
+            // JSON format returns { meta: [...], data: [...], rows: number, statistics: {...} }
+            const rows = responseData.data || [];
+            const meta = responseData.meta || [];
 
-                // Use descriptor column order, supplement with meta info if available
-                // If descriptor has columns, use them in order; otherwise use meta order
-                const finalColumns: ColumnDef[] =
-                  descriptorColumns.length > 0
-                    ? descriptorColumns.map((colDef) => {
-                        const metaInfo = metaMap.get(colDef.name);
-                        // Merge descriptor column def with meta info if available
-                        return metaInfo ? { ...colDef } : colDef;
-                      })
-                    : meta.map((colMeta: { name: string; type?: string }) => {
-                        const existingDef = columnMap.get(colMeta.name);
-                        return existingDef || ({ name: colMeta.name } as ColumnDef);
-                      });
+            // Build column map from descriptor columns (overrides)
+            const columnMap = new Map<string, ColumnDef>();
+            const descriptorColumns = normalizeColumns();
+            descriptorColumns.forEach((colDef) => {
+              columnMap.set(colDef.name, colDef);
+            });
 
-                setColumns(finalColumns);
-                setData(rows as Record<string, unknown>[]);
-                setError("");
-              } catch (err) {
-                console.error("Error processing table response:", err);
-                const errorMessage = err instanceof Error ? err.message : String(err);
-                setError(errorMessage);
-              } finally {
-                setIsLoading(false);
+            // Build meta map for quick lookup (all server columns)
+            const metaMap = new Map<string, { name: string; type?: string }>();
+            meta.forEach((colMeta: { name: string; type?: string }) => {
+              metaMap.set(colMeta.name, colMeta);
+            });
+
+            // Strategy:
+            // 1. If descriptor.columns is provided (non-empty): Use ALL server columns,
+            //    but override with descriptor column definitions where they match.
+            //    Preserve descriptor column order for overridden columns, then append rest.
+            // 2. If descriptor.columns is empty/omitted: Use all server columns with defaults.
+            const finalColumns: ColumnDef[] = [];
+            
+            if (descriptorColumns.length > 0) {
+              // Behavior: Use all server columns, but override with descriptor definitions
+              const processedColumnNames = new Set<string>();
+              
+              // First, add columns in descriptor order (if they exist in server response)
+              descriptorColumns.forEach((colDef) => {
+                if (metaMap.has(colDef.name)) {
+                  finalColumns.push(colDef);
+                  processedColumnNames.add(colDef.name);
+                }
+              });
+              
+              // Then, add remaining server columns that weren't in descriptor
+              meta.forEach((colMeta: { name: string; type?: string }) => {
+                if (!processedColumnNames.has(colMeta.name)) {
+                  // Use override if exists, otherwise use default
+                  const existingDef = columnMap.get(colMeta.name);
+                  finalColumns.push(existingDef || ({ name: colMeta.name } as ColumnDef));
+                }
+              });
+            } else {
+              // Behavior: Use all server columns with defaults, apply any overrides if they exist
+              meta.forEach((colMeta: { name: string; type?: string }) => {
+                const existingDef = columnMap.get(colMeta.name);
+                finalColumns.push(existingDef || ({ name: colMeta.name } as ColumnDef));
+              });
+            }
+
+            // Apply type inference to columns without format
+            finalColumns.forEach((colDef) => {
+              if (!colDef.format) {
+                const inferredFormat = inferColumnFormat(colDef.name, rows as Record<string, unknown>[]);
+                if (inferredFormat) {
+                  colDef.format = inferredFormat as FormatName;
+                }
               }
-            },
-            (error: ApiErrorResponse) => {
-              const errorMessage = error.errorMessage || "Unknown error occurred";
+            });
+
+            setColumns(finalColumns);
+            setData(rows as Record<string, unknown>[]);
+            setError("");
+            setIsLoading(false);
+          } catch (error) {
+            // Check if request was aborted
+            if (abortController.signal.aborted) {
+              setIsLoading(false);
+              return;
+            }
+
+            // Handle ApiErrorResponse
+            if (error && typeof error === "object" && "errorMessage" in error) {
+              const apiError = error as ApiErrorResponse;
+              const errorMessage = apiError.errorMessage || "Unknown error occurred";
               const lowerErrorMessage = errorMessage.toLowerCase();
+              
               if (lowerErrorMessage.includes("cancel") || lowerErrorMessage.includes("abort")) {
                 setIsLoading(false);
                 return;
               }
 
-              console.error("API Error:", error);
+              console.error("API Error:", apiError);
               setError(errorMessage);
               setIsLoading(false);
-            },
-            () => {
+            } else {
+              // Handle other errors
+              const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+              console.error("Error processing table response:", error);
+              setError(errorMessage);
               setIsLoading(false);
             }
-          );
-
-          apiCancellerRef.current = canceller;
+          }
         } catch (error) {
           const errorMessage = (error as Error).message || "Unknown error occurred";
           setError(errorMessage);
@@ -235,7 +355,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           console.error(error);
         }
       },
-      [descriptor, selectedConnection, normalizeColumns]
+      [descriptor, selectedConnection, normalizeColumns, inferColumnFormat]
     );
 
     // Internal refresh function

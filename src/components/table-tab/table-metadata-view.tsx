@@ -141,8 +141,7 @@ function TableStructureView({
       {
         name: "comment",
         title: "Comment",
-        sortable: true,
-        align: "center",
+        align: "left",
       },
       {
         name: "codec_expression",

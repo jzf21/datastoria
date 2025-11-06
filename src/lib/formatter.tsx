@@ -1,5 +1,128 @@
-import React from "react";
+import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
+import { Dialog } from "@/components/use-dialog";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import React, { useMemo, useState } from "react";
 import { DateTimeExtension } from "./datetime-utils";
+
+// Helper function to format a value for display in table
+function formatValueForDisplay(val: unknown, formatNumbers: boolean = false): string {
+  if (val === null || val === undefined) {
+    return "NULL";
+  }
+  if (typeof val === "object") {
+    return JSON.stringify(val);
+  }
+  
+  // Format numbers with comma_number if requested
+  if (formatNumbers && typeof val === "number") {
+    return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  
+  return String(val);
+}
+
+// Map table component with sorting support
+function MapTableComponent({ mapData }: { mapData: Array<{ key: unknown; value: unknown }> }) {
+  const [sort, setSort] = useState<{ column: "key" | "value" | null; direction: "asc" | "desc" | null }>({
+    column: null,
+    direction: null,
+  });
+
+  const handleSort = (column: "key" | "value") => {
+    if (sort.column === column) {
+      // Cycle through: desc -> asc -> null
+      if (sort.direction === "desc") {
+        setSort({ column, direction: "asc" });
+      } else if (sort.direction === "asc") {
+        setSort({ column: null, direction: null });
+      } else {
+        setSort({ column, direction: "desc" });
+      }
+    } else {
+      // First click: sort in descending order
+      setSort({ column, direction: "desc" });
+    }
+  };
+
+  const getSortIcon = (column: "key" | "value") => {
+    if (sort.column !== column) {
+      return <ArrowUpDown className="inline-block w-4 h-4 ml-1 opacity-50" />;
+    }
+    if (sort.direction === "asc") {
+      return <ArrowUp className="inline-block w-4 h-4 ml-1" />;
+    }
+    if (sort.direction === "desc") {
+      return <ArrowDown className="inline-block w-4 h-4 ml-1" />;
+    }
+    return <ArrowUpDown className="inline-block w-4 h-4 ml-1 opacity-50" />;
+  };
+
+  const sortedData = useMemo(() => {
+    if (!sort.column || !sort.direction) {
+      return mapData;
+    }
+
+    return [...mapData].sort((a, b) => {
+      const aValue = sort.column === "key" ? a.key : a.value;
+      const bValue = sort.column === "key" ? b.key : b.value;
+
+      // Handle null/undefined values
+      const aVal = aValue == null ? "" : aValue;
+      const bVal = bValue == null ? "" : bValue;
+
+      // Compare values
+      let comparison = 0;
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        comparison = aVal - bVal;
+      } else {
+        comparison = String(aVal).localeCompare(String(bVal));
+      }
+
+      return sort.direction === "asc" ? comparison : -comparison;
+    });
+  }, [mapData, sort]);
+
+  return (
+    <div className="overflow-auto max-h-[60vh]">
+      <table className="w-full border-collapse text-sm">
+        <thead className="sticky top-0 bg-background z-10">
+          <tr className="border-b">
+            <th
+              className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none bg-background"
+              onClick={() => handleSort("key")}
+            >
+              Key
+              {getSortIcon("key")}
+            </th>
+            <th
+              className="text-left p-2 font-semibold cursor-pointer hover:bg-muted/50 select-none bg-background"
+              onClick={() => handleSort("value")}
+            >
+              Value
+              {getSortIcon("value")}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedData.length === 0 ? (
+            <tr>
+              <td colSpan={2} className="p-4 text-center text-muted-foreground">
+                Empty map
+              </td>
+            </tr>
+          ) : (
+            sortedData.map((entry, index) => (
+              <tr key={index} className="border-b hover:bg-muted/50">
+                <td className="p-2 whitespace-nowrap">{formatValueForDisplay(entry.key)}</td>
+                <td className="p-2 break-words">{formatValueForDisplay(entry.value, true)}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export type FormatName =
   | "json_string"
@@ -26,7 +149,10 @@ export type FormatName =
   | "time" // For compatibility only, use DateTime formatter above instead
   | "template"
   | "detail" // For table only
-  | "sql"; // For SQL queries - shows truncated text with click-to-expand dialog
+  | "sql" // For SQL queries - shows truncated text with click-to-expand dialog
+  | "map" // For Map types - shows Map(N entries) with click-to-expand table dialog
+  | "complexType" // For complex types (Array, Tuple, JSON) - shows truncated JSON with click-to-expand dialog
+  | "truncatedText"; // For long text - shows truncated text with click-to-expand dialog, accepts truncation length via formatArgs
 
 export class Formatter {
   private static instance: Formatter;
@@ -109,9 +235,143 @@ export class Formatter {
       return template.replaceVariables(params);
     };
 
+    // Map formatter - for Map types, renders in table format with Key and Value columns
+    this._formatters["map"] = (v) => {
+      return this.formatMapValue(v);
+    };
+
+    // Complex type formatter - for Array, Tuple, JSON types (not Map)
+    this._formatters["complexType"] = (v, props, params) => {
+      if (v === null || v === undefined) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+
+      // Get truncation length from params (default: 30)
+      const truncateLength = (params && params[0]) || (props && props.formatArgs && props.formatArgs[0]) || 30;
+
+      // For complex types (Array, Tuple, JSON) - not Map
+      const stringValue = typeof v === "object" ? JSON.stringify(v) : String(v);
+      const truncated =
+        stringValue.length > truncateLength ? stringValue.substring(0, truncateLength) + "..." : stringValue;
+      const fullValue = typeof v === "object" && v !== null ? JSON.stringify(v, null, 2) : stringValue;
+
+      return (
+        <span
+          className="cursor-pointer hover:text-primary underline decoration-dotted"
+          onClick={(e) => {
+            e.stopPropagation();
+            Dialog.showDialog({
+              title: "Complex Type Data",
+              description: "Full content",
+              mainContent: (
+                <div className="overflow-auto">
+                  <ThemedSyntaxHighlighter
+                    language="json"
+                    customStyle={{ fontSize: "14px", margin: 0 }}
+                    showLineNumbers={true}
+                  >
+                    {fullValue}
+                  </ThemedSyntaxHighlighter>
+                </div>
+              ),
+              className: "max-w-4xl max-h-[80vh]",
+            });
+          }}
+          title="Click to view full content"
+        >
+          {truncated}
+        </span>
+      );
+    };
+
+    // Truncated text formatter - for long text values
+    this._formatters["truncatedText"] = (v, props, params) => {
+      if (v === null || v === undefined) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+
+      // Get truncation length from params (default: 200)
+      const truncateLength = (params && params[0]) || (props && props.formatArgs && props.formatArgs[0]) || 200;
+
+      const stringValue = typeof v === "object" ? JSON.stringify(v) : String(v);
+
+      if (stringValue.length <= truncateLength) {
+        return <span>{stringValue}</span>;
+      }
+
+      const truncated = stringValue.substring(0, truncateLength) + "...";
+
+      return (
+        <span
+          className="cursor-pointer hover:text-primary underline decoration-dotted"
+          onClick={(e) => {
+            e.stopPropagation();
+            Dialog.showDialog({
+              title: "Full Text",
+              description: "Complete text content",
+              mainContent: (
+                <div className="overflow-auto">
+                  <div className="whitespace-pre-wrap break-words text-sm font-mono p-2 bg-muted rounded">
+                    {stringValue}
+                  </div>
+                </div>
+              ),
+              className: "max-w-4xl max-h-[80vh]",
+            });
+          }}
+          title="Click to view full text"
+        >
+          {truncated}
+        </span>
+      );
+    };
+
     // deprecated
     this._formatters["nanoFormatter"] = (v) => this.nanoFormat(v, 2);
   }
+
+  private formatMapValue = (v: unknown): React.ReactNode => {
+    if (v === null || v === undefined) {
+      return <span className="text-muted-foreground">-</span>;
+    }
+
+    // Parse map data from value (same logic as in constructor)
+    let mapData: Array<{ key: unknown; value: unknown }> | null = null;
+    if (typeof v === "object" && !Array.isArray(v) && v !== null) {
+      try {
+        mapData = Object.entries(v as Record<string, unknown>).map(([key, val]) => ({
+          key,
+          value: val,
+        }));
+      } catch {
+        mapData = null;
+      }
+    }
+    if (!mapData) {
+      // Fallback if not a valid map
+      return <span className="text-muted-foreground">-</span>;
+    }
+
+    const displayText = `Map(${mapData.length} entries)`;
+
+    return (
+      <span
+        className="cursor-pointer hover:text-primary underline decoration-dotted"
+        onClick={(e) => {
+          e.stopPropagation();
+          Dialog.showDialog({
+            title: "Map Data",
+            description: "Full map content",
+            mainContent: <MapTableComponent mapData={mapData} />,
+            className: "max-w-4xl max-h-[80vh]",
+          });
+        }}
+        title="Click to view full content"
+      >
+        {displayText}
+      </span>
+    );
+  };
 
   public static getInstance(): Formatter {
     if (!Formatter.instance) {
