@@ -2,13 +2,14 @@
 
 import { connect } from "echarts";
 import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "react";
-import type { ChartDescriptor, StatDescriptor, TableDescriptor, TimeseriesDescriptor } from "./chart-utils";
+import type { ChartDescriptor, StatDescriptor, TableDescriptor, TimeseriesDescriptor, TransposeTableDescriptor } from "./chart-utils";
 import { DashboardGroupSection } from "./dashboard-group-section";
 import type { Dashboard, DashboardGroup } from "./dashboard-model";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableStatComponent from "./refreshable-stat-chart";
 import RefreshableTableComponent from "./refreshable-table-component";
 import RefreshableTimeseriesChart from "./refreshable-timeseries-chart";
+import RefreshableTransposedTableComponent from "./refreshable-transposed-table-component";
 import type { TimeSpan } from "./timespan-selector";
 import TimeSpanSelector, { BUILT_IN_TIME_SPAN_LIST } from "./timespan-selector";
 
@@ -291,6 +292,16 @@ const DashboardContainer = forwardRef<DashboardContainerRef, DashboardViewProps>
                                     searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                                   />
                                 )}
+                                {chart.type === "transpose-table" && (
+                                  <RefreshableTransposedTableComponent
+                                    ref={(el) => {
+                                      onSubComponentUpdated(el, currentIndex);
+                                    }}
+                                    descriptor={chart as TransposeTableDescriptor}
+                                    selectedTimeSpan={getCurrentTimeSpan()}
+                                    searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                  />
+                                )}
                               </div>
                             );
                           })}
@@ -342,6 +353,16 @@ const DashboardContainer = forwardRef<DashboardContainerRef, DashboardViewProps>
                                     onSubComponentUpdated(el, currentIndex);
                                   }}
                                   descriptor={chart as TableDescriptor}
+                                  selectedTimeSpan={getCurrentTimeSpan()}
+                                  searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
+                                />
+                              )}
+                              {chart.type === "transpose-table" && (
+                                <RefreshableTransposedTableComponent
+                                  ref={(el) => {
+                                    onSubComponentUpdated(el, currentIndex);
+                                  }}
+                                  descriptor={chart as TransposeTableDescriptor}
                                   selectedTimeSpan={getCurrentTimeSpan()}
                                   searchParams={searchParams instanceof URLSearchParams ? searchParams : undefined}
                                 />

@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import type { QueryContext } from "@/lib/query-context/QueryContext";
 import { QueryContextManager } from "@/lib/query-context/QueryContextManager";
 import { toastManager } from "@/lib/toast";
-import { ChevronDown, History, MoreVertical, Play } from "lucide-react";
+import { ChevronDown, MoreVertical, Play } from "lucide-react";
 import { useCallback, useState } from "react";
 import { QueryExecutor } from "../query-execution/query-executor";
 import { getSelectedOrAllText } from "../query-input/query-input-view";
@@ -23,7 +23,6 @@ export interface QueryControlProps {
   hasSelectedText?: boolean;
   onQuery?: () => void;
   onExplain?: (name: string) => void;
-  onShowHistory?: () => void;
 }
 
 export function QueryControl({
@@ -31,7 +30,6 @@ export function QueryControl({
   hasSelectedText = false,
   onQuery,
   onExplain,
-  onShowHistory,
 }: QueryControlProps) {
   const [queryContext, setQueryContext] = useState<QueryContext>(() =>
     QueryContextManager.getInstance().getContext()
@@ -129,14 +127,6 @@ export function QueryControl({
     },
     [onExplain, removeComments]
   );
-
-  const handleHistory = useCallback(() => {
-    if (onShowHistory) {
-      onShowHistory();
-    } else {
-      toastManager.show("History feature coming soon", "info");
-    }
-  }, [onShowHistory]);
 
   const handleMaxResultRowsChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,18 +274,6 @@ export function QueryControl({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Separator orientation="vertical" className="h-6" />
-
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={handleHistory}
-        className="gap-2"
-      >
-        <History className="h-4 w-4" />
-        History
-      </Button>
     </div>
   );
 }

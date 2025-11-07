@@ -17,7 +17,6 @@ import { ChartContainer, ChartTooltip } from "../ui/chart";
 import { Skeleton } from "../ui/skeleton";
 import { Dialog } from "../use-dialog";
 import { classifyColumns, transformRowsToChartData } from "./chart-data-utils";
-import { replaceTimeSpanParams } from "./sql-time-utils";
 import type {
   ChartDescriptor,
   MinimapOption,
@@ -28,10 +27,12 @@ import type {
   TimeseriesDescriptor,
   TransposeTableDescriptor,
 } from "./chart-utils";
+import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableTableComponent from "./refreshable-table-component";
 import RefreshableTimeseriesChart from "./refreshable-timeseries-chart";
 import RefreshableTransposedTableComponent from "./refreshable-transposed-table-component";
+import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
 
@@ -257,6 +258,12 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     const [offsetError, setOffsetError] = useState("");
     const [error, setError] = useState("");
     const [hasInitialData, setHasInitialData] = useState(false); // Track if we've ever received data
+    // Skeleton timing state for smooth transitions
+    const [shouldShowSkeleton, setShouldShowSkeleton] = useState(false);
+    const [skeletonOpacity, setSkeletonOpacity] = useState(1);
+    // Refs for skeleton timing
+    const skeletonStartTimeRef = useRef<number | null>(null);
+    const skeletonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Helper functions
     const shouldShowMinimap = useCallback((): boolean => {
@@ -273,7 +280,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
 
       try {
         const responseData = response.data;
-        
+
         // JSON format returns { meta: [...], data: [...], rows: number, statistics: {...} }
         const rows = responseData.data || [];
         const meta = responseData.meta || [];
@@ -286,7 +293,8 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
         const transformedData = transformRowsToChartData(rows, meta);
 
         // Classify columns to find timestamp and metric columns
-        const allColumns = meta.length > 0 ? meta.map((m: { name: string }) => m.name) : Object.keys(transformedData[0]);
+        const allColumns =
+          meta.length > 0 ? meta.map((m: { name: string }) => m.name) : Object.keys(transformedData[0]);
         const { timestampKey, metricColumns } = classifyColumns(allColumns, meta, transformedData);
 
         // Use the first metric column as the value for the minimap
@@ -391,6 +399,10 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
             Api.create(selectedConnection!).executeSQL(
               {
                 sql: finalSql,
+                headers: {
+                  "Content-Type": "text/plain",
+                  ...query.headers,
+                },
                 params: {
                   default_format: "JSON",
                   output_format_json_quote_64bit_integers: 0,
@@ -429,6 +441,10 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
             Api.create(selectedConnection!).executeSQL(
               {
                 sql: finalSql,
+                headers: {
+                  "Content-Type": "text/plain",
+                  ...query.headers,
+                },
                 params: {
                   default_format: "JSONCompact",
                   output_format_json_quote_64bit_integers: 0,
@@ -480,7 +496,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     // Internal refresh function
     const refreshInternal = useCallback(
       (param: RefreshParameter) => {
-
         if (!descriptor.query) {
           console.error(`No query defined for stat [${descriptor.id}]`);
           setError("No query defined for this stat component.");
@@ -587,19 +602,44 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
         setFontSize(newFontSize);
       };
 
-      // Use setTimeout to ensure DOM is updated
-      const timeoutId = setTimeout(adjustFontSize, 0);
+      // Use requestAnimationFrame to ensure DOM is updated and content is rendered
+      // Double rAF ensures that NumberFlow and other async components have rendered
+      let rafId2: number;
+      const rafId1 = requestAnimationFrame(() => {
+        rafId2 = requestAnimationFrame(() => {
+          adjustFontSize();
+        });
+      });
 
-      // Also adjust on window resize
+      // Watch for content changes in the text element (handles NumberFlow updates)
+      const mutationObserver = new MutationObserver(() => {
+        requestAnimationFrame(() => {
+          adjustFontSize();
+        });
+      });
+
+      if (valueTextRef.current) {
+        mutationObserver.observe(valueTextRef.current, {
+          characterData: true,
+          childList: true,
+          subtree: true,
+        });
+      }
+
+      // Also adjust on container resize
       const resizeObserver = new ResizeObserver(() => {
-        setTimeout(adjustFontSize, 0);
+        requestAnimationFrame(() => {
+          adjustFontSize();
+        });
       });
       if (valueContainerRef.current) {
         resizeObserver.observe(valueContainerRef.current);
       }
 
       return () => {
-        clearTimeout(timeoutId);
+        cancelAnimationFrame(rafId1);
+        cancelAnimationFrame(rafId2);
+        mutationObserver.disconnect();
         resizeObserver.disconnect();
       };
     }, [data, isLoadingValue, hasInitialData]);
@@ -609,6 +649,61 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       refresh,
       getLastRefreshParameter,
     }));
+
+    // Skeleton timing logic: minimum display time + fade transition
+    useEffect(() => {
+      // Only show skeleton on initial load (when hasInitialData is false)
+      const shouldShow = isLoadingValue && !hasInitialData;
+      
+      if (shouldShow) {
+        // Start showing skeleton only if not already showing
+        if (skeletonStartTimeRef.current === null) {
+          skeletonStartTimeRef.current = Date.now();
+          setShouldShowSkeleton(true);
+          setSkeletonOpacity(1);
+        }
+      } else {
+        // Loading stopped or data arrived - handle fade-out with minimum display time
+        // Only start fade-out if skeleton is currently showing
+        if (skeletonStartTimeRef.current !== null) {
+          // Clear any existing timeout to prevent multiple fade-outs
+          if (skeletonTimeoutRef.current) {
+            clearTimeout(skeletonTimeoutRef.current);
+            skeletonTimeoutRef.current = null;
+          }
+          
+          const elapsed = Date.now() - skeletonStartTimeRef.current;
+          
+          if (elapsed < SKELETON_MIN_DISPLAY_TIME) {
+            // Wait for minimum display time, then fade out
+            const remainingTime = SKELETON_MIN_DISPLAY_TIME - elapsed;
+            skeletonTimeoutRef.current = setTimeout(() => {
+              // Start fade out
+              setSkeletonOpacity(0);
+              // After fade completes, hide skeleton
+              setTimeout(() => {
+                setShouldShowSkeleton(false);
+                skeletonStartTimeRef.current = null;
+              }, SKELETON_FADE_DURATION);
+            }, remainingTime);
+          } else {
+            // Already shown long enough, fade out immediately
+            setSkeletonOpacity(0);
+            setTimeout(() => {
+              setShouldShowSkeleton(false);
+              skeletonStartTimeRef.current = null;
+            }, SKELETON_FADE_DURATION);
+          }
+        }
+      }
+
+      return () => {
+        if (skeletonTimeoutRef.current) {
+          clearTimeout(skeletonTimeoutRef.current);
+          skeletonTimeoutRef.current = null;
+        }
+      };
+    }, [isLoadingValue, hasInitialData]);
 
     // Get the first drilldown descriptor if available
     const getFirstDrilldownDescriptor = useCallback((): ChartDescriptor | null => {
@@ -667,9 +762,9 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       Dialog.showDialog({
         title,
         description,
-        className: "max-w-[60vw] max-h-[90vh]",
+        className: "max-w-[60vw] h-[70vh]",
         disableContentScroll: false,
-        mainContent: <div className="w-full">{renderDrilldownComponent(modifiedDescriptor)}</div>,
+        mainContent: <div className="w-full h-full overflow-auto">{renderDrilldownComponent(modifiedDescriptor)}</div>,
       });
     }, [getFirstDrilldownDescriptor, renderDrilldownComponent]);
 
@@ -679,24 +774,27 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     }, [descriptor.drilldown]);
 
     // Check if we should use NumberFlow for rendering
-    const shouldUseNumberFlow = useCallback((dataValue: number): boolean => {
-      if (typeof dataValue !== "number") {
-        return false;
-      }
+    const shouldUseNumberFlow = useCallback(
+      (dataValue: number): boolean => {
+        if (typeof dataValue !== "number") {
+          return false;
+        }
 
-      const formatName = descriptor.valueOption?.format;
-      if (!formatName) {
-        // No format specified, use NumberFlow with default formatting
-        return true;
-      }
+        const formatName = descriptor.valueOption?.format;
+        if (!formatName) {
+          // No format specified, use NumberFlow with default formatting
+          return true;
+        }
 
-      // Use NumberFlow for supported formats, otherwise use Formatter
-      // Supported formats: compact_number, short_number, comma_number, percentage, percentage_0_1
-      // Note: NumberFlow only supports Intl.NumberFormatOptions, not custom formatter functions
-      const formatStr = formatName as string;
-      const supportedFormats = ["compact_number", "short_number", "comma_number", "percentage", "percentage_0_1"];
-      return supportedFormats.includes(formatStr);
-    }, [descriptor.valueOption?.format]);
+        // Use NumberFlow for supported formats, otherwise use Formatter
+        // Supported formats: compact_number, short_number, comma_number, percentage, percentage_0_1
+        // Note: NumberFlow only supports Intl.NumberFormatOptions, not custom formatter functions
+        const formatStr = formatName as string;
+        const supportedFormats = ["compact_number", "short_number", "comma_number", "percentage", "percentage_0_1"];
+        return supportedFormats.includes(formatStr);
+      },
+      [descriptor.valueOption?.format]
+    );
 
     // Render comparison helper
     const renderComparison = () => {
@@ -773,14 +871,19 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 }}
                 onClick={hasDrilldown() ? handleDrilldownClick : undefined}
               >
-                {!hasInitialData ? (
-                  <Skeleton className="w-20 h-10" />
+                {shouldShowSkeleton ? (
+                  <div
+                    className="transition-opacity duration-150"
+                    style={{ opacity: skeletonOpacity }}
+                  >
+                    <Skeleton className="w-20 h-10" />
+                  </div>
                 ) : shouldUseNumberFlow(data) ? (
                   (() => {
                     // Default to 'compact_number' if no format is specified
                     const originalFormatName = descriptor.valueOption?.format;
                     const formatName = originalFormatName || "compact_number";
-                    
+
                     // Map format names to NumberFlow format options (inline)
                     // Note: NumberFlow supports Intl.NumberFormatOptions through the format prop
                     // It does not support custom formatter functions, only standard Intl.NumberFormat options
@@ -803,7 +906,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                     } else {
                       numberFlowFormat = undefined;
                     }
-                    
+
                     // Handle percentage formats: NumberFlow with style: "percent" multiplies by 100
                     // - percentage: value is already a percentage (e.g., 50 = 50%), so divide by 100
                     // - percentage_0_1: value is in [0,1] range (e.g., 0.5 = 50%), pass as-is
@@ -811,7 +914,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                     if (originalFormatName === "percentage") {
                       displayValue = data / 100;
                     }
-                    
+
                     return (
                       <NumberFlow
                         value={displayValue}
@@ -833,13 +936,20 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
         </CardHeader>
         <CardFooter className="px-0 pb-2">
           {/* Render minimap at the bottom - always reserve space if minimap is configured */}
+          {/* Show skeleton for minimap while main skeleton is showing */}
           {!error && shouldShowMinimap() ? (
-            <StatMinimap
-              id={descriptor.id || "stat"}
-              data={minimapData}
-              isLoading={isLoadingMinimap}
-              minimap={descriptor.minimapOption!}
-            />
+            shouldShowSkeleton ? (
+              <div className="w-full mt-2">
+                <Skeleton className="h-[50px] w-full" />
+              </div>
+            ) : (
+              <StatMinimap
+                id={descriptor.id || "stat"}
+                data={minimapData}
+                isLoading={isLoadingMinimap}
+                minimap={descriptor.minimapOption!}
+              />
+            )
           ) : (
             <div className="w-full mt-2">
               <div className="h-[50px]" />

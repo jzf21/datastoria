@@ -767,7 +767,10 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           const canceller = api.executeSQL(
             {
               sql: finalSql,
-              headers: query.headers,
+              headers: {
+                "Content-Type": "text/plain",
+                ...query.headers,
+              },
               params: {
                 default_format: "JSON",
                 output_format_json_quote_64bit_integers: 0,
@@ -1098,10 +1101,10 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
         Dialog.showDialog({
           title: "Query Result - " + descriptor.titleOption?.title,
           description: `Showing ${data.length} row(s) of raw query result data`,
-          className: "max-w-[50vw] max-h-[80vh]",
+          className: "max-w-[50vw] h-[70vh]",
           disableContentScroll: true,
           mainContent: (
-            <div className="overflow-auto max-h-[60vh] bg-background">
+            <div className="overflow-auto h-full bg-background">
               <table className="w-full caption-bottom text-sm border-collapse">
                 <thead className="sticky top-0 z-10 bg-background [&_tr]:border-b">
                   <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">

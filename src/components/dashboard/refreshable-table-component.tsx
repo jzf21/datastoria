@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/colla
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import type { ActionColumn, FieldOption, SQLQuery, TableDescriptor } from "./chart-utils";
+import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import { inferFieldFormat } from "./format-inference";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import { replaceTimeSpanParams } from "./sql-time-utils";
@@ -80,6 +81,9 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       column: descriptor.sortOption?.initialSort?.column || null,
       direction: descriptor.sortOption?.initialSort?.direction || null,
     });
+    // Skeleton timing state for smooth transitions
+    const [shouldShowSkeleton, setShouldShowSkeleton] = useState(false);
+    const [skeletonOpacity, setSkeletonOpacity] = useState(1);
     // Refs
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
     // Ref to store current sort state for synchronous access in loadData
@@ -87,6 +91,9 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       column: descriptor.sortOption?.initialSort?.column || null,
       direction: descriptor.sortOption?.initialSort?.direction || null,
     });
+    // Refs for skeleton timing
+    const skeletonStartTimeRef = useRef<number | null>(null);
+    const skeletonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Normalize fieldOptions: convert Map/Record to array of FieldOption, handling position ordering
     const normalizeFieldOptions = useCallback((): Map<string, FieldOption> => {
@@ -128,6 +135,59 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     useEffect(() => {
       sortRef.current = sort;
     }, [sort]);
+
+    // Skeleton timing logic: minimum display time + fade transition
+    useEffect(() => {
+      const shouldShow = isLoading && data.length === 0;
+      
+      if (shouldShow) {
+        // Start showing skeleton
+        if (skeletonStartTimeRef.current === null) {
+          skeletonStartTimeRef.current = Date.now();
+          setShouldShowSkeleton(true);
+          setSkeletonOpacity(1);
+        }
+      } else {
+        // Data loaded or loading stopped
+        if (skeletonStartTimeRef.current !== null) {
+          // Clear any existing timeout
+          if (skeletonTimeoutRef.current) {
+            clearTimeout(skeletonTimeoutRef.current);
+            skeletonTimeoutRef.current = null;
+          }
+          
+          const elapsed = Date.now() - skeletonStartTimeRef.current;
+          
+          if (elapsed < SKELETON_MIN_DISPLAY_TIME) {
+            // Wait for minimum display time, then fade out
+            const remainingTime = SKELETON_MIN_DISPLAY_TIME - elapsed;
+            skeletonTimeoutRef.current = setTimeout(() => {
+              // Start fade out
+              setSkeletonOpacity(0);
+              // After fade completes, hide skeleton
+              setTimeout(() => {
+                setShouldShowSkeleton(false);
+                skeletonStartTimeRef.current = null;
+              }, SKELETON_FADE_DURATION);
+            }, remainingTime);
+          } else {
+            // Already shown long enough, fade out immediately
+            setSkeletonOpacity(0);
+            setTimeout(() => {
+              setShouldShowSkeleton(false);
+              skeletonStartTimeRef.current = null;
+            }, SKELETON_FADE_DURATION);
+          }
+        }
+      }
+
+      return () => {
+        if (skeletonTimeoutRef.current) {
+          clearTimeout(skeletonTimeoutRef.current);
+          skeletonTimeoutRef.current = null;
+        }
+      };
+    }, [isLoading, data.length]);
 
     // Load data from API
     const loadData = useCallback(
@@ -188,7 +248,10 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
             const response = await api.executeAsync(
               {
                 sql: finalSql,
-                headers: query.headers,
+                headers: {
+                  "Content-Type": "text/plain",
+                  ...query.headers,
+                },
                 params: {
                   default_format: "JSON",
                   output_format_json_quote_64bit_integers: 0,
@@ -559,31 +622,34 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     }, [error, columns.length, descriptor.showIndexColumn]);
 
     const renderLoading = useCallback(() => {
-      // Only show skeleton when loading AND no existing data
-      // If data exists, keep showing it during refresh (no skeleton)
-      if (!isLoading || data.length > 0) return null;
+      // Only show skeleton when shouldShowSkeleton is true (with timing logic)
+      if (!shouldShowSkeleton) return null;
       return (
         <>
-              {Array.from({ length: 3 }).map((_, index) => (
-                <TableRow key={index}>
-                  {descriptor.showIndexColumn && (
-                    <TableCell className="text-center whitespace-nowrap !p-2">
-                      <Skeleton className="h-5 w-full" />
-                    </TableCell>
-                  )}
-                  {columns.map((fieldOption) => (
-                    <TableCell key={fieldOption.name} className={cn(getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}>
-                      <Skeleton className="h-5 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
+          {Array.from({ length: 1 }).map((_, index) => (
+            <TableRow 
+              key={index}
+              className="transition-opacity duration-150"
+              style={{ opacity: skeletonOpacity }}
+            >
+              {descriptor.showIndexColumn && (
+                <TableCell className="text-center whitespace-nowrap !p-2">
+                  <Skeleton className="h-5 w-full" />
+                </TableCell>
+              )}
+              {columns.map((fieldOption) => (
+                <TableCell key={fieldOption.name} className={cn(getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}>
+                  <Skeleton className="h-5 w-full" />
+                </TableCell>
               ))}
+            </TableRow>
+          ))}
         </>
       );
-    }, [isLoading, data.length, columns, getCellAlignmentClass, descriptor.showIndexColumn]);
+    }, [shouldShowSkeleton, skeletonOpacity, columns, getCellAlignmentClass, descriptor.showIndexColumn]);
 
     const renderNoData = useCallback(() => {
-      if (error || isLoading || data.length > 0) return null;
+      if (error || shouldShowSkeleton || data.length > 0) return null;
       const colSpan = columns.length + (descriptor.showIndexColumn ? 1 : 0);
       return (
         <TableRow>
@@ -592,11 +658,12 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           </TableCell>
         </TableRow>
       );
-    }, [error, isLoading, data.length, columns.length, descriptor.showIndexColumn]);
+    }, [error, shouldShowSkeleton, data.length, columns.length, descriptor.showIndexColumn]);
 
     const renderData = useCallback(() => {
+      // Don't show data while skeleton is visible (during minimum display time)
       // Don't hide data during refresh - keep showing existing data until new data arrives
-      if (error || data.length === 0) return null;
+      if (error || data.length === 0 || shouldShowSkeleton) return null;
       return (
         <>
           {sortedData.map((row, rowIndex) => (
@@ -633,7 +700,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           ))}
         </>
       );
-    }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue, descriptor.showIndexColumn]);
+    }, [error, data.length, shouldShowSkeleton, sortedData, columns, getCellAlignmentClass, formatCellValue, descriptor.showIndexColumn]);
 
     const hasTitle = !!descriptor.titleOption && descriptor.titleOption?.showTitle !== false;
     const isStickyHeader = descriptor.headOption?.isSticky === true;
@@ -655,13 +722,16 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     }, [error, columns.length, descriptor.showIndexColumn]);
 
     const renderLoadingDirect = useCallback(() => {
-      // Only show skeleton when loading AND no existing data
-      // If data exists, keep showing it during refresh (no skeleton)
-      if (!isLoading || data.length > 0) return null;
+      // Only show skeleton when shouldShowSkeleton is true (with timing logic)
+      if (!shouldShowSkeleton) return null;
       return (
         <>
-          {Array.from({ length: 3 }).map((_, index) => (
-            <tr key={index} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+          {Array.from({ length: 1 }).map((_, index) => (
+            <tr 
+              key={index} 
+              className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted transition-opacity duration-150"
+              style={{ opacity: skeletonOpacity }}
+            >
               {descriptor.showIndexColumn && (
                 <td className="p-4 align-middle text-center whitespace-nowrap !p-2">
                   <Skeleton className="h-5 w-full" />
@@ -679,10 +749,10 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           ))}
         </>
       );
-    }, [isLoading, data.length, columns, getCellAlignmentClass, descriptor.showIndexColumn]);
+    }, [shouldShowSkeleton, skeletonOpacity, columns, getCellAlignmentClass, descriptor.showIndexColumn]);
 
     const renderNoDataDirect = useCallback(() => {
-      if (error || isLoading || data.length > 0) return null;
+      if (error || shouldShowSkeleton || data.length > 0) return null;
       const colSpan = columns.length + (descriptor.showIndexColumn ? 1 : 0);
       return (
         <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
@@ -691,10 +761,11 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           </td>
         </tr>
       );
-    }, [error, isLoading, data.length, columns.length, descriptor.showIndexColumn]);
+    }, [error, shouldShowSkeleton, data.length, columns.length, descriptor.showIndexColumn]);
 
     const renderDataDirect = useCallback(() => {
-      if (error || data.length === 0) return null;
+      // Don't show data while skeleton is visible (during minimum display time)
+      if (error || data.length === 0 || shouldShowSkeleton) return null;
       return (
         <>
           {sortedData.map((row, rowIndex) => (
@@ -741,7 +812,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           ))}
         </>
       );
-    }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue, descriptor.showIndexColumn]);
+    }, [error, data.length, shouldShowSkeleton, sortedData, columns, getCellAlignmentClass, formatCellValue, descriptor.showIndexColumn]);
 
     return (
       <Card ref={componentRef} className="@container/card relative">
@@ -789,7 +860,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                       <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                         {descriptor.showIndexColumn && (
                           <th className="px-4 text-center align-middle font-medium text-muted-foreground whitespace-nowrap h-10">
-                            {isLoading && data.length === 0 ? (
+                            {shouldShowSkeleton ? (
                               <Skeleton className="h-5 w-20" />
                             ) : (
                               "#"
@@ -818,7 +889,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                               }}
                               onClick={() => isSortable && handleSort(fieldName)}
                             >
-                              {isLoading && data.length === 0 ? (
+                              {shouldShowSkeleton ? (
                                 <Skeleton className="h-5 w-20" />
                               ) : (
                                 <>
@@ -845,7 +916,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                     <TableRow>
                       {descriptor.showIndexColumn && (
                         <TableHead className="px-4 text-center align-middle font-medium text-muted-foreground whitespace-nowrap h-10">
-                          {isLoading && data.length === 0 ? (
+                          {shouldShowSkeleton ? (
                             <Skeleton className="h-5 w-20" />
                           ) : (
                             "#"
@@ -874,7 +945,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                             }}
                             onClick={() => isSortable && handleSort(fieldName)}
                           >
-                            {isLoading && data.length === 0 ? (
+                            {shouldShowSkeleton ? (
                               <Skeleton className="h-5 w-20" />
                             ) : (
                               <>

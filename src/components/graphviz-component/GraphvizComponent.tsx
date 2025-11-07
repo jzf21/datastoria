@@ -793,7 +793,7 @@ export class GraphvizComponent extends React.PureComponent<GraphvizProps, Graphv
         </div>
         {/* Floating zoom buttons */}
         <div 
-          className={`absolute top-2 left-2 flex flex-row gap-2 z-10 transition-opacity duration-200 ${
+          className={`absolute top-2 right-2 flex flex-row gap-2 z-10 transition-opacity duration-200 ${
             this.state.isHovered ? "opacity-100" : "opacity-0"
           }`}
         >

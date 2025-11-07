@@ -122,7 +122,7 @@ WHERE
     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
     AND database = '${database}'
     AND table = '${table}'
-    AND event_type = 'MutateParts'
+    AND event_type = 'MutatePart'
 GROUP BY t
 ORDER BY t
 WITH FILL STEP {rounding:UInt32}

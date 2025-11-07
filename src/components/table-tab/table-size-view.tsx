@@ -49,6 +49,9 @@ WHERE
     AND table = '${table}'
     AND active = 1`,
             },
+            valueOption: {
+              format: "binary_size",
+            },
           },
           {
             type: "stat",

@@ -279,11 +279,7 @@ FROM system.tables`;
         <>
           {/* Left Panel: Dependency View */}
           <Panel defaultSize={showTableNode ? 60 : 100} minSize={showTableNode ? 30 : 0} className="bg-background">
-            <GraphvizComponent
-              dot={graphviz}
-              style={{ width: "100%", height: "100%" }}
-              onGraphAction={onGraphAction}
-            />
+            <GraphvizComponent dot={graphviz} style={{ width: "100%", height: "100%" }} onGraphAction={onGraphAction} />
           </Panel>
 
           {/* Splitter */}

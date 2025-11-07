@@ -134,9 +134,12 @@ export type FormatName =
   | "nanosecond"
   | "millisecond"
   | "microsecond"
+  | "seconds"
   | "binary_size"
   | "short_number"
   | "comma_number" // input: 1234567, output: 1,234,567
+  | "byte_rate"
+  | "rate"
   | "dateTime" // Deprecated
   | "shortDateTime" // Deprecated
   // DateTime Formatter

@@ -131,6 +131,17 @@ export function QueryInputView() {
     editor.renderer.setScrollMargin(10, 10, 0, 0);
     editor.completers = QueryCompletionManager.getInstance().getCompleters(editor.completers);
 
+    // Clear any selection and move cursor to end of text
+    editor.clearSelection();
+    const session = editor.getSession();
+    const lines = session.getLength();
+    if (lines > 0) {
+      const lastLine = session.getLine(lines - 1);
+      editor.moveCursorTo(lines - 1, lastLine.length);
+    } else {
+      editor.moveCursorTo(0, 0);
+    }
+
     // Update command
     editor.commands.addCommand({
       name: "run",

@@ -649,13 +649,6 @@ ORDER BY lower(database), database, table, columnName`,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConnection]);
 
-  // Auto-focus search input when tree data is loaded
-  useEffect(() => {
-    if (treeData.length > 0 && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [treeData.length]);
-
   const handleDropTable = useCallback(() => {
     if (contextMenuNode?.data?.type === "table" && selectedConnection) {
       const tableData = contextMenuNode.data as TableNodeData;

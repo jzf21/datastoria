@@ -217,7 +217,7 @@ SELECT
     sum(rows) as rows,
     sum(bytes_on_disk) AS disk_size,
     sum(data_uncompressed_bytes) AS uncompressed_size,
-    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 0) || ' : 1' AS compress_ratio
+    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 0) AS compress_ratio
 FROM
     system.parts
 WHERE 
@@ -271,6 +271,12 @@ ORDER BY
             title: "Compress Ratio",
             sortable: true,
             align: "center",
+            format: (value: unknown) => {
+              if (value === null || value === undefined) {
+                return "-";
+              }
+              return `${value} : 1`;
+            },
           },
         } as Record<string, FieldOption>,
 

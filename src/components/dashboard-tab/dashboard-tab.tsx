@@ -64,29 +64,26 @@ const predefinedDashboard = {
                 title: "Databases",
                 description: "The number of databases on the server",
               },
-              columns: [
-                {
-                  name: "name",
+              width: 1,
+              fieldOptions: {
+                name: {
                   title: "Name",
                 },
-                {
-                  name: "size",
+                size: {
                   title: "Size",
                   format: "binary_size",
                 },
-                {
-                  name: "rows",
+                rows: {
                   title: "Rows",
                   format: "comma_number",
                 },
-                {
-                  name: "percentage",
+                percentage: {
                   title: "Size Percentage of Total",
                   format: "percentage_bar",
                   formatArgs: [100, 16],
                   width: 100,
                 },
-              ],
+              },
               query: {
                 sql: `SELECT 
     A.name, B.size, B.rows, B.percentage
@@ -106,9 +103,9 @@ AS B
 ON A.name = B.database
 ORDER BY B.size DESC`,
               },
-            },
+            } as TableDescriptor,
           },
-        },
+        } as unknown as StatDescriptor,
         {
           type: "stat",
           titleOption: {
@@ -141,28 +138,25 @@ ORDER BY B.size DESC`,
                 title: "Table Size",
                 description: "The size of all tables",
               },
-              columns: [
-                {
-                  name: "database",
+              width: 1,
+              fieldOptions: {
+                database: {
                   title: "Database",
                 },
-                {
-                  name: "table",
+                table: {
                   title: "Table",
                 },
-                {
-                  name: "size",
+                size: {
                   title: "Size",
                   format: "binary_size",
                 },
-                {
-                  name: "pct_of_total",
+                pct_of_total: {
                   title: "Percentage",
                   format: "percentage_bar",
                   formatArgs: [100, 16],
                   width: 100,
                 },
-              ],
+              },
               sortOption: {
                 initialSort: {
                   column: "size",
@@ -212,29 +206,27 @@ ORDER BY
                 title: "Used Storage",
                 description: "The used storage of all disks",
               },
-              columns: [
-                {
-                  name: "name",
+              width: 1,
+              fieldOptions: {
+                name: {
                   title: "Name",
                 },
-                {
-                  name: "path",
+                path: {
                   title: "Path",
                 },
-                {
-                  name: "used_percent",
+                used_percent: {
                   title: "Used Percent",
                   format: "percentage_bar",
                   formatArgs: [100, 16],
                   width: 100,
                 },
-              ],
+              },
               query: {
                 sql: `SELECT name, path, round((1 - free_space / total_space) * 100, 2) AS used_percent FROM system.disks`,
               },
-            },
+            } as TableDescriptor,
           },
-        },
+        } as unknown as StatDescriptor,
         {
           type: "stat",
           titleOption: {
@@ -252,72 +244,60 @@ ORDER BY
                 title: "Ongoing Merges",
                 description: "The ongoing merges",
               },
-              columns: [
-                {
-                  name: "table",
+              width: 1,
+              fieldOptions: {
+                table: {
                   title: "Table",
                 },
-                {
-                  name: "result_part_name",
+                result_part_name: {
                   title: "Result Part Name",
                 },
-                {
-                  name: "num_parts",
+                num_parts: {
                   title: "Number of Parts",
                   format: "comma_number",
                 },
-                {
-                  name: "elapsed",
+                elapsed: {
                   title: "Elapsed",
                   format: "timeDuration",
                 },
-                {
-                  name: "progress",
+                progress: {
                   title: "Progress",
                   format: "percentage_bar",
                   formatArgs: [100, 16],
                   width: 50,
                 },
-                {
-                  name: "is_mutation",
+                is_mutation: {
                   title: "Is Mutation",
                 },
-                {
-                  name: "total_size_bytes_compressed",
+                total_size_bytes_compressed: {
                   title: "Total Size",
                   format: "binary_size",
                 },
-                {
-                  name: "bytes_read_uncompressed",
+                bytes_read_uncompressed: {
                   title: "Bytes Read",
                   format: "binary_size",
                 },
-                {
-                  name: "rows_read",
+                rows_read: {
                   title: "Rows Read",
                   format: "comma_number",
                 },
-                {
-                  name: "bytes_written_uncompressed",
+                bytes_written_uncompressed: {
                   title: "Bytes Written",
                   format: "binary_size",
                 },
-                {
-                  name: "rows_written",
+                rows_written: {
                   title: "Rows Written",
                   format: "comma_number",
                 },
-                {
-                  name: "columns_written",
+                columns_written: {
                   title: "Columns Written",
                   format: "comma_number",
                 },
-                {
-                  name: "memory_usage",
+                memory_usage: {
                   title: "Memory Usage",
                   format: "binary_size",
                 },
-              ],
+              },
               sortOption: {
                 initialSort: {
                   column: "elapsed",
@@ -329,9 +309,9 @@ ORDER BY
 SELECT 
     database || '.' || table AS table,
     result_part_name,  
-    is_mutation,  
     elapsed * 1000 AS elapsed, 
     progress * 100 AS progress, 
+    is_mutation,  
     length(source_part_names) as num_parts,
     total_size_bytes_compressed,
     bytes_read_uncompressed,
@@ -346,7 +326,7 @@ ORDER BY elapsed DESC
               },
             } as TableDescriptor,
           },
-        },
+        } as unknown as StatDescriptor,
         {
           type: "stat",
           titleOption: {
@@ -364,43 +344,36 @@ ORDER BY elapsed DESC
                 title: "Ongoing Mutations",
                 description: "The number of ongoing mutations",
               },
-              columns: [
-                {
-                  name: "database",
+              width: 1,
+              fieldOptions: {
+                database: {
                   title: "Database",
                 },
-                {
-                  name: "table",
+                table: {
                   title: "Table",
                 },
-                {
-                  name: "create_time",
+                create_time: {
                   title: "Create Time",
                   format: "dateTime",
                 },
-                {
-                  name: "mutation_id",
+                mutation_id: {
                   title: "Mutation ID",
                 },
-                {
-                  name: "command",
+                command: {
                   title: "Command",
                 },
-                {
-                  name: "parts_to_do",
+                parts_to_do: {
                   title: "Parts to Do",
                   format: "comma_number",
                 },
-                {
-                  name: "latest_fail_time",
+                latest_fail_time: {
                   title: "Latest Fail Time",
                   format: "dateTime",
                 },
-                {
-                  name: "latest_fail_reason",
+                latest_fail_reason: {
                   title: "Latest Fail Reason",
                 },
-              ],
+              },
               sortOption: {
                 initialSort: {
                   column: "create_time",
@@ -412,7 +385,7 @@ ORDER BY elapsed DESC
               },
             } as TableDescriptor,
           },
-        },
+        } as unknown as StatDescriptor,
         {
           type: "stat",
           titleOption: {
@@ -430,62 +403,53 @@ ORDER BY elapsed DESC
                 title: "Running Queries",
                 description: "The running queries",
               },
-              columns: [
-                {
-                  name: "query_kind",
+              width: 1,
+              fieldOptions: {
+                query_kind: {
                   align: "center",
                 },
-                {
-                  name: "query",
+                query: {
                   format: "sql",
                 },
-                {
-                  name: "elapsed",
+                elapsed: {
                   align: "center",
                   format: "seconds",
                 },
-                {
-                  name: "read_rows",
+                read_rows: {
                   align: "center",
                   format: "comma_number",
                 },
-                {
-                  name: "read_bytes",
+                read_bytes: {
                   align: "center",
                   format: "binary_size",
                 },
-                {
-                  name: "written_rows",
+                written_rows: {
                   align: "center",
                   format: "comma_number",
                 },
-                {
-                  name: "written_bytes",
+                written_bytes: {
                   align: "center",
                   format: "binary_size",
                 },
-                {
-                  name: "memory_usage",
+                memory_usage: {
                   align: "center",
                   format: "binary_size",
                 },
-                {
-                  name: "peak_memory_usage",
+                peak_memory_usage: {
                   align: "center",
                   format: "binary_size",
                 },
-                {
-                  name: "ProfileEvents",
+                ProfileEvents: {
                   align: "center",
                   format: "map",
                 },
-              ],
+              },
               query: {
                 sql: `SELECT * FROM system.processes`,
               },
             } as TableDescriptor,
           },
-        },
+        } as unknown as StatDescriptor,
       ],
     } as DashboardGroup,
   ],
@@ -520,6 +484,9 @@ export function DashboardTab({ host }: DashboardTabProps) {
       api.executeSQL(
         {
           sql: "SELECT dashboard, title, query FROM system.dashboards ORDER BY dashboard, title",
+          headers: {
+            "Content-Type": "text/plain",
+          },
           params: {
             default_format: "JSON",
             output_format_json_quote_64bit_integers: 0,
@@ -544,7 +511,7 @@ export function DashboardTab({ host }: DashboardTabProps) {
             const firstRow = rows[0];
             const isArrayFormat = Array.isArray(firstRow);
 
-            rows.forEach((row: unknown, rowIndex: number) => {
+            rows.forEach((row: unknown) => {
               let dashboardName: string;
               let title: string;
               let query: string;
@@ -590,8 +557,6 @@ export function DashboardTab({ host }: DashboardTabProps) {
               const groupCharts: TimeseriesDescriptor[] = [];
 
               dashboardRows.forEach((row, index) => {
-                const columns = ["value"]; // Default column name
-
                 // Validate row data
                 if (!row.title || !row.query) {
                   return;
@@ -636,7 +601,6 @@ export function DashboardTab({ host }: DashboardTabProps) {
                   },
                   width: 1, // Default width
                   isCollapsed: false,
-                  columns: columns,
                   yAxis: [{}], // Default y-axis
                   query: {
                     sql: row.query,
@@ -699,6 +663,9 @@ export function DashboardTab({ host }: DashboardTabProps) {
     api.executeSQL(
       {
         sql: `SELECT name FROM system.tables WHERE database = 'system' AND (name LIKE 'metric_log%' OR name LIKE 'asynchronous_metric_log%')`,
+        headers: {
+          "Content-Type": "text/plain",
+        },
         params: {
           default_format: "JSON",
           output_format_json_quote_64bit_integers: 0,

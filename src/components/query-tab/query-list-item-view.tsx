@@ -1,9 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { ApiCanceller, ApiErrorResponse, ApiResponse } from "@/lib/api";
+import type { ApiErrorResponse } from "@/lib/api";
 import { Api } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
-import { toastManager } from "@/lib/toast";
 import { format } from "date-fns";
 import { ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +11,7 @@ import { ExplainPipelineResponseView } from "./explain-pipeline-response-view";
 import { ExplainQueryResponseView } from "./explain-query-response-view";
 import { ExplainSyntaxResponseView } from "./explain-syntax-response-view";
 import { QueryRequestView } from "./query-request-view";
+import { ApiErrorView, type ApiErrorResponse as QueryApiErrorResponse } from "./query-response-view";
 import { QueryResponseView } from "./query-response-view";
 import type { QueryResponseViewModel, QueryViewProps } from "./query-view-model";
 
@@ -34,7 +34,7 @@ export function QueryListItemView({
   // Start as executing if we don't have a response yet (new query)
   const [isExecuting, setIsExecuting] = useState(true);
   const [queryResponse, setQueryResponse] = useState<QueryResponseViewModel | undefined>(undefined);
-  const cancellerRef = useRef<ApiCanceller | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
   const hasExecutedRef = useRef<string | null>(null);
   const scrollPlaceholderRef = useRef<HTMLDivElement>(null);
@@ -48,7 +48,7 @@ export function QueryListItemView({
     if (hasExecutedRef.current === queryRequest.uuid) {
       return;
     }
-    
+
     if (!selectedConnection) {
       setIsExecuting(false);
       onExecutionStateChange?.(queryRequest.uuid, false);
@@ -59,12 +59,17 @@ export function QueryListItemView({
     hasExecutedRef.current = queryRequest.uuid;
     setIsExecuting(true);
     onExecutionStateChange?.(queryRequest.uuid, true);
+
+    // Create abort controller for this execution
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     const api = Api.create(selectedConnection);
 
     // Use JSON format for dependency view, TabSeparated for others
     // But if params are provided in viewArgs, use those instead (they override defaults)
     const defaultFormat = view === "dependency" ? "JSON" : "TabSeparated";
-    
+
     const params = viewArgs?.params
       ? { ...viewArgs.params }
       : {
@@ -72,12 +77,25 @@ export function QueryListItemView({
           output_format_json_quote_64bit_integers: view === "dependency" ? 0 : undefined,
         };
 
-    const canceller = api.executeSQL(
-      {
-        sql: queryRequest.sql,
-        params: params,
-      },
-      (response: ApiResponse) => {
+    // Execute query asynchronously
+    (async () => {
+      try {
+        const response = await api.executeAsync(
+          {
+            sql: queryRequest.sql,
+            headers: {
+              "Content-Type": "text/plain",
+            },
+            params: params,
+          },
+          abortController.signal
+        );
+
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          return;
+        }
+
         // For dependency view, keep the JSON structure; for others, convert to string
         let responseData: unknown;
         if (view === "dependency") {
@@ -100,46 +118,53 @@ export function QueryListItemView({
         setQueryResponse(queryResponse);
         setIsExecuting(false);
         onExecutionStateChange?.(queryRequest.uuid, false);
-        cancellerRef.current = null;
-      },
-      (error: ApiErrorResponse) => {
+        abortControllerRef.current = null;
+      } catch (error) {
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          // Cancellation - don't update state here, let cleanup handle it
+          // This prevents the loader from flickering in StrictMode
+          abortControllerRef.current = null;
+          hasExecutedRef.current = null;
+          return;
+        }
+
         // Only set error response if it's not a cancellation
-        if (error.errorMessage && !error.errorMessage.toLowerCase().includes("cancel")) {
+        const apiError = error as ApiErrorResponse;
+        if (
+          apiError.errorMessage &&
+          !apiError.errorMessage.toLowerCase().includes("cancel") &&
+          !apiError.errorMessage.toLowerCase().includes("abort")
+        ) {
           const queryResponse: QueryResponseViewModel = {
             formatter: viewArgs?.formatter,
             displayFormat: viewArgs?.displayFormat || "text",
             queryId: queryRequest.queryId,
             traceId: queryRequest.traceId,
-            errorMessage: error.errorMessage || "Unknown error occurred",
-            httpStatus: error.httpStatus,
-            httpHeaders: error.httpHeaders,
-            data: error.data,
+            errorMessage: apiError.errorMessage || "Unknown error occurred",
+            httpStatus: apiError.httpStatus,
+            httpHeaders: apiError.httpHeaders,
+            data: apiError.data,
           };
 
           setQueryResponse(queryResponse);
           setIsExecuting(false);
           onExecutionStateChange?.(queryRequest.uuid, false);
-          cancellerRef.current = null;
-          toastManager.show(`Query execution failed: ${error.errorMessage}`, "error");
+          abortControllerRef.current = null;
         } else {
           // Cancellation - don't update state here, let cleanup handle it
           // This prevents the loader from flickering in StrictMode
-          cancellerRef.current = null;
+          abortControllerRef.current = null;
           hasExecutedRef.current = null;
         }
-      },
-      () => {
-        // Query execution finished
       }
-    );
-
-    cancellerRef.current = canceller;
+    })();
 
     // Cleanup: cancel query on unmount
     return () => {
-      if (cancellerRef.current) {
-        cancellerRef.current.cancel();
-        cancellerRef.current = null;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
         // Reset guard when cancelled so StrictMode's second execution can proceed
         // Don't reset isExecuting here - let the second execution maintain the loading state
         hasExecutedRef.current = null;
@@ -155,7 +180,7 @@ export function QueryListItemView({
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (scrollPlaceholderRef.current) {
-            scrollPlaceholderRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' });
+            scrollPlaceholderRef.current.scrollIntoView({ block: "end", behavior: "smooth" });
           }
         });
       });
@@ -164,9 +189,9 @@ export function QueryListItemView({
 
   // Handle query deletion - cancel if executing
   const handleDelete = () => {
-    if (cancellerRef.current) {
-      cancellerRef.current.cancel();
-      cancellerRef.current = null;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
     if (onQueryDelete) {
       onQueryDelete(queryRequest.uuid);
@@ -204,39 +229,28 @@ export function QueryListItemView({
     }
 
     if (queryResponse.errorMessage !== null) {
-      return (
-        <div className="text-sm text-destructive p-4">
-          <pre className="whitespace-pre-wrap">
-            {queryResponse.errorMessage}
-            {queryResponse.data && typeof queryResponse.data === "string" && (
-              <>{`\n\n${queryResponse.data as string}`}</>
-            )}
-          </pre>
-        </div>
-      );
+      const error: QueryApiErrorResponse = {
+        errorMessage: queryResponse.errorMessage,
+        data: queryResponse.data,
+        httpHeaders: queryResponse.httpHeaders,
+      };
+
+      return <ApiErrorView error={error} sql={queryRequest.sql} />;
     }
 
     return (
       <>
-        {view === "ast" && (
-          <ExplainASTResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
-        )}
+        {view === "ast" && <ExplainASTResponseView queryRequest={queryRequest} queryResponse={queryResponse} />}
 
         {view === "pipeline" && (
           <ExplainPipelineResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
         )}
 
-        {view === "plan" && (
-          <ExplainQueryResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
-        )}
+        {view === "plan" && <ExplainQueryResponseView queryRequest={queryRequest} queryResponse={queryResponse} />}
 
-        {view === "estimate" && (
-          <ExplainQueryResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
-        )}
+        {view === "estimate" && <ExplainQueryResponseView queryRequest={queryRequest} queryResponse={queryResponse} />}
 
-        {view === "syntax" && (
-          <ExplainSyntaxResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
-        )}
+        {view === "syntax" && <ExplainSyntaxResponseView queryRequest={queryRequest} queryResponse={queryResponse} />}
       </>
     );
   };
@@ -269,7 +283,7 @@ export function QueryListItemView({
       {/* Query Response */}
       {queryResponse &&
         (queryResponse.data !== undefined || queryResponse.errorMessage !== undefined) &&
-        view === "query" && <QueryResponseView queryResponse={queryResponse} />}
+        view === "query" && <QueryResponseView queryResponse={queryResponse} sql={queryRequest.sql} />}
 
       {/* Explain Response */}
       {queryResponse &&

@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/colla
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import type { FieldOption, SQLQuery, TransposeTableDescriptor } from "./chart-utils";
+import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import { inferFieldFormat } from "./format-inference";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import { replaceTimeSpanParams } from "./sql-time-utils";
@@ -40,9 +41,15 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
     const [error, setError] = useState("");
     // Store inferred formats for fields that don't have explicit formats
     const [inferredFormats, setInferredFormats] = useState<Map<string, FormatName>>(new Map());
+    // Skeleton timing state for smooth transitions
+    const [shouldShowSkeleton, setShouldShowSkeleton] = useState(false);
+    const [skeletonOpacity, setSkeletonOpacity] = useState(1);
 
     // Refs
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
+    // Refs for skeleton timing
+    const skeletonStartTimeRef = useRef<number | null>(null);
+    const skeletonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Get field option for a given key
     const getFieldOption = useCallback(
@@ -103,7 +110,10 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
           const canceller = api.executeSQL(
             {
               sql: finalSql,
-              headers: query.headers,
+              headers: {
+                "Content-Type": "text/plain",
+                ...query.headers,
+              },
               params: {
                 default_format: "JSON",
                 output_format_json_quote_64bit_integers: 0,
@@ -213,6 +223,53 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
       getLastRefreshParameter,
     }));
 
+    // Skeleton timing logic: minimum display time + fade transition
+    useEffect(() => {
+      const shouldShow = isLoading && data === null;
+      
+      if (shouldShow) {
+        // Start showing skeleton
+        if (skeletonStartTimeRef.current === null) {
+          skeletonStartTimeRef.current = Date.now();
+          setShouldShowSkeleton(true);
+          setSkeletonOpacity(1);
+        }
+      } else {
+        // Data loaded or loading stopped
+        if (skeletonStartTimeRef.current !== null) {
+          const elapsed = Date.now() - skeletonStartTimeRef.current;
+          
+          if (elapsed < SKELETON_MIN_DISPLAY_TIME) {
+            // Wait for minimum display time, then fade out
+            const remainingTime = SKELETON_MIN_DISPLAY_TIME - elapsed;
+            skeletonTimeoutRef.current = setTimeout(() => {
+              // Start fade out
+              setSkeletonOpacity(0);
+              // After fade completes, hide skeleton
+              setTimeout(() => {
+                setShouldShowSkeleton(false);
+                skeletonStartTimeRef.current = null;
+              }, SKELETON_FADE_DURATION);
+            }, remainingTime);
+          } else {
+            // Already shown long enough, fade out immediately
+            setSkeletonOpacity(0);
+            setTimeout(() => {
+              setShouldShowSkeleton(false);
+              skeletonStartTimeRef.current = null;
+            }, SKELETON_FADE_DURATION);
+          }
+        }
+      }
+
+      return () => {
+        if (skeletonTimeoutRef.current) {
+          clearTimeout(skeletonTimeoutRef.current);
+          skeletonTimeoutRef.current = null;
+        }
+      };
+    }, [isLoading, data]);
+
     // Cleanup API canceller on unmount
     useEffect(() => {
       return () => {
@@ -305,11 +362,16 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
     }, [error]);
 
     const renderLoading = useCallback(() => {
-      if (!isLoading || data !== null) return null;
+      // Only show skeleton when shouldShowSkeleton is true (with timing logic)
+      if (!shouldShowSkeleton) return null;
       return (
         <>
           {Array.from({ length: 3 }).map((_, index) => (
-            <TableRow key={index}>
+            <TableRow 
+              key={index}
+              className="transition-opacity duration-150"
+              style={{ opacity: skeletonOpacity }}
+            >
               <TableCell className="whitespace-nowrap !p-2">
                 <Skeleton className="h-5 w-32" />
               </TableCell>
@@ -320,10 +382,10 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
           ))}
         </>
       );
-    }, [isLoading, data]);
+    }, [shouldShowSkeleton, skeletonOpacity]);
 
     const renderNoData = useCallback(() => {
-      if (error || isLoading || data !== null) return null;
+      if (error || shouldShowSkeleton || data !== null) return null;
       return (
         <TableRow>
           <TableCell colSpan={2} className="text-center text-muted-foreground p-8">
@@ -331,11 +393,12 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
           </TableCell>
         </TableRow>
       );
-    }, [error, isLoading, data]);
+    }, [error, shouldShowSkeleton, data]);
 
     const renderData = useCallback(() => {
+      // Don't show data while skeleton is visible (during minimum display time)
       // Don't hide data during refresh - keep showing existing data until new data arrives
-      if (error || !data) return null;
+      if (error || !data || shouldShowSkeleton) return null;
 
       // Get all field entries and preserve natural order
       // Track original index to maintain natural order for fields without position
@@ -389,7 +452,7 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
           })}
         </>
       );
-    }, [error, data, formatCellValue, getFieldOption]);
+    }, [error, data, shouldShowSkeleton, formatCellValue, getFieldOption]);
 
     const hasTitle = !!descriptor.titleOption?.title;
 
