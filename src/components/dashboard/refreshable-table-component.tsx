@@ -11,7 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import type { ColumnDef, SQLQuery, TableDescriptor } from "./chart-utils";
+import type { FieldOption, SQLQuery, TableDescriptor } from "./chart-utils";
+import { inferFieldFormat } from "./format-inference";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
@@ -42,24 +43,28 @@ function replaceOrderByClause(
 
   const orderByClause = `ORDER BY ${orderByColumn} ${orderDirection.toUpperCase()}`;
 
-  // Case-insensitive regex to match ORDER BY clause (including multi-column)
-  // Matches: ORDER BY col1 [ASC|DESC] [, col2 [ASC|DESC]] ... until LIMIT or end
-  const orderByRegex =
-    /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*(?=\s+LIMIT|\s*$)/gi;
+  // Check if ORDER BY exists (use a simple regex to avoid lastIndex side effects)
+  const hasOrderBy = /\s+ORDER\s+BY\s+/i.test(sql);
 
-  if (orderByRegex.test(sql)) {
-    // Replace existing ORDER BY
-    return sql.replace(orderByRegex, ` ${orderByClause}`);
+  if (hasOrderBy) {
+    // Replace existing ORDER BY - use a fresh regex for replace
+    const replaceRegex =
+      /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*(?=\s+LIMIT|\s*$)/gi;
+    return sql.replace(replaceRegex, ` ${orderByClause}`);
   } else {
-    // Add ORDER BY before LIMIT if exists, otherwise at the end
+    // No ORDER BY exists - add it before LIMIT if exists, otherwise at the end
     const limitRegex = /\s+LIMIT\s+\d+/i;
     if (limitRegex.test(sql)) {
+      // Reset regex lastIndex before replace
+      limitRegex.lastIndex = 0;
       return sql.replace(limitRegex, ` ${orderByClause}$&`);
     } else {
+      // No LIMIT clause - add ORDER BY at the end
       return sql.trim() + ` ${orderByClause}`;
     }
   }
 }
+
 
 const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTableComponentProps>(
   function RefreshableTableComponent(props, ref) {
@@ -68,14 +73,13 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
 
     // State
     const [data, setData] = useState<Record<string, unknown>[]>([]);
-    const [columns, setColumns] = useState<ColumnDef[]>([]);
+    const [columns, setColumns] = useState<FieldOption[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [sort, setSort] = useState<{ column: string | null; direction: "asc" | "desc" | null }>({
       column: descriptor.sortOption?.initialSort?.column || null,
       direction: descriptor.sortOption?.initialSort?.direction || null,
     });
-
     // Refs
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
     // Ref to store current sort state for synchronous access in loadData
@@ -84,87 +88,33 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       direction: descriptor.sortOption?.initialSort?.direction || null,
     });
 
-    // Normalize columns: convert string columns to ColumnDef objects
-    const normalizeColumns = useCallback((): ColumnDef[] => {
-      return descriptor.columns.map((col) => {
-        if (typeof col === "string") {
-          return { name: col } as ColumnDef;
-        }
-        return col;
-      });
-    }, [descriptor.columns]);
-
-    // Infer column format based on sample data
-    const inferColumnFormat = useCallback((columnName: string, sampleRows: Record<string, unknown>[]): string | undefined => {
-      if (sampleRows.length === 0) return undefined;
-
-      // Sample up to 10 rows to infer type
-      const sampleSize = Math.min(10, sampleRows.length);
-      const samples = sampleRows.slice(0, sampleSize).map(row => row[columnName]);
-
-      // Check if all samples are null/undefined
-      const allNull = samples.every(val => val === null || val === undefined);
-      if (allNull) return undefined;
-
-      // Find first non-null sample
-      const firstNonNull = samples.find(val => val !== null && val !== undefined);
-      if (firstNonNull === undefined) return undefined;
-
-      // Check for complex types
-      const isArray = Array.isArray(firstNonNull);
-      const isObject = typeof firstNonNull === "object" && firstNonNull !== null && !isArray;
-      const isMap = isObject && Object.keys(firstNonNull as Record<string, unknown>).length > 0;
-
-      // Check for Map type first (separate from other complex types)
-      if (isMap) {
-        const allMaps = samples
-          .filter(val => val !== null && val !== undefined)
-          .every(val => typeof val === "object" && !Array.isArray(val) && val !== null);
-        
-        if (allMaps) {
-          return "map";
-        }
-      }
-
-      // Check for Array or other complex types
-      if (isArray) {
-        const allArrays = samples
-          .filter(val => val !== null && val !== undefined)
-          .every(val => Array.isArray(val));
-
-        if (allArrays) {
-          return "complexType";
-        }
-      }
-
-      // Check for other objects (non-map, non-array)
-      if (isObject && !isMap) {
-        const allObjects = samples
-          .filter(val => val !== null && val !== undefined)
-          .every(val => typeof val === "object" && !Array.isArray(val) && val !== null);
-
-        if (allObjects) {
-          return "complexType";
-        }
-      }
-
-      // Check for long strings
-      const stringValues = samples
-        .filter(val => val !== null && val !== undefined)
-        .map(val => typeof val === "object" ? JSON.stringify(val) : String(val));
+    // Normalize fieldOptions: convert Map/Record to array of FieldOption, handling position ordering
+    const normalizeFieldOptions = useCallback((): Map<string, FieldOption> => {
+      const fieldOptionsMap = new Map<string, FieldOption>();
       
-      const maxLength = Math.max(...stringValues.map(s => s.length));
-      if (maxLength > 200) {
-        return "truncatedText";
+      if (descriptor.fieldOptions) {
+        // Convert Record to Map if needed
+        if (descriptor.fieldOptions instanceof Map) {
+          descriptor.fieldOptions.forEach((value, key) => {
+            fieldOptionsMap.set(key, { ...value, name: key });
+          });
+        } else {
+          // It's a Record
+          Object.entries(descriptor.fieldOptions).forEach(([key, value]) => {
+            fieldOptionsMap.set(key, { ...value, name: key });
+          });
+        }
       }
+      
+      return fieldOptionsMap;
+    }, [descriptor.fieldOptions]);
 
-      return undefined;
-    }, []);
 
-    // Initialize columns from descriptor
+    // Initialize columns from descriptor (will be updated when data loads)
     useEffect(() => {
-      setColumns(normalizeColumns());
-    }, [normalizeColumns]);
+      // Columns will be set when data loads
+      setColumns([]);
+    }, [descriptor.fieldOptions]);
 
     // Keep sortRef in sync with sort state
     useEffect(() => {
@@ -211,9 +161,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           }
 
           // Replace time span template parameters in SQL (e.g., {rounding:UInt32}, {seconds:UInt32}, etc.)
-          let finalSql = param.selectedTimeSpan
-            ? replaceTimeSpanParams(query.sql, param.selectedTimeSpan)
-            : query.sql;
+          let finalSql = param.selectedTimeSpan ? replaceTimeSpanParams(query.sql, param.selectedTimeSpan) : query.sql;
 
           // Apply server-side sorting if enabled
           // Use sortRef for synchronous access to current sort state
@@ -231,7 +179,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           apiCancellerRef.current = canceller;
 
           const api = Api.create(selectedConnection);
-          
+
           try {
             const response = await api.executeAsync(
               {
@@ -258,60 +206,67 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
             const rows = responseData.data || [];
             const meta = responseData.meta || [];
 
-            // Build column map from descriptor columns (overrides)
-            const columnMap = new Map<string, ColumnDef>();
-            const descriptorColumns = normalizeColumns();
-            descriptorColumns.forEach((colDef) => {
-              columnMap.set(colDef.name, colDef);
-            });
-
-            // Build meta map for quick lookup (all server columns)
-            const metaMap = new Map<string, { name: string; type?: string }>();
-            meta.forEach((colMeta: { name: string; type?: string }) => {
-              metaMap.set(colMeta.name, colMeta);
-            });
+            // Build field options map from descriptor
+            const fieldOptionsMap = normalizeFieldOptions();
 
             // Strategy:
-            // 1. If descriptor.columns is provided (non-empty): Use ALL server columns,
-            //    but override with descriptor column definitions where they match.
-            //    Preserve descriptor column order for overridden columns, then append rest.
-            // 2. If descriptor.columns is empty/omitted: Use all server columns with defaults.
-            const finalColumns: ColumnDef[] = [];
-            
-            if (descriptorColumns.length > 0) {
-              // Behavior: Use all server columns, but override with descriptor definitions
-              const processedColumnNames = new Set<string>();
+            // 1. Start with all server columns in their natural order
+            // 2. Apply field options overrides from descriptor where they match
+            // 3. Only reorder columns that have a position property
+            // 4. Columns without position maintain their natural order from server response
+            const finalColumns: FieldOption[] = [];
+
+            // First, build columns from server response in natural order, applying field options
+            meta.forEach((colMeta: { name: string; type?: string }, originalIndex: number) => {
+              const fieldOption = fieldOptionsMap.get(colMeta.name);
+              const column: FieldOption = fieldOption 
+                ? { ...fieldOption, name: colMeta.name }
+                : ({ name: colMeta.name } as FieldOption);
               
-              // First, add columns in descriptor order (if they exist in server response)
-              descriptorColumns.forEach((colDef) => {
-                if (metaMap.has(colDef.name)) {
-                  finalColumns.push(colDef);
-                  processedColumnNames.add(colDef.name);
+              // Store original index to preserve natural order for fields without position
+              (column as FieldOption & { originalIndex: number }).originalIndex = originalIndex;
+              finalColumns.push(column);
+            });
+
+            // Only reorder if there are fields with position property
+            const hasPositionedFields = finalColumns.some(col => col.position !== undefined);
+            if (hasPositionedFields) {
+              // Separate columns with position from those without
+              const columnsWithPosition: (FieldOption & { originalIndex: number })[] = [];
+              const columnsWithoutPosition: (FieldOption & { originalIndex: number })[] = [];
+
+              finalColumns.forEach((col) => {
+                const colWithIndex = col as FieldOption & { originalIndex: number };
+                if (col.position !== undefined) {
+                  columnsWithPosition.push(colWithIndex);
+                } else {
+                  columnsWithoutPosition.push(colWithIndex);
                 }
               });
-              
-              // Then, add remaining server columns that weren't in descriptor
-              meta.forEach((colMeta: { name: string; type?: string }) => {
-                if (!processedColumnNames.has(colMeta.name)) {
-                  // Use override if exists, otherwise use default
-                  const existingDef = columnMap.get(colMeta.name);
-                  finalColumns.push(existingDef || ({ name: colMeta.name } as ColumnDef));
+
+              // Sort columns with position by position value
+              columnsWithPosition.sort((a, b) => {
+                const posA = a.position ?? Number.MAX_SAFE_INTEGER;
+                const posB = b.position ?? Number.MAX_SAFE_INTEGER;
+                if (posA !== posB) {
+                  return posA - posB;
                 }
+                // If positions are equal, maintain natural order
+                return a.originalIndex - b.originalIndex;
               });
-            } else {
-              // Behavior: Use all server columns with defaults, apply any overrides if they exist
-              meta.forEach((colMeta: { name: string; type?: string }) => {
-                const existingDef = columnMap.get(colMeta.name);
-                finalColumns.push(existingDef || ({ name: colMeta.name } as ColumnDef));
-              });
+
+              // Merge: positioned columns first (sorted by position), then non-positioned (in natural order)
+              finalColumns.length = 0;
+              finalColumns.push(...columnsWithPosition);
+              finalColumns.push(...columnsWithoutPosition);
             }
 
             // Apply type inference to columns without format
-            finalColumns.forEach((colDef) => {
-              if (!colDef.format) {
-                const inferredFormat = inferColumnFormat(colDef.name, rows as Record<string, unknown>[]);
+            finalColumns.forEach((fieldOption) => {
+              if (!fieldOption.format) {
+                const inferredFormat = inferFieldFormat(fieldOption.name, rows as Record<string, unknown>[]);
                 if (inferredFormat) {
-                  colDef.format = inferredFormat as FormatName;
+                  fieldOption.format = inferredFormat as FormatName;
                 }
               }
             });
@@ -332,7 +287,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
               const apiError = error as ApiErrorResponse;
               const errorMessage = apiError.errorMessage || "Unknown error occurred";
               const lowerErrorMessage = errorMessage.toLowerCase();
-              
+
               if (lowerErrorMessage.includes("cancel") || lowerErrorMessage.includes("abort")) {
                 setIsLoading(false);
                 return;
@@ -356,7 +311,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           console.error(error);
         }
       },
-      [descriptor, selectedConnection, normalizeColumns, inferColumnFormat]
+      [descriptor, selectedConnection, normalizeFieldOptions]
     );
 
     // Internal refresh function
@@ -377,7 +332,9 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
 
     // Use shared refreshable hook
     const getInitialParams = useCallback(() => {
-      return props.selectedTimeSpan ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshParameter) : undefined;
+      return props.selectedTimeSpan
+        ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshParameter)
+        : ({} as RefreshParameter);
     }, [props.selectedTimeSpan]);
 
     const { componentRef, isCollapsed, setIsCollapsed, refresh, getLastRefreshParameter } = useRefreshable({
@@ -419,18 +376,28 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       };
     }, []);
 
-    // Format cell value based on column definition
-    const formatCellValue = useCallback((value: unknown, columnDef: ColumnDef): React.ReactNode => {
+    // Format cell value based on field option
+    const formatCellValue = useCallback((value: unknown, fieldOption: FieldOption): React.ReactNode => {
       // Handle empty values: null, undefined, or empty string
       if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
         return <span className="text-muted-foreground">-</span>;
       }
 
       // Apply format if specified
-      if (columnDef.format) {
-        const formatter = Formatter.getInstance().getFormatter(columnDef.format);
-        // Pass args as params to the formatter (third parameter)
-        const formatted = formatter(value, undefined, columnDef.formatArgs);
+      if (fieldOption.format) {
+        let formatted: string | React.ReactNode;
+        
+        // Check if format is a function (ObjectFormatter) or a string (FormatName)
+        if (typeof fieldOption.format === "function") {
+          // It's an ObjectFormatter function - call it directly
+          formatted = fieldOption.format(value, fieldOption.formatArgs);
+        } else {
+          // It's a FormatName string - use Formatter.getInstance()
+          const formatter = Formatter.getInstance().getFormatter(fieldOption.format);
+          // Pass args as params to the formatter (second parameter)
+          formatted = formatter(value, fieldOption.formatArgs);
+        }
+        
         // If formatter returns empty string, show '-'
         if (formatted === "" || (typeof formatted === "string" && formatted.trim() === "")) {
           return <span className="text-muted-foreground">-</span>;
@@ -453,8 +420,8 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     }, []);
 
     // Get cell alignment class
-    const getCellAlignmentClass = useCallback((columnDef: ColumnDef): string => {
-      switch (columnDef.align) {
+    const getCellAlignmentClass = useCallback((fieldOption: FieldOption): string => {
+      switch (fieldOption.align) {
         case "left":
           return "text-left";
         case "right":
@@ -468,24 +435,24 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
 
     // Handle column sorting
     const handleSort = useCallback(
-      (columnName: string) => {
-        const column = columns.find((col) => col.name === columnName);
-        if (!column || column.sortable === false) {
+      (fieldName: string) => {
+        const fieldOption = columns.find((col) => col.name === fieldName);
+        if (!fieldOption || fieldOption.sortable === false) {
           return;
         }
 
         let newSort: { column: string | null; direction: "asc" | "desc" | null };
-        if (sort.column === columnName) {
+        if (sort.column === fieldName) {
           // Cycle through: asc -> desc -> null
           if (sort.direction === "asc") {
-            newSort = { column: columnName, direction: "desc" };
+            newSort = { column: fieldName, direction: "desc" };
           } else if (sort.direction === "desc") {
             newSort = { column: null, direction: null };
           } else {
-            newSort = { column: columnName, direction: "asc" };
+            newSort = { column: fieldName, direction: "asc" };
           }
         } else {
-          newSort = { column: columnName, direction: "asc" };
+          newSort = { column: fieldName, direction: "asc" };
         }
 
         // Update both state and ref synchronously
@@ -503,13 +470,13 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
 
     // Get sort icon for column
     const getSortIcon = useCallback(
-      (columnName: string) => {
-        const column = columns.find((col) => col.name === columnName);
-        if (!column || column.sortable === false) {
+      (fieldName: string) => {
+        const fieldOption = columns.find((col) => col.name === fieldName);
+        if (!fieldOption || fieldOption.sortable === false) {
           return null;
         }
 
-        if (sort.column !== columnName) {
+        if (sort.column !== fieldName) {
           return <ArrowUpDown className="inline-block w-4 h-4 ml-1 opacity-50" />;
         }
         if (sort.direction === "asc") {
@@ -576,15 +543,15 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       if (!isLoading || data.length > 0) return null;
       return (
         <>
-          {Array.from({ length: 3 }).map((_, index) => (
-            <TableRow key={index}>
-              {columns.map((column) => (
-                <TableCell key={column.name} className={cn(getCellAlignmentClass(column), "whitespace-nowrap !p-2")}>
-                  <Skeleton className="h-5 w-full" />
-                </TableCell>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <TableRow key={index}>
+                  {columns.map((fieldOption) => (
+                    <TableCell key={fieldOption.name} className={cn(getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}>
+                      <Skeleton className="h-5 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
         </>
       );
     }, [isLoading, data.length, columns, getCellAlignmentClass]);
@@ -607,24 +574,24 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         <>
           {sortedData.map((row, rowIndex) => (
             <TableRow key={rowIndex}>
-              {columns.map((column) => {
+              {columns.map((fieldOption) => {
                 // Handle action columns
-                if (column.renderAction) {
+                if (fieldOption.renderAction) {
                   return (
                     <TableCell
-                      key={column.name}
-                      className={cn(getCellAlignmentClass(column), "whitespace-nowrap !p-2")}
+                      key={fieldOption.name}
+                      className={cn(getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}
                     >
-                      {column.renderAction(row, rowIndex)}
+                      {fieldOption.renderAction(row, rowIndex)}
                     </TableCell>
                   );
                 }
 
                 // Regular data columns
-                const value = row[column.name];
+                const value = row[fieldOption.name];
                 return (
-                  <TableCell key={column.name} className={cn(getCellAlignmentClass(column), "whitespace-nowrap !p-2")}>
-                    {formatCellValue(value, column)}
+                  <TableCell key={fieldOption.name} className={cn(getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}>
+                    {formatCellValue(value, fieldOption)}
                   </TableCell>
                 );
               })}
@@ -660,8 +627,11 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         <>
           {Array.from({ length: 3 }).map((_, index) => (
             <tr key={index} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-              {columns.map((column) => (
-                <td key={column.name} className={cn("p-4 align-middle", getCellAlignmentClass(column), "whitespace-nowrap !p-2")}>
+              {columns.map((fieldOption) => (
+                <td
+                  key={fieldOption.name}
+                  className={cn("p-4 align-middle", getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}
+                >
                   <Skeleton className="h-5 w-full" />
                 </td>
               ))}
@@ -688,26 +658,34 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         <>
           {sortedData.map((row, rowIndex) => (
             <tr key={rowIndex} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-              {columns.map((column) => {
+              {columns.map((fieldOption) => {
                 // Handle action columns
-                if (column.renderAction) {
+                if (fieldOption.renderAction) {
                   return (
                     <td
-                      key={column.name}
-                      className={cn("p-4 align-middle", getCellAlignmentClass(column), "whitespace-nowrap !p-2")}
+                      key={fieldOption.name}
+                      className={cn("p-4 align-middle", getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}
                     >
-                      {column.renderAction(row, rowIndex)}
+                      {fieldOption.renderAction(row, rowIndex)}
                     </td>
                   );
                 }
 
                 // Regular data columns
-                const value = row[column.name];
+                const value = row[fieldOption.name];
                 // For percentage_bar format, don't apply whitespace-nowrap to allow the bar to render properly
-                const shouldWrap = column.format === "percentage_bar";
+                const shouldWrap = fieldOption.format === "percentage_bar";
                 return (
-                  <td key={column.name} className={cn("p-4 align-middle", getCellAlignmentClass(column), !shouldWrap && "whitespace-nowrap", "!p-2")}>
-                    {formatCellValue(value, column)}
+                  <td
+                    key={fieldOption.name}
+                    className={cn(
+                      "p-4 align-middle",
+                      getCellAlignmentClass(fieldOption),
+                      !shouldWrap && "whitespace-nowrap",
+                      "!p-2"
+                    )}
+                  >
+                    {formatCellValue(value, fieldOption)}
                   </td>
                 );
               })}
@@ -748,38 +726,44 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
             </CardHeader>
           )}
           <CollapsibleContent>
-            <CardContent className={cn("px-0 p-0", !isStickyHeader && "overflow-auto", isStickyHeader && "max-h-[60vh] overflow-auto")}>
+            <CardContent
+              className={cn(
+                "px-0 p-0",
+                !isStickyHeader && "overflow-auto",
+                isStickyHeader && "max-h-[60vh] overflow-auto"
+              )}
+            >
               {isStickyHeader ? (
                 // Use direct table structure for sticky header to avoid nested scroll containers
                 <div className="relative w-full">
                   <table className="w-full caption-bottom text-sm">
                     <thead className={cn("[&_tr]:border-b sticky top-0 z-10 bg-background")}>
                       <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                        {columns.map((column) => {
-                          const isSortable = column.sortable !== false && column.renderAction === undefined;
+                        {columns.map((fieldOption) => {
+                          const isSortable = fieldOption.sortable !== false && fieldOption.renderAction === undefined;
                           return (
                             <th
-                              key={column.name}
+                              key={fieldOption.name}
                               className={cn(
                                 "px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
-                                getCellAlignmentClass(column),
-                                column.width && `w-[${column.width}px]`,
-                                column.minWidth && `min-w-[${column.minWidth}px]`,
+                                getCellAlignmentClass(fieldOption),
+                                fieldOption.width && `w-[${fieldOption.width}px]`,
+                                fieldOption.minWidth && `min-w-[${fieldOption.minWidth}px]`,
                                 "whitespace-nowrap",
                                 isSortable && "cursor-pointer hover:bg-muted/50 select-none h-10"
                               )}
                               style={{
-                                width: column.width ? `${column.width}px` : undefined,
-                                minWidth: column.minWidth ? `${column.minWidth}px` : undefined,
+                                width: fieldOption.width ? `${fieldOption.width}px` : undefined,
+                                minWidth: fieldOption.minWidth ? `${fieldOption.minWidth}px` : undefined,
                               }}
-                              onClick={() => isSortable && handleSort(column.name)}
+                              onClick={() => isSortable && handleSort(fieldOption.name)}
                             >
                               {isLoading && data.length === 0 ? (
                                 <Skeleton className="h-5 w-20" />
                               ) : (
                                 <>
-                                  {column.title || column.name}
-                                  {isSortable && getSortIcon(column.name)}
+                                  {fieldOption.title || fieldOption.name}
+                                  {isSortable && getSortIcon(fieldOption.name)}
                                 </>
                               )}
                             </th>
@@ -799,30 +783,31 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {columns.map((column) => {
-                        const isSortable = column.sortable !== false && column.renderAction === undefined;
+                      {columns.map((fieldOption) => {
+                        const isSortable = fieldOption.sortable !== false && fieldOption.renderAction === undefined;
                         return (
                           <TableHead
-                            key={column.name}
+                            key={fieldOption.name}
                             className={cn(
-                              getCellAlignmentClass(column),
-                              column.width && `w-[${column.width}px]`,
-                              column.minWidth && `min-w-[${column.minWidth}px]`,
+                              "px-4 align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+                              getCellAlignmentClass(fieldOption),
+                              fieldOption.width && `w-[${fieldOption.width}px]`,
+                              fieldOption.minWidth && `min-w-[${fieldOption.minWidth}px]`,
                               "whitespace-nowrap",
                               isSortable && "cursor-pointer hover:bg-muted/50 select-none h-10"
                             )}
                             style={{
-                              width: column.width ? `${column.width}px` : undefined,
-                              minWidth: column.minWidth ? `${column.minWidth}px` : undefined,
+                              width: fieldOption.width ? `${fieldOption.width}px` : undefined,
+                              minWidth: fieldOption.minWidth ? `${fieldOption.minWidth}px` : undefined,
                             }}
-                            onClick={() => isSortable && handleSort(column.name)}
+                            onClick={() => isSortable && handleSort(fieldOption.name)}
                           >
                             {isLoading && data.length === 0 ? (
                               <Skeleton className="h-5 w-20" />
                             ) : (
                               <>
-                                {column.title || column.name}
-                                {isSortable && getSortIcon(column.name)}
+                                {fieldOption.title || fieldOption.name}
+                                {isSortable && getSortIcon(fieldOption.name)}
                               </>
                             )}
                           </TableHead>

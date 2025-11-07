@@ -3,6 +3,7 @@ import { Dialog } from "@/components/use-dialog";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { DateTimeExtension } from "./datetime-utils";
+import "./number-utils"; // Import to register Number prototype extensions
 import { StringUtils } from "./string-utils";
 
 // Helper function to format a value for display in table
@@ -155,44 +156,69 @@ export type FormatName =
   | "complexType" // For complex types (Array, Tuple, JSON) - shows truncated JSON with click-to-expand dialog
   | "truncatedText"; // For long text - shows truncated text with click-to-expand dialog, accepts truncation length via formatArgs
 
+// Formatter function interface - matches the signature used by Formatter class
+export interface ObjectFormatter {
+  (v: any, params?: any[]): string | React.ReactNode;
+}
+
 export class Formatter {
   private static instance: Formatter;
 
-  _formatters: { [key: string]: (v: any, props?: any, params?: any) => string | React.ReactNode };
+  _formatters: { [key: string]: ObjectFormatter };
 
   private constructor() {
     this._formatters = {};
 
     // For compatibility only, use binary_size instead
-    this._formatters["binary_byte"] = (v) => v.formatBinarySize();
-    this._formatters["binary_size"] = (v) => v.formatBinarySize();
+    this._formatters["binary_byte"] = (v) => {
+      if (v === undefined || v === null) return "null";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "null" : numValue.formatBinarySize();
+    };
+    this._formatters["binary_size"] = (v) => {
+      if (v === undefined || v === null) return "null";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "null" : numValue.formatBinarySize();
+    };
 
     // For compatiblity only, use short_number instead
     this._formatters["compact_number"] = (v) => {
-      return v === undefined || v === null ? "null" : v.formatCompactNumber();
+      if (v === undefined || v === null) return "null";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "null" : numValue.formatCompactNumber();
     };
     this._formatters["short_number"] = (v) => {
-      return v === undefined || v === null ? "null" : v.formatCompactNumber();
+      if (v === undefined || v === null) return "null";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "null" : numValue.formatCompactNumber();
     };
 
     this._formatters["comma_number"] = (v) => {
       return v === undefined || v === null ? "null" : v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     };
 
-    this._formatters["percentage"] = (v) => (v === "NaN" ? "0%" : v.formatWithNoTrailingZeros(2) + "%");
-    this._formatters["percentage_0_1"] = (v) => (v === "NaN" ? "0%" : (v * 100).formatWithNoTrailingZeros(2) + "%");
-    this._formatters["percentage_bar"] = (v, props, params) => {
+    this._formatters["percentage"] = (v) => {
+      if (v === "NaN" || v === undefined || v === null) return "0%";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "0%" : numValue.formatWithNoTrailingZeros(2) + "%";
+    };
+    this._formatters["percentage_0_1"] = (v) => {
+      if (v === "NaN" || v === undefined || v === null) return "0%";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "0%" : (numValue * 100).formatWithNoTrailingZeros(2) + "%";
+    };
+    this._formatters["percentage_bar"] = (v, params) => {
       // Ensure value is a number
       const numValue = typeof v === "number" ? v : parseFloat(String(v)) || 0;
 
       // Clamp value between 0 and 100
       const percentage = Math.max(0, Math.min(100, numValue));
 
-      // Get width from args (first element in params array, or props.formatArgs, or default to 100)
-      const width = (params && params[0]) || (props && props.formatArgs && props.formatArgs[0]) || 100;
+      // Get width from args (first element in params array, or default to 100)
+      const width = (params && params[0]) || 100;
 
-      // Get height from args (second element in params array, or props.formatArgs, or default to 20)
-      const height = (params && params[1]) || (props && props.formatArgs && props.formatArgs[1]) || 20;
+      // Get height from args (second element in params array, or default to 16)
+      const height = (params && params[1]) || 16;
 
       return (
         <div className="flex items-center gap-2">
@@ -202,7 +228,7 @@ export class Formatter {
           >
             <div className="h-full bg-primary transition-all" style={{ width: `${percentage}%` }} />
           </div>
-          <span className="text-sm tabular-nums">{percentage.toFixed(1)}%</span>
+          <span className="text-xs tabular-nums">{percentage.toFixed(1)}%</span>
         </div>
       );
     };
@@ -210,8 +236,16 @@ export class Formatter {
     this._formatters["millisecond"] = (v) => this.milliFormat(v, 2);
     this._formatters["microsecond"] = (v) => this.microFormat(v, 2);
     this._formatters["seconds"] = (v) => this.timeFormat(v, 2, ["s"]);
-    this._formatters["byte_rate"] = (v) => v.formatBinarySize() + "/s";
-    this._formatters["rate"] = (v) => v.formatCompactNumber() + "/s";
+    this._formatters["byte_rate"] = (v) => {
+      if (v === undefined || v === null) return "null/s";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "null/s" : numValue.formatBinarySize() + "/s";
+    };
+    this._formatters["rate"] = (v) => {
+      if (v === undefined || v === null) return "null/s";
+      const numValue = typeof v === "number" ? v : Number(v);
+      return isNaN(numValue) ? "null/s" : numValue.formatCompactNumber() + "/s";
+    };
 
     // Deprecated
     this._formatters["dateTime"] = (v) => DateTimeExtension.toYYYYMMddHHmmss(new Date(v));
@@ -230,10 +264,13 @@ export class Formatter {
 
     this._formatters["timeDuration"] = (v) => v.formatTimeDuration();
     this._formatters["timeDiff"] = (v) => this.timeDifference(v);
-    this._formatters["template"] = (_v, props, params) => {
-      const template = props.template;
-
-      return template.replaceVariables(params);
+    this._formatters["template"] = (_v, params) => {
+      // Template formatter - params[0] should be the template object
+      const template = params && params[0];
+      if (!template || typeof template.replaceVariables !== "function") {
+        return "";
+      }
+      return template.replaceVariables(params.slice(1));
     };
 
     // Map formatter - for Map types, renders in table format with Key and Value columns
@@ -242,13 +279,13 @@ export class Formatter {
     };
 
     // Complex type formatter - for Array, Tuple, JSON types (not Map)
-    this._formatters["complexType"] = (v, props, params) => {
+    this._formatters["complexType"] = (v, params) => {
       if (v === null || v === undefined) {
         return <span className="text-muted-foreground">-</span>;
       }
 
       // Get truncation length from params (default: 30)
-      const truncateLength = (params && params[0]) || (props && props.formatArgs && props.formatArgs[0]) || 30;
+      const truncateLength = (params && params[0]) || 30;
 
       // For complex types (Array, Tuple, JSON) - not Map
       const stringValue = typeof v === "object" ? JSON.stringify(v) : String(v);
@@ -286,13 +323,13 @@ export class Formatter {
     };
 
     // Truncated text formatter - for long text values
-    this._formatters["truncatedText"] = (v, props, params) => {
+    this._formatters["truncatedText"] = (v, params) => {
       if (v === null || v === undefined) {
         return <span className="text-muted-foreground">-</span>;
       }
 
       // Get truncation length from params (default: 200)
-      const truncateLength = (params && params[0]) || (props && props.formatArgs && props.formatArgs[0]) || 200;
+      const truncateLength = (params && params[0]) || 200;
 
       const stringValue = typeof v === "object" ? JSON.stringify(v) : String(v);
 
@@ -328,13 +365,13 @@ export class Formatter {
     };
 
     // SQL formatter - for SQL queries, shows truncated text with click-to-expand dialog
-    this._formatters["sql"] = (v, props, params) => {
+    this._formatters["sql"] = (v, params) => {
       if (v === null || v === undefined) {
         return <span className="text-muted-foreground">-</span>;
       }
 
       // Get truncation length from params (default: 50)
-      const truncateLength = (params && params[0]) || (props && props.formatArgs && props.formatArgs[0]) || 50;
+      const truncateLength = (params && params[0]) || 50;
 
       const stringValue = String(v);
       const truncatedValue =
@@ -419,7 +456,7 @@ export class Formatter {
     return Formatter.instance;
   }
 
-  getFormatter(formatType: string): (v: any, props?: any, params?: any) => string | React.ReactNode {
+  getFormatter(formatType: string): ObjectFormatter {
     return this._formatters[formatType];
   }
 

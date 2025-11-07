@@ -1,28 +1,23 @@
-import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./components/theme-provider";
 import { ToastProvider } from "./components/toast-provider";
 import "./index.css";
+import "./lib/number-utils"; // Import to register Number prototype extensions early
 import { ConnectionProvider } from "./lib/connection/ConnectionContext";
-
-// Import the generated route tree
-import { routeTree } from "./routeTree.gen";
-
-// Create a new router instance
-const router = createRouter({ routeTree });
-
-// Register the router instance for type safety
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: typeof router;
-  }
-}
+import { AppSidebar } from "./components/app-sidebar";
+import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+import { MainPage } from "./components/main-page";
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider defaultTheme="dark" storageKey="app-ui-theme">
     <ConnectionProvider>
       <ToastProvider />
-      <RouterProvider router={router} />
+      <SidebarProvider open={false}>
+        <AppSidebar />
+        <SidebarInset className="min-w-0 overflow-x-hidden h-screen">
+          <MainPage />
+        </SidebarInset>
+      </SidebarProvider>
     </ConnectionProvider>
   </ThemeProvider>
 );

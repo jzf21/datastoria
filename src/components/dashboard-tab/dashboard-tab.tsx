@@ -8,13 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/use-dialog";
 import { Api, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
-import { createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, EllipsisVertical } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-
-export const Route = createFileRoute("/dashboard")({
-  component: DashboardPage,
-});
 
 const predefinedDashboard = {
   name: "metrics",
@@ -509,7 +504,11 @@ interface SkippedDashboard {
   reason: string;
 }
 
-function DashboardPage() {
+interface DashboardTabProps {
+  host: string;
+}
+
+export function DashboardTab({ host }: DashboardTabProps) {
   const { selectedConnection } = useConnection();
   const [dashboard, setDashboard] = useState<Dashboard>(predefinedDashboard);
   const [error, setError] = useState<string | null>(null);
@@ -813,7 +812,7 @@ function DashboardPage() {
         fetchDashboards(api, false, false);
       }
     );
-  }, [selectedConnection, fetchDashboards]);
+  }, [selectedConnection, fetchDashboards, host]);
 
   const headerActions = null;
 
@@ -897,3 +896,4 @@ function DashboardPage() {
     </div>
   );
 }
+

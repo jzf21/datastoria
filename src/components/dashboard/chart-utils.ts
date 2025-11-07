@@ -1,4 +1,4 @@
-import type { FormatName } from "@/lib/formatter";
+import type { FormatName, ObjectFormatter } from "@/lib/formatter";
 import type { ChartOptionBuilder, ChartRenderer } from "./chart-pie";
 import { PieChartOptionBuilder, PieChartRenderer } from "./chart-pie";
 import {
@@ -78,9 +78,11 @@ export interface TitleOption {
   showTitle?: boolean;
 }
 
-export interface ColumnDef {
+export interface FieldOption {
   // The name of property that is used to access value from a given object
-  name: string;
+  // Optional when defining fieldOptions in a Map/Record (the key is used as the name)
+  // Will be set automatically by the component from the key or server response
+  name?: string;
   title?: string;
   width?: number;
   minWidth?: number;
@@ -90,8 +92,8 @@ export interface ColumnDef {
 
   align?: "left" | "right" | "center";
 
-  format?: FormatName;
-  // Arguments to pass to the formatter function
+  format?: FormatName | ObjectFormatter;
+  // Arguments to pass to the formatter function (only used when format is FormatName)
   formatArgs?: any[];
 
   yAxis?: number;
@@ -101,7 +103,13 @@ export interface ColumnDef {
 
   // Action column support: render custom action buttons for each row
   renderAction?: (row: Record<string, unknown>, rowIndex: number) => React.ReactNode;
+
+  // Position in the table (for ordering). If not provided, columns will be shown in data order
+  position?: number;
 }
+
+// Legacy type alias for backward compatibility
+export type ColumnDef = FieldOption;
 
 export interface QueryResponse {
   startTimestamp: number;
@@ -163,7 +171,9 @@ export interface HeadOption {
 export interface TableDescriptor extends ChartDescriptor {
   type: "table";
 
-  columns: (ColumnDef | string)[];
+  // Field options as Map or Record, where key is the field name
+  // If not provided, all fields from data will be shown with default options
+  fieldOptions?: Map<string, FieldOption> | Record<string, FieldOption>;
 
   // Sorting configuration
   sortOption?: SortOption;
@@ -172,15 +182,13 @@ export interface TableDescriptor extends ChartDescriptor {
   headOption?: HeadOption;
 }
 
-// Custom renderer for specific keys in transposed table
-export type TransposedValueRenderer = (key: string, value: unknown) => React.ReactNode;
-
 export interface TransposeTableDescriptor extends ChartDescriptor {
   type: "transpose-table";
 
-  // Optional custom renderers for specific keys
-  // If a key is not in this map, default formatting will be used
-  valueRenderers?: Map<string, TransposedValueRenderer> | Record<string, TransposedValueRenderer>;
+  // Field options as Map or Record, where key is the field name
+  // The title property will be used to show the text in the name column
+  // If not provided, all fields from data will be shown with default options
+  fieldOptions?: Map<string, FieldOption> | Record<string, FieldOption>;
 }
 
 export type Reducer = "min" | "max" | "avg" | "sum" | "count" | "first" | "last";
@@ -219,8 +227,9 @@ export interface StatDescriptor extends ChartDescriptor {
 export interface TimeseriesDescriptor extends ChartDescriptor {
   type: "line" | "bar" | "area";
 
-  // Columns for time series data
-  columns: (ColumnDef | string)[];
+  // Field options as Map or Record, where key is the field name
+  // If not provided, all fields from data will be shown with default options
+  fieldOptions?: Map<string, FieldOption> | Record<string, FieldOption>;
 
   // Y-axis configuration
   yAxis?: YAxisOption[];
@@ -264,7 +273,7 @@ export function getChartRenderer(chartType: string): ChartRenderer {
 export function toEChartSeriesOption(
   chartDescriptor: ChartDescriptor,
   yAxisFormatters: FormatterFn[],
-  columnMap: Map<string, ColumnDef>,
+  columnMap: Map<string, FieldOption>,
   queryResponse: QueryResponse
 ) {
   const renderer = getChartRenderer(chartDescriptor.type);
@@ -275,7 +284,7 @@ function toDetailTableDescriptor(expr: AlertExpression): ChartDescriptor {
   const chartDescriptor: ChartDescriptor = {
     type: "table",
     title: expr.expressionText,
-    columns: [],
+    fieldOptions: {},
     width: 100, // Required field
     query: {
       sql: "", // Required for SQLQuery
@@ -297,13 +306,15 @@ function toDetailTableDescriptor(expr: AlertExpression): ChartDescriptor {
 
 export function toChartDescriptor(expr: AlertExpression): ChartDescriptor {
   const yAxsis: YAxisOption[] = [{}];
-  const columns = [{ name: expr.select.name, fill: false } as ColumnDef];
+  const fieldOptions: Record<string, FieldOption> = {
+    [expr.select.name]: { fill: false },
+  };
 
   // For percentage expr, add a base and delta columns
   if (expr.offset && typeof expr.alertExpected === "object" && expr.alertExpected.type === "percentage") {
     // When this expr is a relative percentage expr, add a column 'delta'
-    columns.push({ name: expr.offset, fill: false } as ColumnDef);
-    columns.push({ name: "delta", yAxis: 1, fill: false } as ColumnDef);
+    fieldOptions[expr.offset] = { fill: false };
+    fieldOptions["delta"] = { yAxis: 1, fill: false };
 
     yAxsis.push({ format: "percentage_0_1", min: -1 });
   }
@@ -326,7 +337,7 @@ export function toChartDescriptor(expr: AlertExpression): ChartDescriptor {
     id: expr.id,
     title: expr.expressionText,
     yAxis: yAxsis,
-    columns: columns,
+    fieldOptions: fieldOptions,
     width: 100, // Required field
     query: {
       sql: "", // Required for SQLQuery

@@ -11,16 +11,12 @@ import {
 import { ConnectionSelector } from "./connection/connection-selector";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { MoonIcon, SunIcon } from "@radix-ui/react-icons";
-import { Database, LayoutDashboard, Terminal } from "lucide-react";
+import { Database } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "./theme-provider";
-import { Link, useMatchRoute } from "@tanstack/react-router";
 
 export function AppSidebar() {
   const { selectedConnection } = useConnection();
-  const matchRoute = useMatchRoute();
-  const isDashboardActive = !!matchRoute({ to: "/dashboard" });
-  const isQueryActive = !!matchRoute({ to: "/query" });
 
   return (
     <Sidebar collapsible="icon">
@@ -53,36 +49,6 @@ export function AppSidebar() {
                 side="right"
               />
             </SidebarMenuItem>
-            {selectedConnection && (
-              <>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    size="lg"
-                    tooltip="Query"
-                    isActive={isQueryActive}
-                    className="justify-center"
-                  >
-                    <Link to="/query">
-                      <Terminal className="h-5 w-5" />
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    size="lg"
-                    tooltip="Dashboard"
-                    isActive={isDashboardActive}
-                    className="justify-center"
-                  >
-                    <Link to="/dashboard">
-                      <LayoutDashboard className="h-5 w-5" />
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </>
-            )}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

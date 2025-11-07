@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-import { TanStackRouterVite } from '@tanstack/router-vite-plugin'
 import path from 'path'
 
 // Plugin to handle ace-builds webpack-resolver issues
@@ -39,7 +38,7 @@ function aceBuildsPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), TanStackRouterVite(), aceBuildsPlugin()],
+  plugins: [react(), aceBuildsPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

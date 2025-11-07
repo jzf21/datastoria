@@ -47,7 +47,7 @@ Number.prototype.formatCompactNumber = function () {
   if (i <= 0) {
     return `${Math.round(n * 100) / 100}`;
   }
-  return `${Math.round((n / 1000 ** i) * 100) / 100}${sizes[i]}`;
+  return `${Math.round((n / 1000 ** i) * 100) / 100} ${sizes[i]}`;
 };
 
 Number.prototype.formatWithNoTrailingZeros = function (fraction: number = 2) {

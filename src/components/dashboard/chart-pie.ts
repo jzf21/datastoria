@@ -1,5 +1,5 @@
 import { Formatter } from "@/lib/formatter";
-import type { ChartDescriptor, ColumnDef, FormatterFn, QueryResponse } from "./chart-utils";
+import type { ChartDescriptor, ColumnDef, FieldOption, FormatterFn, QueryResponse, TimeseriesDescriptor } from "./chart-utils";
 
 // Base interfaces
 export interface ChartRenderer {
@@ -73,7 +73,7 @@ export class PieChartRenderer implements ChartRenderer {
     // Create pie series
     const pieSeries = {
       id: "pie",
-      name: chartDescriptor.title || "Pie Chart",
+      name: chartDescriptor.titleOption?.title || "Pie Chart",
       type: "pie",
       radius: ["40%", "70%"], // Donut style by default
       avoidLabelOverlap: false,
@@ -118,17 +118,38 @@ export class PieChartOptionBuilder implements ChartOptionBuilder {
     const yAxisFormatters: FormatterFn[] = [];
     const legendOption: { name: string; icon: string }[] = [];
 
-    for (let i = 0, size = chartDescriptor.columns.length; i < size; i++) {
-      let column = chartDescriptor.columns[i];
+    // Convert fieldOptions to array format for backward compatibility
+    let columns: (string | FieldOption)[] = [];
+    if (chartDescriptor.type === "line" || chartDescriptor.type === "bar" || chartDescriptor.type === "area" || chartDescriptor.type === "pie") {
+      const timeseriesDescriptor = chartDescriptor as TimeseriesDescriptor;
+      if (timeseriesDescriptor.fieldOptions) {
+        // Convert Map/Record to array, sorted by position if available
+        const fieldOptionsArray = timeseriesDescriptor.fieldOptions instanceof Map
+          ? Array.from(timeseriesDescriptor.fieldOptions.entries())
+          : Object.entries(timeseriesDescriptor.fieldOptions);
+        
+        // Sort by position if available
+        fieldOptionsArray.sort((a, b) => {
+          const posA = a[1].position ?? Number.MAX_SAFE_INTEGER;
+          const posB = b[1].position ?? Number.MAX_SAFE_INTEGER;
+          return posA - posB;
+        });
+        
+        columns = fieldOptionsArray.map(([key, value]) => ({ ...value, name: key }));
+      }
+    }
+
+    for (let i = 0, size = columns.length; i < size; i++) {
+      let column = columns[i];
 
       // string type of column is allowed for simple configuration
       // during rendering, it's turned into an object for simple processing
       if (typeof column === "string") {
-        chartDescriptor.columns[i] = {
+        columns[i] = {
           name: column,
           yAxis: 0,
         };
-        column = chartDescriptor.columns[i];
+        column = columns[i];
       }
 
       // legend
@@ -159,8 +180,9 @@ export class PieChartOptionBuilder implements ChartOptionBuilder {
         top: 0,
         data: legendOption,
         show:
-          chartDescriptor.legend === undefined ||
-          (chartDescriptor.legend.placement !== "none" && chartDescriptor.legend.placement !== "bottom"),
+          (chartDescriptor.type === "line" || chartDescriptor.type === "bar" || chartDescriptor.type === "area") &&
+          ((chartDescriptor as TimeseriesDescriptor).legend === undefined ||
+          ((chartDescriptor as TimeseriesDescriptor).legend?.placement !== "none" && (chartDescriptor as TimeseriesDescriptor).legend?.placement !== "bottom")),
       },
       // Pie charts don't need brush, dataZoom, grid, axes
       series: [],

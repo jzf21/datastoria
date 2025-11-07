@@ -2,6 +2,7 @@
 
 import { Api, type ApiCanceller, type ApiErrorResponse, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
+import { Formatter, type FormatName } from "@/lib/formatter";
 import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -10,7 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import type { SQLQuery, TransposeTableDescriptor } from "./chart-utils";
+import type { FieldOption, SQLQuery, TransposeTableDescriptor } from "./chart-utils";
+import { inferFieldFormat } from "./format-inference";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
@@ -35,9 +37,28 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
     const [data, setData] = useState<Record<string, unknown> | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    // Store inferred formats for fields that don't have explicit formats
+    const [inferredFormats, setInferredFormats] = useState<Map<string, FormatName>>(new Map());
 
     // Refs
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
+
+    // Get field option for a given key
+    const getFieldOption = useCallback(
+      (key: string): FieldOption | undefined => {
+        if (!descriptor.fieldOptions) {
+          return undefined;
+        }
+
+        // Handle both Map and Record types
+        if (descriptor.fieldOptions instanceof Map) {
+          return descriptor.fieldOptions.get(key);
+        } else {
+          return descriptor.fieldOptions[key];
+        }
+      },
+      [descriptor.fieldOptions]
+    );
 
     // Load data from API
     const loadData = useCallback(
@@ -98,9 +119,28 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
 
                 // For transposed table, we expect a single object (first row)
                 if (rows.length > 0) {
-                  setData(rows[0] as Record<string, unknown>);
+                  const rowData = rows[0] as Record<string, unknown>;
+                  setData(rowData);
+
+                  // Infer formats for fields that don't have explicit formats
+                  const formats = new Map<string, FormatName>();
+                  const sampleRows = rows as Record<string, unknown>[];
+                  
+                  Object.keys(rowData).forEach((key) => {
+                    const fieldOption = getFieldOption(key);
+                    // Only infer if no format is specified in the descriptor
+                    if (!fieldOption?.format) {
+                      const inferredFormat = inferFieldFormat(key, sampleRows);
+                      if (inferredFormat) {
+                        formats.set(key, inferredFormat);
+                      }
+                    }
+                  });
+                  
+                  setInferredFormats(formats);
                 } else {
                   setData(null);
+                  setInferredFormats(new Map());
                 }
                 setError("");
               } catch (err) {
@@ -136,7 +176,7 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
           console.error(error);
         }
       },
-      [descriptor, selectedConnection]
+      [descriptor, selectedConnection, getFieldOption]
     );
 
     // Internal refresh function
@@ -157,7 +197,9 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
 
     // Use shared refreshable hook
     const getInitialParams = useCallback(() => {
-      return props.selectedTimeSpan ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshParameter) : undefined;
+      return props.selectedTimeSpan
+        ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshParameter)
+        : ({} as RefreshParameter);
     }, [props.selectedTimeSpan]);
 
     const { componentRef, isCollapsed, setIsCollapsed, refresh, getLastRefreshParameter } = useRefreshable({
@@ -183,7 +225,7 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
       };
     }, []);
 
-    // Format cell value based on descriptor renderers
+    // Format cell value based on field options
     const formatCellValue = useCallback(
       (key: string, value: unknown): React.ReactNode => {
         // Handle empty values
@@ -191,23 +233,29 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
           return <span className="text-muted-foreground">-</span>;
         }
 
-        // Check if there's a custom renderer for this key
-        const renderers = descriptor.valueRenderers;
-        if (renderers) {
-          // Handle both Map and Record types
-          const renderer =
-            renderers instanceof Map
-              ? renderers.get(key)
-              : (renderers as Record<string, (key: string, value: unknown) => React.ReactNode>)[key];
-
-          if (renderer) {
-            const rendered = renderer(key, value);
-            // If renderer returns empty string, show '-'
-            if (rendered === "" || (typeof rendered === "string" && rendered.trim() === "")) {
-              return <span className="text-muted-foreground">-</span>;
-            }
-            return rendered;
+        // Check if there's a field option for this key
+        const fieldOption = getFieldOption(key);
+        // Use explicit format from field option, or inferred format, or no format
+        const format = fieldOption?.format || inferredFormats.get(key);
+        
+        if (format) {
+          let formatted: string | React.ReactNode;
+          
+          // Check if format is a function (ObjectFormatter) or a string (FormatName)
+          if (typeof format === "function") {
+            // It's an ObjectFormatter function - call it directly
+            formatted = format(value, fieldOption?.formatArgs);
+          } else {
+            // It's a FormatName string - use Formatter.getInstance()
+            const formatter = Formatter.getInstance().getFormatter(format);
+            formatted = formatter(value, fieldOption?.formatArgs);
           }
+          
+          // If formatter returns empty string, show '-'
+          if (formatted === "" || (typeof formatted === "string" && formatted.trim() === "")) {
+            return <span className="text-muted-foreground">-</span>;
+          }
+          return formatted;
         }
 
         // Default formatting
@@ -240,7 +288,7 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
 
         return <span className="whitespace-nowrap">{stringValue}</span>;
       },
-      [descriptor.valueRenderers]
+      [getFieldOption, inferredFormats]
     );
 
     // Render functions for TableBody
@@ -290,17 +338,60 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
     const renderData = useCallback(() => {
       // Don't hide data during refresh - keep showing existing data until new data arrives
       if (error || !data) return null;
+
+      // Get all field entries and preserve natural order
+      // Track original index to maintain natural order for fields without position
+      const fieldEntries = Object.entries(data).map(([key, value], originalIndex) => {
+        const fieldOption = getFieldOption(key);
+        return {
+          key,
+          value,
+          fieldOption,
+          position: fieldOption?.position ?? Number.MAX_SAFE_INTEGER,
+          originalIndex, // Preserve natural order
+        };
+      });
+
+      // Sort by position if available, otherwise maintain natural order
+      fieldEntries.sort((a, b) => {
+        // If both have positions (not MAX_SAFE_INTEGER), sort by position
+        const aHasPosition = a.position !== Number.MAX_SAFE_INTEGER;
+        const bHasPosition = b.position !== Number.MAX_SAFE_INTEGER;
+        
+        if (aHasPosition && bHasPosition) {
+          // Both have positions: sort by position
+          if (a.position !== b.position) {
+            return a.position - b.position;
+          }
+          // Same position: maintain natural order
+          return a.originalIndex - b.originalIndex;
+        } else if (aHasPosition && !bHasPosition) {
+          // Only a has position: a comes first
+          return -1;
+        } else if (!aHasPosition && bHasPosition) {
+          // Only b has position: b comes first
+          return 1;
+        } else {
+          // Neither has position: maintain natural order
+          return a.originalIndex - b.originalIndex;
+        }
+      });
+
       return (
         <>
-          {Object.entries(data).map(([key, value]) => (
-            <TableRow key={key} className="hover:bg-muted/50">
-              <TableCell className="p-2 whitespace-nowrap font-medium">{key}</TableCell>
-              <TableCell className="p-2">{formatCellValue(key, value)}</TableCell>
-            </TableRow>
-          ))}
+          {fieldEntries.map(({ key, value }) => {
+            const fieldOption = getFieldOption(key);
+            const displayName = fieldOption?.title || key;
+            return (
+              <TableRow key={key} className="hover:bg-muted/50">
+                <TableCell className="p-2 whitespace-nowrap font-medium">{displayName}</TableCell>
+                <TableCell className="p-2">{formatCellValue(key, value)}</TableCell>
+              </TableRow>
+            );
+          })}
         </>
       );
-    }, [error, data, formatCellValue]);
+    }, [error, data, formatCellValue, getFieldOption]);
 
     const hasTitle = !!descriptor.titleOption?.title;
 

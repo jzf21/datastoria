@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { DashboardTabManager } from "../dashboard-tab/dashboard-tab-manager";
+import { DatabaseTabManager } from "../database-tab/database-tab-manager";
 import { DependencyTabManager } from "../dependency-tab/dependency-tab-manager";
 import { QueryExecutor } from "../query-tab/query-execution/query-executor";
 import { TableTabManager } from "../table-tab/table-tab-manager";
@@ -164,8 +166,6 @@ interface HostNodeData {
 }
 
 // Type union for all possible tree node data types
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/ban-ts-comment
-// @ts-expect-error - Unused but kept for documentation
 type TreeNodeData = HostNodeData | DatabaseNodeData | TableNodeData | ColumnNodeData;
 
 export interface SchemaTreeViewProps {
@@ -667,8 +667,18 @@ ORDER BY lower(database), database, table, columnName`,
     (item: TreeDataItem | undefined) => {
       if (!item?.data) return;
 
+      // If a host node is clicked, open the dashboard tab
+      if (item.data.type === "host") {
+        const hostData = item.data as HostNodeData;
+        DashboardTabManager.sendOpenDashboardTabRequest(hostData.host, tabId);
+      }
+      // If a database node is clicked, open the database tab
+      else if (item.data.type === "database") {
+        const databaseData = item.data as DatabaseNodeData;
+        DatabaseTabManager.sendOpenDatabaseTabRequest(databaseData.name, tabId);
+      }
       // If a table node is clicked, open the table tab
-      if (item.data.type === "table") {
+      else if (item.data.type === "table") {
         const tableData = item.data as TableNodeData;
         TableTabManager.sendOpenTableTabRequest(tableData.database, tableData.table, tableData.fullTableEngine, tabId);
       }

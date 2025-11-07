@@ -18,6 +18,7 @@ import { Skeleton } from "../ui/skeleton";
 import { Dialog } from "../use-dialog";
 import type {
   ChartDescriptor,
+  FieldOption,
   SQLQuery,
   StatDescriptor,
   TableDescriptor,
@@ -938,7 +939,26 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                 setMeta(meta);
 
                 // Auto-detect columns if not specified in descriptor
-                const columns = descriptor.columns || [];
+                // Convert fieldOptions to array format for backward compatibility
+                let columns: (string | FieldOption)[] = [];
+                if (descriptor.type === "line" || descriptor.type === "bar" || descriptor.type === "area") {
+                  const timeseriesDescriptor = descriptor as TimeseriesDescriptor;
+                  if (timeseriesDescriptor.fieldOptions) {
+                    // Convert Map/Record to array, sorted by position if available
+                    const fieldOptionsArray = timeseriesDescriptor.fieldOptions instanceof Map
+                      ? Array.from(timeseriesDescriptor.fieldOptions.entries())
+                      : Object.entries(timeseriesDescriptor.fieldOptions);
+                    
+                    // Sort by position if available
+                    fieldOptionsArray.sort((a, b) => {
+                      const posA = a[1].position ?? Number.MAX_SAFE_INTEGER;
+                      const posB = b[1].position ?? Number.MAX_SAFE_INTEGER;
+                      return posA - posB;
+                    });
+                    
+                    columns = fieldOptionsArray.map(([key, value]) => ({ ...value, name: key }));
+                  }
+                }
                 if (
                   columns.length === 0 ||
                   (columns.length === 1 && typeof columns[0] === "string" && columns[0] === "value")

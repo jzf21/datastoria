@@ -1,4 +1,4 @@
-import type { ColumnDef, TableDescriptor, TransposeTableDescriptor } from "@/components/dashboard/chart-utils";
+import type { FieldOption, TableDescriptor, TransposeTableDescriptor } from "@/components/dashboard/chart-utils";
 import type { RefreshableComponent } from "@/components/dashboard/refreshable-component";
 import RefreshableTableComponent from "@/components/dashboard/refreshable-table-component";
 import RefreshableTransposedTableComponent from "@/components/dashboard/refreshable-transposed-table-component";
@@ -25,40 +25,22 @@ function TableDDLView({
 
   // Create transposed table descriptor
   const tableDescriptor = useMemo<TransposeTableDescriptor>(() => {
-    // Define custom renderers for SQL fields
-    const valueRenderers: Record<string, (key: string, value: unknown) => React.ReactNode> = {
-      create_table_query: (_key: string, value: unknown) => {
-        if (value === null || value === undefined) {
-          return <span className="text-muted-foreground">-</span>;
-        }
-        const valueStr = StringUtils.prettyFormatQuery(value as string);
-        if (valueStr.length === 0) {
-          return <span className="text-muted-foreground">-</span>;
-        }
-        return (
-          <div className="overflow-x-auto">
-            <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "14px", margin: 0 }} showLineNumbers={false}>
-              {valueStr}
-            </ThemedSyntaxHighlighter>
-          </div>
-        );
-      },
-      as_select: (_key: string, value: unknown) => {
-        if (value === null || value === undefined) {
-          return <span className="text-muted-foreground">-</span>;
-        }
-        const valueStr = StringUtils.prettyFormatQuery(value as string);
-        if (valueStr.length === 0) {
-          return <span className="text-muted-foreground">-</span>;
-        }
-        return (
-          <div className="overflow-x-auto">
-            <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "14px", margin: 0 }} showLineNumbers={false}>
-              {valueStr}
-            </ThemedSyntaxHighlighter>
-          </div>
-        );
-      },
+    // Custom SQL renderer that renders SQL inline instead of using dialog
+    const sqlInlineRenderer: FieldOption["format"] = (value: unknown) => {
+      if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+
+      const sqlString = String(value);
+      const formattedSql = StringUtils.prettyFormatQuery(sqlString);
+
+      return (
+        <div className="overflow-auto">
+          <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "12px", margin: 0, padding: 8 }}>
+            {formattedSql}
+          </ThemedSyntaxHighlighter>
+        </div>
+      );
     };
 
     const sql = `SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'`;
@@ -81,7 +63,10 @@ function TableDDLView({
           default_format: "JSON",
         },
       },
-      valueRenderers: valueRenderers,
+      fieldOptions: {
+        create_table_query: { name: "create_table_query", format: sqlInlineRenderer },
+        as_select: { name: "as_select", format: sqlInlineRenderer },
+      },
     };
   }, [database, table]);
 
@@ -113,49 +98,42 @@ function TableStructureView({
   // Create table descriptor
   const tableDescriptor = useMemo<TableDescriptor>(() => {
     const fullTableName = `${database}.${table}`;
-    const columns: ColumnDef[] = [
-      {
-        name: "name",
+    const fieldOptions: Record<string, FieldOption> = {
+      name: {
         title: "Name",
         sortable: true,
         align: "left",
       },
-      {
-        name: "type",
+      type: {
         title: "Type",
         sortable: true,
         align: "center",
       },
-      {
-        name: "default_type",
+      default_type: {
         title: "Default Type",
         sortable: true,
         align: "center",
       },
-      {
-        name: "default_expression",
+      default_expression: {
         title: "Default Expression",
         sortable: true,
         align: "center",
       },
-      {
-        name: "comment",
+      comment: {
         title: "Comment",
         align: "left",
       },
-      {
-        name: "codec_expression",
+      codec_expression: {
         title: "Codec Expression",
         sortable: true,
         align: "center",
       },
-      {
-        name: "ttl_expression",
+      ttl_expression: {
         title: "TTL Expression",
         sortable: true,
         align: "center",
       },
-    ];
+    };
 
     const sql = `DESCRIBE TABLE ${fullTableName}`;
 
@@ -177,7 +155,7 @@ function TableStructureView({
           default_format: "JSON",
         },
       },
-      columns: columns,
+      fieldOptions: fieldOptions,
     };
   }, [database, table]);
 
