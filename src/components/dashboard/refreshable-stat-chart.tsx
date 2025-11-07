@@ -3,12 +3,13 @@
 import { Api, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import { Formatter } from "../../lib/formatter";
 import { cn } from "@/lib/utils";
+import NumberFlow from "@number-flow/react";
 import { format } from "date-fns";
 import { CircleAlert, TrendingDown, TrendingUpIcon } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Area, AreaChart, Line, LineChart, XAxis, YAxis } from "recharts";
+import { Formatter } from "../../lib/formatter";
 import FloatingProgressBar from "../floating-progress-bar";
 import { Button } from "../ui/button";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
@@ -668,6 +669,26 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       return descriptor.drilldown !== undefined && Object.keys(descriptor.drilldown).length > 0;
     }, [descriptor.drilldown]);
 
+    // Check if we should use NumberFlow for rendering
+    const shouldUseNumberFlow = useCallback((dataValue: number): boolean => {
+      if (typeof dataValue !== "number") {
+        return false;
+      }
+
+      const formatName = descriptor.valueOption?.format;
+      if (!formatName) {
+        // No format specified, use NumberFlow with default formatting
+        return true;
+      }
+
+      // Use NumberFlow for supported formats, otherwise use Formatter
+      // Supported formats: compact_number, short_number, comma_number, percentage, percentage_0_1
+      // Note: NumberFlow only supports Intl.NumberFormatOptions, not custom formatter functions
+      const formatStr = formatName as string;
+      const supportedFormats = ["compact_number", "short_number", "comma_number", "percentage", "percentage_0_1"];
+      return supportedFormats.includes(formatStr);
+    }, [descriptor.valueOption?.format]);
+
     // Render comparison helper
     const renderComparison = () => {
       if (offset === 0) {
@@ -745,6 +766,51 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
               >
                 {!hasInitialData ? (
                   <Skeleton className="w-20 h-10" />
+                ) : shouldUseNumberFlow(data) ? (
+                  (() => {
+                    // Default to 'compact_number' if no format is specified
+                    const originalFormatName = descriptor.valueOption?.format;
+                    const formatName = originalFormatName || "compact_number";
+                    
+                    // Map format names to NumberFlow format options (inline)
+                    // Note: NumberFlow supports Intl.NumberFormatOptions through the format prop
+                    // It does not support custom formatter functions, only standard Intl.NumberFormat options
+                    let numberFlowFormat: Record<string, unknown> | undefined;
+                    // Handle format names (including "compact_number" which is an alias for "short_number")
+                    // Cast to string to handle "compact_number" which is not in FormatName type but is used in practice
+                    const formatStr = formatName as string;
+                    if (formatStr === "compact_number" || formatStr === "short_number") {
+                      numberFlowFormat = { notation: "compact", compactDisplay: "short" };
+                    } else if (formatStr === "comma_number") {
+                      numberFlowFormat = { useGrouping: true };
+                    } else if (formatStr === "percentage") {
+                      // percentage format expects values already as percentages (e.g., 50 = 50%)
+                      // NumberFlow with style: "percent" multiplies by 100, so we need to divide by 100 first
+                      numberFlowFormat = { style: "percent", minimumFractionDigits: 0, maximumFractionDigits: 2 };
+                    } else if (formatStr === "percentage_0_1") {
+                      // This format expects values in [0,1] range (e.g., 0.5 = 50%)
+                      // NumberFlow with style: "percent" multiplies by 100, so we pass as-is
+                      numberFlowFormat = { style: "percent", minimumFractionDigits: 0, maximumFractionDigits: 2 };
+                    } else {
+                      numberFlowFormat = undefined;
+                    }
+                    
+                    // Handle percentage formats: NumberFlow with style: "percent" multiplies by 100
+                    // - percentage: value is already a percentage (e.g., 50 = 50%), so divide by 100
+                    // - percentage_0_1: value is in [0,1] range (e.g., 0.5 = 50%), pass as-is
+                    let displayValue = data;
+                    if (originalFormatName === "percentage") {
+                      displayValue = data / 100;
+                    }
+                    
+                    return (
+                      <NumberFlow
+                        value={displayValue}
+                        format={numberFlowFormat as Parameters<typeof NumberFlow>[0]["format"]}
+                        locales="en-GB"
+                      />
+                    );
+                  })()
                 ) : descriptor.valueOption?.format ? (
                   Formatter.getInstance().getFormatter(descriptor.valueOption.format)(data)
                 ) : (
@@ -752,7 +818,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 )}
               </div>
             </div>
-            {/* <NumberFlow value={data} format={{ notation: "compact", compactDisplay: "short" }} locales="en-GB" /> */}
           </CardTitle>
 
           {renderComparison()}

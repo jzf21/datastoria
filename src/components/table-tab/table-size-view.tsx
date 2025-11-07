@@ -31,23 +31,114 @@ export const TableSizeView = forwardRef<RefreshableTabViewRef, TableSizeViewProp
         filter: {},
         charts: [
           {
+            type: "stat",
+            id: `table-size-stat-${database}-${table}`,
+            titleOption: {
+              title: "Total Size",
+              align: "center",
+            },
+            isCollapsed: false,
+            width: 1,
+            query: {
+              sql: `
+SELECT sum(bytes_on_disk) as bytes_on_disk
+FROM
+    system.parts
+WHERE 
+    database = '${database}' 
+    AND table = '${table}'
+    AND active = 1`,
+            },
+          },
+          {
+            type: "stat",
+            id: `table-rows-stat-${database}-${table}`,
+            titleOption: {
+              title: "Total Rows",
+              align: "center",
+            },
+            isCollapsed: false,
+            width: 1,
+            query: {
+              sql: `
+SELECT sum(rows) as rows
+FROM
+    system.parts
+WHERE 
+    database = '${database}' 
+    AND table = '${table}'
+    AND active = 1`,
+            },
+          },
+          {
+            type: "stat",
+            id: `table-size-stat-${database}-${table}`,
+            titleOption: {
+              title: "Part Count",
+              align: "center",
+            },
+            isCollapsed: false,
+            width: 1,
+            query: {
+              sql: `
+SELECT count(1) as part_count
+FROM
+    system.parts
+WHERE 
+    database = '${database}' 
+    AND table = '${table}'
+    AND active = 1`,
+            },
+            fieldOptions: {
+              value: {
+                title: "Value",
+                format: "binary_size",
+              },
+            },
+          },
+          {
+            type: "stat",
+            id: `table-size-stat-${database}-${table}`,
+            titleOption: {
+              title: "Size Percentage of All Disks",
+              align: "center",
+            },
+            isCollapsed: false,
+            width: 1,
+            query: {
+              sql: `
+SELECT sum(bytes_on_disk) / (SELECT sum(total_space-keep_free_space) from system.disks) as bytes_on_disk
+FROM
+    system.parts
+WHERE 
+    database = '${database}' 
+    AND table = '${table}'
+    AND active = 1`,
+            },
+            valueOption: {
+              format: "percentage_0_1",
+            },
+          },
+
+          // Tables
+          {
             type: "table",
-            id: `table-size-${database}-${table}`,
+            id: `table-${database}-${table}`,
+            isCollapsed: true,
             titleOption: {
               title: "Overall Size",
               align: "left",
             },
-            isCollapsed: false,
             width: 100,
             query: {
               sql: `
 SELECT 
-    count(1) as partCount,
+    count(1) as part_count,
     sum(rows) as rows,
-    sum(bytes_on_disk) AS diskSize,
-    sum(data_uncompressed_bytes) AS uncompressedSize,
-    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 2) AS compressRatio,
-    round(diskSize / rows, 2) AS avgRowSize
+    sum(bytes_on_disk) AS disk_size,
+    sum(data_uncompressed_bytes) AS uncompressed_size,
+    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 2) AS compress_ratio,
+    round(disk_size / rows, 2) AS avg_row_size
 FROM
     system.parts
 WHERE 
@@ -55,20 +146,20 @@ WHERE
     AND table = '${table}'
     AND active = 1
 ORDER BY 
-    diskSize DESC`,
+    disk_size DESC`,
               headers: {
                 "Content-Type": "text/plain",
               },
             },
             sortOption: {
               initialSort: {
-                column: "diskSize",
+                column: "disk_size",
                 direction: "desc",
               },
               serverSideSorting: true,
             },
             fieldOptions: {
-              partCount: {
+              part_count: {
                 title: "Part Count",
                 sortable: true,
                 align: "center",
@@ -82,28 +173,28 @@ ORDER BY
                 format: "comma_number",
                 position: 4,
               },
-              avgRowSize: {
+              avg_row_size: {
                 title: "Avg Row Size",
                 sortable: true,
                 align: "center",
                 format: "binary_size",
                 position: 5,
               },
-              diskSize: {
+              disk_size: {
                 title: "On Disk Size",
                 sortable: true,
                 align: "center",
                 format: "binary_size",
                 position: 6,
               },
-              uncompressedSize: {
+              uncompressed_size: {
                 title: "Uncompressed Size",
                 sortable: true,
                 align: "center",
                 format: "binary_size",
                 position: 7,
               },
-              compressRatio: {
+              compress_ratio: {
                 title: "Compress Ratio",
                 sortable: true,
                 align: "center",
@@ -120,11 +211,11 @@ ORDER BY
           {
             type: "table",
             id: `column-size-${database}-${table}`,
+            isCollapsed: true,
             titleOption: {
               title: "Size By Column",
               align: "left",
             },
-            isCollapsed: false,
             width: 100,
             query: {
               sql: `
@@ -133,7 +224,7 @@ SELECT
     sum(column_data_compressed_bytes) AS compressed_size,
     sum(column_data_uncompressed_bytes) AS uncompressed_size,
     round(sum(column_data_uncompressed_bytes) / sum(column_data_compressed_bytes), 0) AS compress_ratio,
-    sum(rows) AS rowsCount,
+    sum(rows) AS rows_count,
     round(sum(column_data_uncompressed_bytes) / sum(rows), 0) AS avg_uncompressed_size,
     compressed_size * 100 / (select sum(bytes_on_disk) from system.parts where database = '${database}' and table = '${table}' and active = 1) AS size_percentage_of_table
 FROM 
@@ -162,7 +253,7 @@ ORDER BY
                 sortable: true,
                 align: "left",
               },
-              rowsCount: {
+              rows_count: {
                 title: "Rows",
                 sortable: true,
                 align: "center",
@@ -208,11 +299,11 @@ ORDER BY
           {
             type: "table",
             id: `index-size-${database}-${table}`,
+            isCollapsed: true,
             titleOption: {
               title: "Size By Index",
               align: "left",
             },
-            isCollapsed: false,
             width: 100,
             query: {
               sql: `
@@ -247,11 +338,11 @@ WHERE
           {
             type: "table",
             id: `projection-size-${database}-${table}`,
+            isCollapsed: true,
             titleOption: {
               title: "Size By Projection",
               align: "left",
             },
-            isCollapsed: false,
             width: 100,
             query: {
               sql: `
@@ -324,11 +415,7 @@ ORDER BY 1, 2, 3`,
 
     return (
       <div className="h-full flex flex-col" style={{ height: "calc(100vh - 49px)" }}>
-        <DashboardContainer
-          ref={dashboardContainerRef}
-          dashboard={dashboard}
-          hideTimeSpanSelector={true}
-        />
+        <DashboardContainer ref={dashboardContainerRef} dashboard={dashboard} hideTimeSpanSelector={true} />
       </div>
     );
   }

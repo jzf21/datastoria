@@ -1,4 +1,4 @@
-import type { ColumnDef, TableDescriptor } from "@/components/dashboard/chart-utils";
+import type { FieldOption, TableDescriptor } from "@/components/dashboard/chart-utils";
 import type { RefreshableComponent } from "@/components/dashboard/refreshable-component";
 import RefreshableTableComponent from "@/components/dashboard/refreshable-table-component";
 import type { TimeSpan } from "@/components/dashboard/timespan-selector";
@@ -208,15 +208,16 @@ export const PartitionSizeView = forwardRef<RefreshableTabViewRef, PartitionView
         },
         isCollapsed: false,
         width: 100,
+        showIndexColumn: true,
         query: {
           sql: `
 SELECT 
     partition,
-    count(1) as partCount,
+    count(1) as part_count,
     sum(rows) as rows,
-    sum(bytes_on_disk) AS diskSize,
-    sum(data_uncompressed_bytes) AS uncompressedSize,
-    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 0) || ' : 1' AS compressRatio
+    sum(bytes_on_disk) AS disk_size,
+    sum(data_uncompressed_bytes) AS uncompressed_size,
+    round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 0) || ' : 1' AS compress_ratio
 FROM
     system.parts
 WHERE 
@@ -229,72 +230,68 @@ ORDER BY
     partition DESC`,
           headers: {
             "Content-Type": "text/plain",
-          },
-          params: {
-            default_format: "JSON",
-          },
+          }
         },
-        columns: [
-          {
-            name: "partition",
+        fieldOptions: {
+          partition: {
             title: "Partition",
             align: "center",
             sortable: true,
+            format: (value: unknown) => {
+              // The table uses comma_string for numbers, but for partition, we don't want this format
+              // So we just return the string value
+              return String(value);
+            },
           },
-          {
-            name: "partCount",
+          part_count: {
             title: "Part Count",
             sortable: true,
             align: "center",
             format: "comma_number",
           },
-          {
-            name: "rows",
+          rows: {
             title: "Rows",
             sortable: true,
             align: "center",
             format: "comma_number",
           },
-          {
-            name: "diskSize",
+          disk_size: {
             title: "On Disk Size",
             sortable: true,
             align: "center",
             format: "binary_size",
           },
-          {
-            name: "uncompressedSize",
+          uncompressed_size: {
             title: "Uncompressed Size",
             sortable: true,
             align: "center",
             format: "binary_size",
           },
-          {
-            name: "compressRatio",
+          compress_ratio: {
             title: "Compress Ratio",
             sortable: true,
             align: "center",
           },
-          {
-            name: "action",
-            title: "Action",
-            align: "center",
-            sortable: false,
-            renderAction: (row: Record<string, unknown>) => {
-              const partition = String(row.partition || "");
-              return (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDropPartitionClick(partition)}
-                  className="h-4 w-4 p-0"
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              );
-            },
+        } as Record<string, FieldOption>,
+
+        actions: {
+          title: "Action",
+          align: "center",
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          renderAction: (row: Record<string, unknown>, _rowIndex: number) => {
+            const partition = String(row.partition || "");
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDropPartitionClick(partition)}
+                className="h-4 w-4 p-0"
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            );
           },
-        ] as ColumnDef[],
+        },
 
         sortOption: {
           initialSort: {

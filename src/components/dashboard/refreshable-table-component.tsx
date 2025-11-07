@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import type { FieldOption, SQLQuery, TableDescriptor } from "./chart-utils";
+import type { ActionColumn, FieldOption, SQLQuery, TableDescriptor } from "./chart-utils";
 import { inferFieldFormat } from "./format-inference";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import { replaceTimeSpanParams } from "./sql-time-utils";
@@ -108,6 +108,14 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       
       return fieldOptionsMap;
     }, [descriptor.fieldOptions]);
+
+    // Normalize actions: convert single ActionColumn or array to array
+    const normalizeActions = useCallback((): ActionColumn[] => {
+      if (!descriptor.actions) {
+        return [];
+      }
+      return Array.isArray(descriptor.actions) ? descriptor.actions : [descriptor.actions];
+    }, [descriptor.actions]);
 
 
     // Initialize columns from descriptor (will be updated when data loads)
@@ -263,12 +271,25 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
 
             // Apply type inference to columns without format
             finalColumns.forEach((fieldOption) => {
-              if (!fieldOption.format) {
+              if (!fieldOption.format && fieldOption.name) {
                 const inferredFormat = inferFieldFormat(fieldOption.name, rows as Record<string, unknown>[]);
                 if (inferredFormat) {
                   fieldOption.format = inferredFormat as FormatName;
                 }
               }
+            });
+
+            // Add action columns at the end
+            const actions = normalizeActions();
+            actions.forEach((actionColumn, index) => {
+              const actionFieldOption: FieldOption = {
+                name: `__action_${index}__`, // Special name to identify action columns
+                title: actionColumn.title || "Action",
+                align: actionColumn.align || "center",
+                sortable: false,
+                renderAction: actionColumn.renderAction,
+              };
+              finalColumns.push(actionFieldOption);
             });
 
             setColumns(finalColumns);
@@ -311,7 +332,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           console.error(error);
         }
       },
-      [descriptor, selectedConnection, normalizeFieldOptions]
+      [descriptor, selectedConnection, normalizeFieldOptions, normalizeActions]
     );
 
     // Internal refresh function
@@ -436,6 +457,10 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     // Handle column sorting
     const handleSort = useCallback(
       (fieldName: string) => {
+        // Skip action columns (they have special names starting with __action_)
+        if (fieldName.startsWith("__action_")) {
+          return;
+        }
         const fieldOption = columns.find((col) => col.name === fieldName);
         if (!fieldOption || fieldOption.sortable === false) {
           return;
@@ -525,9 +550,10 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     // Render functions for TableBody
     const renderError = useCallback(() => {
       if (!error) return null;
+      const colSpan = columns.length + (descriptor.showIndexColumn ? 1 : 0);
       return (
         <TableRow>
-          <TableCell colSpan={columns.length} className="text-center text-destructive p-8">
+          <TableCell colSpan={colSpan} className="text-center text-destructive p-8">
             <div className="flex flex-col items-center justify-center h-[72px] gap-2">
               <p className="font-semibold">Error loading table data:</p>
               <p className="text-sm">{error}</p>
@@ -535,7 +561,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           </TableCell>
         </TableRow>
       );
-    }, [error, columns.length]);
+    }, [error, columns.length, descriptor.showIndexColumn]);
 
     const renderLoading = useCallback(() => {
       // Only show skeleton when loading AND no existing data
@@ -545,6 +571,11 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         <>
               {Array.from({ length: 3 }).map((_, index) => (
                 <TableRow key={index}>
+                  {descriptor.showIndexColumn && (
+                    <TableCell className="text-center whitespace-nowrap !p-2">
+                      <Skeleton className="h-5 w-full" />
+                    </TableCell>
+                  )}
                   {columns.map((fieldOption) => (
                     <TableCell key={fieldOption.name} className={cn(getCellAlignmentClass(fieldOption), "whitespace-nowrap !p-2")}>
                       <Skeleton className="h-5 w-full" />
@@ -554,18 +585,19 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
               ))}
         </>
       );
-    }, [isLoading, data.length, columns, getCellAlignmentClass]);
+    }, [isLoading, data.length, columns, getCellAlignmentClass, descriptor.showIndexColumn]);
 
     const renderNoData = useCallback(() => {
       if (error || isLoading || data.length > 0) return null;
+      const colSpan = columns.length + (descriptor.showIndexColumn ? 1 : 0);
       return (
         <TableRow>
-          <TableCell colSpan={columns.length} className="text-center text-muted-foreground p-8">
+          <TableCell colSpan={colSpan} className="text-center text-muted-foreground p-8">
             <div className="flex items-center justify-center h-[72px]">No data found</div>
           </TableCell>
         </TableRow>
       );
-    }, [error, isLoading, data.length, columns.length]);
+    }, [error, isLoading, data.length, columns.length, descriptor.showIndexColumn]);
 
     const renderData = useCallback(() => {
       // Don't hide data during refresh - keep showing existing data until new data arrives
@@ -574,7 +606,14 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         <>
           {sortedData.map((row, rowIndex) => (
             <TableRow key={rowIndex}>
+              {descriptor.showIndexColumn && (
+                <TableCell className="text-center whitespace-nowrap !p-2">
+                  {rowIndex + 1}
+                </TableCell>
+              )}
               {columns.map((fieldOption) => {
+                if (!fieldOption.name) return null;
+                
                 // Handle action columns
                 if (fieldOption.renderAction) {
                   return (
@@ -599,7 +638,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           ))}
         </>
       );
-    }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue]);
+    }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue, descriptor.showIndexColumn]);
 
     const hasTitle = !!descriptor.titleOption && descriptor.titleOption?.showTitle !== false;
     const isStickyHeader = descriptor.headOption?.isSticky === true;
@@ -607,9 +646,10 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     // Render functions for direct table structure (when sticky header is enabled)
     const renderErrorDirect = useCallback(() => {
       if (!error) return null;
+      const colSpan = columns.length + (descriptor.showIndexColumn ? 1 : 0);
       return (
         <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-          <td colSpan={columns.length} className="p-4 align-middle text-center text-destructive !p-8">
+          <td colSpan={colSpan} className="p-4 align-middle text-center text-destructive !p-8">
             <div className="flex flex-col items-center justify-center h-[72px] gap-2">
               <p className="font-semibold">Error loading table data:</p>
               <p className="text-sm">{error}</p>
@@ -617,7 +657,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           </td>
         </tr>
       );
-    }, [error, columns.length]);
+    }, [error, columns.length, descriptor.showIndexColumn]);
 
     const renderLoadingDirect = useCallback(() => {
       // Only show skeleton when loading AND no existing data
@@ -627,6 +667,11 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         <>
           {Array.from({ length: 3 }).map((_, index) => (
             <tr key={index} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+              {descriptor.showIndexColumn && (
+                <td className="p-4 align-middle text-center whitespace-nowrap !p-2">
+                  <Skeleton className="h-5 w-full" />
+                </td>
+              )}
               {columns.map((fieldOption) => (
                 <td
                   key={fieldOption.name}
@@ -639,18 +684,19 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           ))}
         </>
       );
-    }, [isLoading, data.length, columns, getCellAlignmentClass]);
+    }, [isLoading, data.length, columns, getCellAlignmentClass, descriptor.showIndexColumn]);
 
     const renderNoDataDirect = useCallback(() => {
       if (error || isLoading || data.length > 0) return null;
+      const colSpan = columns.length + (descriptor.showIndexColumn ? 1 : 0);
       return (
         <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-          <td colSpan={columns.length} className="p-4 align-middle text-center text-muted-foreground !p-8">
+          <td colSpan={colSpan} className="p-4 align-middle text-center text-muted-foreground !p-8">
             <div className="flex items-center justify-center h-[72px]">No data found</div>
           </td>
         </tr>
       );
-    }, [error, isLoading, data.length, columns.length]);
+    }, [error, isLoading, data.length, columns.length, descriptor.showIndexColumn]);
 
     const renderDataDirect = useCallback(() => {
       if (error || data.length === 0) return null;
@@ -658,7 +704,14 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         <>
           {sortedData.map((row, rowIndex) => (
             <tr key={rowIndex} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+              {descriptor.showIndexColumn && (
+                <td className="p-4 align-middle text-center whitespace-nowrap !p-2">
+                  {rowIndex + 1}
+                </td>
+              )}
               {columns.map((fieldOption) => {
+                if (!fieldOption.name) return null;
+                
                 // Handle action columns
                 if (fieldOption.renderAction) {
                   return (
@@ -693,7 +746,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           ))}
         </>
       );
-    }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue]);
+    }, [error, data.length, sortedData, columns, getCellAlignmentClass, formatCellValue, descriptor.showIndexColumn]);
 
     return (
       <Card ref={componentRef} className="@container/card relative">
@@ -739,11 +792,23 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                   <table className="w-full caption-bottom text-sm">
                     <thead className={cn("[&_tr]:border-b sticky top-0 z-10 bg-background")}>
                       <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                        {descriptor.showIndexColumn && (
+                          <th className="px-4 text-center align-middle font-medium text-muted-foreground whitespace-nowrap h-10">
+                            {isLoading && data.length === 0 ? (
+                              <Skeleton className="h-5 w-20" />
+                            ) : (
+                              "#"
+                            )}
+                          </th>
+                        )}
                         {columns.map((fieldOption) => {
+                          if (!fieldOption.name) return null;
+                          
+                          const fieldName = fieldOption.name;
                           const isSortable = fieldOption.sortable !== false && fieldOption.renderAction === undefined;
                           return (
                             <th
-                              key={fieldOption.name}
+                              key={fieldName}
                               className={cn(
                                 "px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
                                 getCellAlignmentClass(fieldOption),
@@ -756,14 +821,14 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                                 width: fieldOption.width ? `${fieldOption.width}px` : undefined,
                                 minWidth: fieldOption.minWidth ? `${fieldOption.minWidth}px` : undefined,
                               }}
-                              onClick={() => isSortable && handleSort(fieldOption.name)}
+                              onClick={() => isSortable && handleSort(fieldName)}
                             >
                               {isLoading && data.length === 0 ? (
                                 <Skeleton className="h-5 w-20" />
                               ) : (
                                 <>
-                                  {fieldOption.title || fieldOption.name}
-                                  {isSortable && getSortIcon(fieldOption.name)}
+                                  {fieldOption.title || fieldName}
+                                  {isSortable && getSortIcon(fieldName)}
                                 </>
                               )}
                             </th>
@@ -783,11 +848,23 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {descriptor.showIndexColumn && (
+                        <TableHead className="px-4 text-center align-middle font-medium text-muted-foreground whitespace-nowrap h-10">
+                          {isLoading && data.length === 0 ? (
+                            <Skeleton className="h-5 w-20" />
+                          ) : (
+                            "#"
+                          )}
+                        </TableHead>
+                      )}
                       {columns.map((fieldOption) => {
+                        if (!fieldOption.name) return null;
+                        
+                        const fieldName = fieldOption.name;
                         const isSortable = fieldOption.sortable !== false && fieldOption.renderAction === undefined;
                         return (
                           <TableHead
-                            key={fieldOption.name}
+                            key={fieldName}
                             className={cn(
                               "px-4 align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
                               getCellAlignmentClass(fieldOption),
@@ -800,14 +877,14 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                               width: fieldOption.width ? `${fieldOption.width}px` : undefined,
                               minWidth: fieldOption.minWidth ? `${fieldOption.minWidth}px` : undefined,
                             }}
-                            onClick={() => isSortable && handleSort(fieldOption.name)}
+                            onClick={() => isSortable && handleSort(fieldName)}
                           >
                             {isLoading && data.length === 0 ? (
                               <Skeleton className="h-5 w-20" />
                             ) : (
                               <>
-                                {fieldOption.title || fieldOption.name}
-                                {isSortable && getSortIcon(fieldOption.name)}
+                                {fieldOption.title || fieldName}
+                                {isSortable && getSortIcon(fieldName)}
                               </>
                             )}
                           </TableHead>

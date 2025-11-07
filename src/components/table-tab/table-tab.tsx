@@ -140,9 +140,9 @@ export function TableTab({ database, table, engine }: TableTabProps) {
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex flex-col flex-1 overflow-hidden">
         <div className="flex justify-between items-center gap-2 m-2">
           <TabsList>
+            {availableTabs.has("table-size") && <TabsTrigger value="table-size">Table Size</TabsTrigger>}
             {availableTabs.has("data-sample") && <TabsTrigger value="data-sample">Data Sample</TabsTrigger>}
             {availableTabs.has("metadata") && <TabsTrigger value="metadata">Metadata</TabsTrigger>}
-            {availableTabs.has("table-size") && <TabsTrigger value="table-size">Table Size</TabsTrigger>}
             {availableTabs.has("partitions") && <TabsTrigger value="partitions">Partitions</TabsTrigger>}
             {availableTabs.has("query-log") && <TabsTrigger value="query-log">Query Log</TabsTrigger>}
             {availableTabs.has("part-log") && <TabsTrigger value="part-log">Part Log</TabsTrigger>}
@@ -173,6 +173,20 @@ export function TableTab({ database, table, engine }: TableTabProps) {
         </div>
         <div className="flex-1 relative overflow-hidden">
           {/* All tabs are always mounted, visibility controlled by CSS */}
+          {availableTabs.has("table-size") && (
+            <div
+              className={`absolute inset-0 overflow-auto px-2 ${currentTab === "table-size" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "table-size"}
+            >
+              <TableSizeView
+                ref={tableSizeRef}
+                database={database}
+                table={table}
+                autoLoad={loadedTabs.has("table-size")}
+              />
+            </div>
+          )}
           {availableTabs.has("data-sample") && (
             <div
               className={`absolute inset-0 overflow-auto px-2 ${currentTab === "data-sample" ? "block" : "hidden"}`}
@@ -201,20 +215,7 @@ export function TableTab({ database, table, engine }: TableTabProps) {
               />
             </div>
           )}
-          {availableTabs.has("table-size") && (
-            <div
-              className={`absolute inset-0 overflow-auto px-2 ${currentTab === "table-size" ? "block" : "hidden"}`}
-              role="tabpanel"
-              aria-hidden={currentTab !== "table-size"}
-            >
-              <TableSizeView
-                ref={tableSizeRef}
-                database={database}
-                table={table}
-                autoLoad={loadedTabs.has("table-size")}
-              />
-            </div>
-          )}
+
           {availableTabs.has("partitions") && (
             <div
               className={`absolute inset-0 overflow-auto px-2 ${currentTab === "partitions" ? "block" : "hidden"}`}

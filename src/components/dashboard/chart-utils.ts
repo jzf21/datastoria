@@ -1,3 +1,4 @@
+import type React from "react";
 import type { FormatName, ObjectFormatter } from "@/lib/formatter";
 import type { ChartOptionBuilder, ChartRenderer } from "./chart-pie";
 import { PieChartOptionBuilder, PieChartRenderer } from "./chart-pie";
@@ -168,6 +169,15 @@ export interface HeadOption {
   isSticky?: boolean;
 }
 
+export interface ActionColumn {
+  // Title for the action column header, default is 'Action'
+  title?: string;
+  // Alignment of the action column, default is 'center'
+  align?: "left" | "right" | "center";
+  // Render function for action buttons/cells
+  renderAction: (row: Record<string, unknown>, rowIndex: number) => React.ReactNode;
+}
+
 export interface TableDescriptor extends ChartDescriptor {
   type: "table";
 
@@ -175,11 +185,17 @@ export interface TableDescriptor extends ChartDescriptor {
   // If not provided, all fields from data will be shown with default options
   fieldOptions?: Map<string, FieldOption> | Record<string, FieldOption>;
 
+  // Action columns configuration (rendered as separate columns, typically at the end)
+  actions?: ActionColumn | ActionColumn[];
+
   // Sorting configuration
   sortOption?: SortOption;
 
   // Header configuration
   headOption?: HeadOption;
+
+  // If true, display an index column as the first column (default: false)
+  showIndexColumn?: boolean;
 }
 
 export interface TransposeTableDescriptor extends ChartDescriptor {
