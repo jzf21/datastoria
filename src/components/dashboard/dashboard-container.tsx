@@ -108,7 +108,6 @@ const DashboardContainer = forwardRef<DashboardContainerRef, DashboardViewProps>
         return;
       }
 
-      console.trace("Refreshing all charts/tables...");
       const refreshParam = {
         selectedTimeSpan: timeSpan,
       } as RefreshParameter;
@@ -157,8 +156,6 @@ const DashboardContainer = forwardRef<DashboardContainerRef, DashboardViewProps>
     // No initial refresh here; each component handles its own initial refresh via useRefreshable
     // Charts will get the default time span initially, then refresh when TimeSpanSelector
     // triggers onSelectedSpanChanged (which happens on mount via componentDidUpdate)
-
-    console.log("Rendering dashboard", dashboard?.name);
 
     return (
       <div className="h-full flex flex-col overflow-hidden">

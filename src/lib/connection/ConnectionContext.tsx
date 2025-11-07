@@ -11,7 +11,7 @@ interface ConnectionContextType {
 export const ConnectionContext = createContext<ConnectionContextType>({
   selectedConnection: null,
   setSelectedConnection: () => {
-    console.warn('setSelectedConnection not implemented');
+    // Default implementation - will be overridden by provider
   },
 });
 

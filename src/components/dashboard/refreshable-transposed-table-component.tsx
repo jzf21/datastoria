@@ -74,10 +74,6 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
           return;
         }
 
-        console.trace(
-          `Loading data for transposed table [${descriptor.id}], queryType: ${(descriptor.query as SQLQuery & { type?: string })?.type}`
-        );
-
         setIsLoading(true);
         setError("");
 
@@ -102,10 +98,6 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
 
           // Replace time span template parameters in SQL
           const finalSql = param.selectedTimeSpan ? replaceTimeSpanParams(query.sql, param.selectedTimeSpan) : query.sql;
-
-          console.trace(
-            `Executing SQL for transposed table [${descriptor.id}]: ${finalSql.substring(0, 100)}...`
-          );
 
           const api = Api.create(selectedConnection);
           const canceller = api.executeSQL(
@@ -190,8 +182,6 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
     // Internal refresh function
     const refreshInternal = useCallback(
       (param: RefreshParameter) => {
-        console.trace(`Refreshing transposed table [${descriptor.id}]...`);
-
         if (!descriptor.query) {
           console.error(`No query defined for transposed table [${descriptor.id}]`);
           setError("No query defined for this transposed table component.");

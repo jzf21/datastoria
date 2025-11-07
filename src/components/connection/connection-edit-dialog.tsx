@@ -166,8 +166,6 @@ function ConnectionEditDialogWrapper({
       editable: editable,
     };
 
-    console.log(`Connection: [${newConnection.url}]`);
-
     return newConnection;
   }, [name, cluster, url, user, password, editable]);
 
@@ -275,14 +273,11 @@ function ConnectionEditDialogWrapper({
   const handleTestConnection = useCallback(async () => {
     const testConnection = getEditingConnection();
     if (testConnection == null) {
-      console.log("Test connection: getEditingConnection returned null");
       return;
     }
 
     // Set testing state to true
     setIsTesting(true);
-
-    console.log("Test connection: Starting test for", testConnection);
 
     // Helper function to show message with delay and stop testing
     const showMessageWithDelay = (messageFn: () => void) => {
@@ -295,16 +290,13 @@ function ConnectionEditDialogWrapper({
     try {
       const initializedConnection = ensureConnectionRuntimeInitialized(testConnection);
       if (!initializedConnection || !initializedConnection.runtime) {
-        console.error("Test connection: Failed to initialize connection runtime", initializedConnection);
         showMessageWithDelay(() => {
           showErrorMessage("Failed to initialize connection. Please check your URL format.");
         });
         return;
       }
 
-      console.log("Test connection: Connection initialized, runtime:", initializedConnection.runtime);
       const api = Api.create(initializedConnection);
-      console.log("Test connection: API created, executing SQL...");
 
       // Create abort controller for cancellation
       const abortController = new AbortController();
@@ -314,7 +306,6 @@ function ConnectionEditDialogWrapper({
 
       try {
         const response = await api.executeAsync({ sql: "SELECT 525" }, abortController.signal);
-        console.log("Test connection: Response received", response);
 
         if (testConnection.cluster.length === 0) {
           setApiCanceller(undefined);
@@ -363,7 +354,6 @@ function ConnectionEditDialogWrapper({
           });
         }
       } catch (error: unknown) {
-        console.error("Test connection: Error received", error);
         setApiCanceller(undefined);
 
         const apiError = error as ApiErrorResponse;
@@ -393,7 +383,6 @@ function ConnectionEditDialogWrapper({
         });
       }
     } catch (e: unknown) {
-      console.error("Test connection: Exception caught", e);
       const errorMessage = e instanceof Error ? e.message : "Unknown error";
       showMessageWithDelay(() => {
         showErrorMessage(`Internal Error\n${errorMessage}`);

@@ -537,19 +537,12 @@ export function DashboardTab({ host }: DashboardTabProps) {
               columnMap.set(colMeta.name, index);
             });
 
-            console.log("[Dashboard] Column map:", Array.from(columnMap.entries()));
-            console.log("[Dashboard] Meta:", meta);
-            console.log("[Dashboard] Rows count:", rows.length);
-
             // Group rows by dashboard category
             const dashboardMap = new Map<string, DashboardRow[]>();
 
             // Check if rows are arrays or objects
             const firstRow = rows[0];
             const isArrayFormat = Array.isArray(firstRow);
-
-            console.log("[Dashboard] Row format:", isArrayFormat ? "array" : "object");
-            console.log("[Dashboard] First row sample:", firstRow);
 
             rows.forEach((row: unknown, rowIndex: number) => {
               let dashboardName: string;
@@ -563,15 +556,7 @@ export function DashboardTab({ host }: DashboardTabProps) {
                 const titleIndex = columnMap.get("title");
                 const queryIndex = columnMap.get("query");
 
-                console.log(`[Dashboard] Processing row ${rowIndex} (array format):`, {
-                  rowArray,
-                  dashboardIndex,
-                  titleIndex,
-                  queryIndex,
-                });
-
                 if (dashboardIndex === undefined || titleIndex === undefined || queryIndex === undefined) {
-                  console.warn(`[Dashboard] Missing required columns in row ${rowIndex}`);
                   return;
                 }
 
@@ -584,30 +569,12 @@ export function DashboardTab({ host }: DashboardTabProps) {
                 dashboardName = String(rowObject["dashboard"] ?? "");
                 title = String(rowObject["title"] ?? "");
                 query = String(rowObject["query"] ?? "");
-
-                console.log(`[Dashboard] Processing row ${rowIndex} (object format):`, {
-                  rowObject,
-                  dashboardName,
-                  title,
-                  queryLength: query.length,
-                });
               }
 
               // Validate extracted values
               if (!dashboardName || dashboardName === "undefined" || !title || !query) {
-                console.warn(`[Dashboard] Invalid row data at index ${rowIndex}:`, {
-                  dashboardName,
-                  title,
-                  hasQuery: !!query,
-                });
                 return;
               }
-
-              console.log(`[Dashboard] Extracted values:`, {
-                dashboardName,
-                title,
-                queryLength: query.length,
-              });
 
               if (!dashboardMap.has(dashboardName)) {
                 dashboardMap.set(dashboardName, []);
@@ -625,15 +592,8 @@ export function DashboardTab({ host }: DashboardTabProps) {
               dashboardRows.forEach((row, index) => {
                 const columns = ["value"]; // Default column name
 
-                console.log(`[Dashboard] Creating chart for row:`, {
-                  dashboard: row.dashboard,
-                  title: row.title,
-                  query: row.query?.substring(0, 100) + "...", // Log first 100 chars of query
-                });
-
                 // Validate row data
                 if (!row.title || !row.query) {
-                  console.warn(`[Dashboard] Skipping invalid row at index ${index}:`, row);
                   return;
                 }
 
@@ -651,7 +611,6 @@ export function DashboardTab({ host }: DashboardTabProps) {
                     query: row.query,
                     reason: "metric_log table not available",
                   });
-                  console.log(`[Dashboard] Skipping dashboard ${row.title}: metric_log table not available`);
                   return;
                 }
 
@@ -663,21 +622,11 @@ export function DashboardTab({ host }: DashboardTabProps) {
                     query: row.query,
                     reason: "asynchronous_metric_log table not available",
                   });
-                  console.log(
-                    `[Dashboard] Skipping dashboard ${row.title}: asynchronous_metric_log table not available`
-                  );
                   return;
                 }
 
                 const chartId = `timeseries_chart_${dashboardName}_${index}`;
                 const chartTitle = row.title || `Chart ${index}`;
-
-                console.log(`[Dashboard] Creating chart:`, {
-                  id: chartId,
-                  title: chartTitle,
-                  hasTitle: !!chartTitle,
-                  titleLength: chartTitle.length,
-                });
 
                 groupCharts.push({
                   type: "line" as const,

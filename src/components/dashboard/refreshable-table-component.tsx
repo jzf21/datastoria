@@ -142,10 +142,6 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
           return;
         }
 
-        console.trace(
-          `Loading data for table [${descriptor.id}], queryType: ${(descriptor.query as SQLQuery & { type?: string })?.type}`
-        );
-
         setIsLoading(true);
         setError("");
 
@@ -338,7 +334,6 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     // Internal refresh function
     const refreshInternal = useCallback(
       (param: RefreshParameter) => {
-        console.trace(`Refreshing table [${descriptor.id}]...`);
 
         if (!descriptor.query) {
           console.error(`No query defined for table [${descriptor.id}]`);

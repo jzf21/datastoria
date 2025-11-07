@@ -372,12 +372,6 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           }
         });
 
-        console.log(`[TimeseriesChart ${descriptor.id}] Column classification:`, {
-          timestampKey,
-          labelColumns,
-          metricColumns,
-        });
-
         // Get unique timestamps and sort them
         // Convert all timestamps to milliseconds for consistent comparison
         const timestamps = Array.from(
@@ -463,13 +457,6 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
               }
 
               labelGroups.get(labelKey)!.push({ timestamp, value: numValue });
-            });
-
-            console.log(`[TimeseriesChart ${descriptor.id}] Label groups for metric ${metricCol}:`, {
-              labelGroups: Array.from(labelGroups.entries()).map(([key, points]) => ({
-                label: key,
-                pointCount: points.length,
-              })),
             });
 
             // Create series for each label group
@@ -747,11 +734,8 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
         // Check if we're loading with the same parameters (avoid duplicate API calls)
         if (lastLoadedParamsRef.current && JSON.stringify(lastLoadedParamsRef.current) === JSON.stringify(param)) {
-          console.trace(`[TimeseriesChart ${descriptor.id}] Skipping loadData - parameters unchanged`);
           return;
         }
-
-        console.trace(`Loading data for timeseries chart [${descriptor.id}]...`);
 
         setIsLoading(true);
         setError("");
@@ -768,10 +752,6 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
           // Replace time span template parameters in SQL
           const finalSql = replaceTimeSpanParams(query.sql, param.selectedTimeSpan);
-
-          // Log the SQL for debugging
-          console.log(`[TimeseriesChart ${descriptor.id}] Executing SQL:`, finalSql);
-          console.log(`[TimeseriesChart ${descriptor.id}] TimeSpan:`, param.selectedTimeSpan);
 
           // Check if there are any remaining old-style placeholders (for backward compatibility)
           if (finalSql.includes("{rounding}") || finalSql.includes("{seconds}")) {
@@ -805,9 +785,6 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                 // Check if rows are arrays or objects
                 const firstRow = rows[0];
                 const isArrayFormat = Array.isArray(firstRow);
-
-                console.log(`[TimeseriesChart ${descriptor.id}] Data format:`, isArrayFormat ? "array" : "object");
-                console.log(`[TimeseriesChart ${descriptor.id}] First row sample:`, firstRow);
 
                 const transformedData = transformRowsToChartData(rows, meta);
 
@@ -909,7 +886,6 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
           const errorMessage = (error as Error).message || "Unknown error occurred";
           setError(errorMessage);
           setIsLoading(false);
-          console.error(error);
         }
       },
       [descriptor, selectedConnection]
@@ -918,7 +894,6 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
     // Internal refresh function
     const refreshInternal = useCallback(
       (param: RefreshParameter) => {
-        console.trace(`Refreshing timeseries chart [${descriptor.id}]...`);
 
         if (!descriptor.query) {
           console.error(`No query defined for chart [${descriptor.id}]`);

@@ -370,10 +370,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
 
         const showMinimap = shouldShowMinimap() && !isOffset;
 
-        console.trace(
-          `Loading data for stat [${descriptor.id}], isOffset: ${isOffset}, showMinimap: ${showMinimap}, queryType: ${(descriptor.query as SQLQuery & { type?: string })?.type}`
-        );
-
         // Don't clear previous data during reload to prevent flickering
         // Only set loading state
         if (isOffset) {
@@ -392,10 +388,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
             // Replace time span template parameters in SQL
             const finalSql = replaceTimeSpanParams(thisQuery.sql, _param.selectedTimeSpan);
 
-            console.trace(
-              `Loading minimap data for stat [${descriptor.id}], SQL: ${finalSql.substring(0, 100)}...`
-            );
-
             Api.create(selectedConnection!).executeSQL(
               {
                 sql: finalSql,
@@ -408,17 +400,9 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 // Process the response into minimap data points
                 const minimapDataResult = getMinimapDataFromResponse(response);
 
-                console.trace(
-                  `Processed minimap data for stat [${descriptor.id}], minimapData points: ${minimapDataResult.length}`
-                );
-
                 // Calculate reduced value using the reducer
                 const reducer = descriptor.valueOption?.reducer || "avg";
                 const reducedValue = calculateReducedValue(minimapDataResult, reducer);
-
-                console.trace(
-                  `Calculated reduced value for stat [${descriptor.id}], points: ${minimapDataResult.length}, reducer: ${reducer}, reducedValue: ${reducedValue}`
-                );
 
                 // Update state with both the reduced value and minimap data
                 setData(reducedValue);
@@ -427,10 +411,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 setHasInitialData(true);
                 setIsLoadingValue(false);
                 setIsLoadingMinimap(false);
-
-                console.trace(
-                  `Updated state for stat [${descriptor.id}], data: ${reducedValue}, minimapData: ${minimapDataResult.length} points`
-                );
               },
               (error) => {
                 console.error("Error loading minimap data:", error);
@@ -445,10 +425,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
 
             // Replace time span template parameters in SQL
             const finalSql = replaceTimeSpanParams(query.sql, _param.selectedTimeSpan);
-
-            console.trace(
-              `Loading scalar data for stat [${descriptor.id}], SQL: ${finalSql.substring(0, 100)}...`
-            );
 
             Api.create(selectedConnection!).executeSQL(
               {
@@ -504,7 +480,6 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     // Internal refresh function
     const refreshInternal = useCallback(
       (param: RefreshParameter) => {
-        console.trace(`Refreshing stat [${descriptor.id}]...`);
 
         if (!descriptor.query) {
           console.error(`No query defined for stat [${descriptor.id}]`);

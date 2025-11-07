@@ -120,7 +120,6 @@ function applyGraphvizStyling(dot: string, bgColor: string): string {
     // Find the position of the opening brace after digraph declaration
   const digraphMatch = dot.match(/^(digraph(?:\s+\w+)?)\s*\{/m);
     if (!digraphMatch) {
-      console.warn("Could not find digraph declaration in graphviz string");
       return dot;
     }
 
@@ -177,7 +176,6 @@ function applyGraphvizStyling(dot: string, bgColor: string): string {
     // Apply styling to main graph
     const mainBraceIndex = cleaned.indexOf("{");
     if (mainBraceIndex === -1) {
-      console.warn("Could not find opening brace in graphviz string");
       return dot;
     }
 
@@ -208,7 +206,6 @@ function applyGraphvizStyling(dot: string, bgColor: string): string {
 
     return result;
   } catch (error) {
-    console.error("Error in applyGraphvizStyling:", error);
     // Return original if styling fails
     return dot;
   }
@@ -252,7 +249,6 @@ function ExplainPipeCompleteGraphView({ sql, isActive }: ExplainPipeGraphViewPro
         const styled = applyGraphvizStyling(rawGraphviz, bgColor);
         setResult(styled);
       } catch (error) {
-        console.error("Error applying graphviz styling:", error);
         // Fallback to un-styled version if styling fails
         setResult(rawGraphviz);
       }
@@ -442,7 +438,6 @@ const ExplainPipelineResponseViewComponent = ({ queryRequest, queryResponse }: Q
       }
       return applyGraphvizStyling(cleaned, bgColor);
     } catch (error) {
-      console.error("Error processing compact graph:", error);
       const cleaned = cleanGraphviz(queryResponse.data);
       return cleaned && cleaned.trim().length > 0 ? cleaned : undefined;
     }

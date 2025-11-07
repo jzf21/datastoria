@@ -33,7 +33,6 @@ export class ConnectionManager {
     } catch {
       // Ignore
     }
-    console.log(JSON.stringify(savedConnections, null, 2));
 
     this.connectionMap = new Map();
     this.connectionArray = [];

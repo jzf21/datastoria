@@ -90,31 +90,31 @@ where database = '${database}'
         align: "left" as const,
         format: "yyyyMMddHHmmss" as FormatName,
       },
-      lastModificationTime: {
+      last_modification_time: {
         title: "Data Modified At",
         sortable: true,
         align: "left" as const,
         format: "yyyyMMddHHmmss" as FormatName,
       },
-      sizePercent: {
+      size_percent: {
         title: "Size Distribution in This Database",
         sortable: true,
         align: "left" as const,
         format: "percentage_bar" as FormatName,
       },
-      partCount: {
+      part_count: {
         title: "Part Count",
         sortable: true,
         align: "center" as const,
         format: "comma_number" as FormatName,
       },
-      onDiskSize: {
+      on_disk_size: {
         title: "Size On Disk",
         sortable: true,
         align: "center" as const,
         format: "binary_size" as FormatName,
       },
-      uncompressedSize: {
+      uncompressed_size: {
         title: "Uncompressed Size",
         sortable: true,
         align: "center" as const,
@@ -125,26 +125,26 @@ where database = '${database}'
     const sql = `
 SELECT
     T.name, 
+    part.part_count, 
+    part.rows, 
+    part.on_disk_size, 
+    part.uncompressed_size, 
+    part.size_percent,
     T.engine, 
     T.metadata_modification_time,
-    part.lastModificationTime,
-    part.partCount, 
-    part.rows, 
-    part.onDiskSize, 
-    part.uncompressedSize, 
-    part.sizePercent 
+    part.last_modification_time,
 FROM 
     system.tables AS T
 LEFT JOIN
 (
     SELECT 
         table,
-        max(modification_time) as lastModificationTime,
-        count(1) as partCount,
+        max(modification_time) as last_modification_time,
+        count(1) as part_count,
         sum(rows) as rows,
-        sum(bytes_on_disk) AS onDiskSize,
-        sum(data_uncompressed_bytes) AS uncompressedSize,
-        onDiskSize * 100 / (SELECT sum(bytes_on_disk) FROM system.parts WHERE database = '${database}') AS sizePercent
+        sum(bytes_on_disk) AS on_disk_size,
+        sum(data_uncompressed_bytes) AS uncompressed_size,
+        on_disk_size * 100 / (SELECT sum(bytes_on_disk) FROM system.parts WHERE database = '${database}') AS size_percent
     FROM
         system.parts
     WHERE database = '${database}'
@@ -153,7 +153,7 @@ LEFT JOIN
 ) AS part
 ON T.table = part.table
 WHERE T.database = '${database}'
-ORDER BY onDiskSize DESC
+ORDER BY on_disk_size DESC
 `;
 
     return {
@@ -178,7 +178,7 @@ ORDER BY onDiskSize DESC
       fieldOptions: fieldOptions,
       sortOption: {
         initialSort: {
-          column: "onDiskSize",
+          column: "on_disk_size",
           direction: "desc",
         },
       },
@@ -187,7 +187,7 @@ ORDER BY onDiskSize DESC
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden relative">
-      <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div className="flex-1 overflow-auto p-2 space-y-4">
         {/* Database Info */}
         <RefreshableTransposedTableComponent descriptor={databaseInfoDescriptor} />
 

@@ -107,7 +107,6 @@ export function useRefreshable({
       // Check if the parameters have actually changed
       // Skip refresh if we already have data with the same parameters (avoid unnecessary API calls)
       if (lastRefreshParamRef.current && JSON.stringify(lastRefreshParamRef.current) === JSON.stringify(param)) {
-        console.trace(`Component [${componentId || "unknown"}] skipping refresh - parameters unchanged`);
         return;
       }
 
@@ -117,10 +116,6 @@ export function useRefreshable({
       // Re-check visibility at the time of refresh (it may have changed)
       const isCurrentlyVisible = isComponentInView();
       const shouldRefreshNow = !isCollapsed && isCurrentlyVisible;
-
-      console.trace(
-        `Component [${componentId || "unknown"}] refresh called, isCollapsed: ${isCollapsed}, isInView: ${isCurrentlyVisible}, shouldRefresh: ${shouldRefreshNow}, hasTimeSpan: ${!!param.selectedTimeSpan}`
-      );
 
       // Only refresh if NOT collapsed AND in viewport
       if (shouldRefreshNow) {
@@ -132,9 +127,6 @@ export function useRefreshable({
         // Mark that refresh is needed when component becomes visible/expanded
         // Don't update lastRefreshParamRef here - we haven't executed yet
         setNeedRefresh(true);
-        console.trace(
-          `Component [${componentId || "unknown"}] refresh deferred - will refresh when visible. isCollapsed: ${isCollapsed}, isInView: ${isCurrentlyVisible}`
-        );
       }
     },
     [componentId, isCollapsed, isComponentInView, refreshInternal]
@@ -162,10 +154,8 @@ export function useRefreshable({
         // Check if parameters have actually changed before refreshing
         // If parameters haven't changed, don't re-fetch - just clear the needRefresh flag
         if (lastRefreshParamRef.current && JSON.stringify(lastRefreshParamRef.current) === JSON.stringify(currentParam)) {
-          console.trace(`Component [${componentId || "unknown"}] expanding but parameters unchanged - skipping refresh`);
           setNeedRefresh(false);
         } else {
-          console.trace(`Component [${componentId || "unknown"}] expanding and refreshing with new parameters...`);
           refreshInternal(currentParam);
           lastRefreshParamRef.current = currentParam;
           setNeedRefresh(false);
@@ -191,10 +181,8 @@ export function useRefreshable({
         if (currentParam) {
           // Check if parameters have actually changed before refreshing
           if (lastRefreshParamRef.current && JSON.stringify(lastRefreshParamRef.current) === JSON.stringify(currentParam)) {
-            console.trace(`Component [${componentId || "unknown"}] entering viewport but parameters unchanged - skipping refresh`);
             setNeedRefresh(false);
           } else {
-            console.trace(`Component [${componentId || "unknown"}] entering viewport and refreshing...`);
             refreshInternal(currentParam);
             lastRefreshParamRef.current = currentParam;
             setNeedRefresh(false);

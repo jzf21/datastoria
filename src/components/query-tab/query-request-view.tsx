@@ -15,7 +15,6 @@ export function QueryRequestView({ queryRequest }: QueryRequestViewProps) {
       await navigator.clipboard.writeText(queryRequest.sql);
       toastManager.show("SQL copied to clipboard", "success");
     } catch (err) {
-      console.error("Failed to copy text: ", err);
       toastManager.show("Failed to copy SQL to clipboard", "error");
     }
   };

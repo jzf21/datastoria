@@ -33,8 +33,6 @@ export function ensureConnectionRuntimeInitialized(conn: Connection | null): Con
         path: url.pathname === '' ? '/' : url.pathname,
         userParams: userParams,
       };
-      
-      console.log('Connection runtime initialized:', conn.runtime);
     } catch (error) {
       console.error('Failed to initialize connection runtime:', error);
       return null;

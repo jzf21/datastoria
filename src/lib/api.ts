@@ -34,7 +34,6 @@ class ApiCancellerImpl implements ApiCanceller {
 
   public cancel() {
     if (this.abortController !== undefined) {
-      console.log('Cancel api...');
       this.abortController.abort();
     }
   }
@@ -108,14 +107,6 @@ export class Api {
 
     const apiCanceller = new ApiCancellerImpl(new AbortController());
 
-    console.log('API request config:', {
-      url: this.path,
-      method: 'post',
-      baseURL: this.instance.defaults.baseURL,
-      headers: sql.headers,
-      params: params,
-    });
-
     this.instance
       .request({
         url: this.path,
@@ -187,13 +178,6 @@ export class Api {
     // Build Basic Auth header
     const basicAuth = btoa(`${this.username}:${this.password}`);
     headers['Authorization'] = `Basic ${basicAuth}`;
-
-    console.log('API async request config:', {
-      url: url.toString(),
-      method: 'POST',
-      headers: headers,
-      params: params,
-    });
 
     // Create timeout controller
     const timeoutController = new AbortController();

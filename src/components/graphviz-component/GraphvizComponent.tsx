@@ -139,19 +139,15 @@ class GraphvizComponentImpl extends React.Component<
   private setupPinchZoom() {
     const divNode = this.div.node();
     if (!divNode) {
-      console.log("Pinch zoom setup failed: no div node");
       return;
     }
     
     if (!this.graphviz) {
-      console.log("Pinch zoom setup failed: graphviz not ready");
       return;
     }
     
     // Clean up existing handlers if any
     this.cleanupPinchZoom();
-
-    console.log("Pinch zoom handlers attached to div");
 
     this.touchStartHandler = (e: TouchEvent) => {
       if (e.touches.length === 2 && this.graphviz) {
@@ -162,7 +158,6 @@ class GraphvizComponentImpl extends React.Component<
         
         this.lastTouchDistance = this.getDistance(e.touches[0], e.touches[1]);
         this.initialScale = this.getCurrentScale();
-        console.log("Pinch start - distance:", this.lastTouchDistance, "initial scale:", this.initialScale);
         
         // Mark that we're handling the pinch
         (e.target as HTMLElement)?.setAttribute('data-pinch-active', 'true');
@@ -187,8 +182,6 @@ class GraphvizComponentImpl extends React.Component<
 
         // Clamp scale to reasonable bounds (0.1 to 10)
         const clampedScale = Math.max(0.1, Math.min(10, newScale));
-
-        console.log("Pinch move - distance:", currentDistance, "scale change:", scaleChange, "new scale:", clampedScale);
 
         // Use the existing setZoomScale method which is proven to work
         // Just apply the scale change
@@ -394,7 +387,6 @@ class GraphvizComponentImpl extends React.Component<
 
         // Setup pinch zoom after graph is rendered
         setTimeout(() => {
-          console.log("Setting up pinch zoom, graphviz ready:", !!this.graphviz);
           this.setupPinchZoom();
         }, 50);
       });
@@ -683,12 +675,11 @@ export class GraphvizComponent extends React.PureComponent<GraphvizProps, Graphv
       } else if ((container as any).msRequestFullscreen) {
         await (container as any).msRequestFullscreen();
       } else {
-        console.warn("Fullscreen API is not supported in this browser");
         return;
       }
       this.setState({ isFullscreen: true });
     } catch (error) {
-      console.error("Error entering fullscreen:", error);
+      // Silently handle fullscreen errors
     }
   };
 
@@ -705,7 +696,7 @@ export class GraphvizComponent extends React.PureComponent<GraphvizProps, Graphv
       }
       this.setState({ isFullscreen: false });
     } catch (error) {
-      console.error("Error exiting fullscreen:", error);
+      // Silently handle fullscreen errors
     }
   };
 

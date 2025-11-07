@@ -428,7 +428,6 @@ class TimeSpanSelector extends React.Component<TimeSpanSelectorProps, TimeSpanSe
   }
 
   render() {
-    console.trace("Rendering TimeSpanSelector...");
 
     const {
       isSelectorOpen,
@@ -457,7 +456,6 @@ class TimeSpanSelector extends React.Component<TimeSpanSelectorProps, TimeSpanSe
               this.setState({ isSelectorOpen: open });
               if (!open) {
                 this.setState({ isCalendarOpen: false });
-                console.log("Close Calender");
               }
             }}
           >
@@ -514,7 +512,6 @@ class TimeSpanSelector extends React.Component<TimeSpanSelectorProps, TimeSpanSe
                       onClick={() => {
                         if (!isCalendarOpen) {
                           this.setState({ isCalendarOpen: true });
-                          console.log("Open Calender");
                         }
                       }}
                       value={startDateInput}
