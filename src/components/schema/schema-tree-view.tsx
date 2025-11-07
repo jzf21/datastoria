@@ -63,6 +63,11 @@ function getColumnIcon(typeString: string): LucideIcon | undefined {
     return Hash;
   }
 
+  // UUID types - use same icon as numbers
+  if (type === "uuid") {
+    return Hash;
+  }
+
   // Float types
   if (type.includes("float") || type.includes("double") || type.includes("decimal")) {
     return Calculator;
@@ -106,21 +111,80 @@ function getColumnIcon(typeString: string): LucideIcon | undefined {
   return undefined;
 }
 
+// Parse Enum type to extract base type and key-value pairs
+// Example: Enum8('NewPart' = 1, 'MergeParts' = 2) -> { baseType: 'Enum8', pairs: [['NewPart', '1'], ['MergeParts', '2']] }
+function parseEnumType(typeString: string): { baseType: string; pairs: Array<[string, string]> } | null {
+  const type = String(typeString || "").trim();
+  
+  // Match Enum8, Enum16, Enum, etc.
+  const enumMatch = type.match(/^(Enum\d*)\s*\((.+)\)$/);
+  if (!enumMatch) {
+    return null;
+  }
+
+  const baseType = enumMatch[1];
+  const content = enumMatch[2];
+  const pairs: Array<[string, string]> = [];
+
+  // Parse key-value pairs: 'NewPart' = 1, 'MergeParts' = 2
+  // Handle quoted strings and numbers
+  const pairRegex = /'([^']+)'\s*=\s*(\d+)/g;
+  let match;
+  while ((match = pairRegex.exec(content)) !== null) {
+    // Remove single quotes from key if present
+    let key = match[1];
+    key = key.replace(/^'|'$/g, "");
+    // Keep value as string
+    const value = match[2];
+    pairs.push([key, value]);
+  }
+
+  return { baseType, pairs };
+}
+
 // Create a column tree node
 function toColumnTreeNode(column: { name: string; type: string }): TreeDataItem {
   const columnName = String(column.name || "Unknown");
   const columnType = String(column.type || "");
+  
+  // Check if it's an Enum type
+  const enumInfo = parseEnumType(columnType);
+  
+  // Create the tag - show base type for Enum, full type for others
+  const tagContent = enumInfo ? enumInfo.baseType : columnType;
+  const tag = (
+    <span className="ml-2 text-[10px] text-muted-foreground">{tagContent}</span>
+  );
+
+  // Create hover card content if it's an Enum with pairs
+  const hoverCardContent = enumInfo && enumInfo.pairs.length > 0 ? (
+    <div className="space-y-1">
+      <div className="font-semibold text-sm">{enumInfo.baseType}</div>
+      <div className="space-y-1">
+        {enumInfo.pairs.map(([key, value], index) => (
+          <div key={index} className="text-xs font-mono">
+            <span className="text-muted-foreground">{key}</span>
+            <span className="mx-2">=</span>
+            <span>{value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : undefined;
+
   return {
     id: `column:${column.name}`,
     text: columnName,
     search: columnName.toLowerCase(),
     type: "leaf" as const,
     icon: getColumnIcon(columnType),
-    tag: <span className="ml-2 text-[10px] text-muted-foreground">{columnType}</span>,
+    tag: tag,
+    hoverCardContent: hoverCardContent,
     data: {
       type: "column",
       name: columnName,
       typeString: columnType,
+      enumPairs: enumInfo?.pairs || undefined,
     } as ColumnNodeData,
   };
 }
@@ -158,15 +222,13 @@ interface ColumnNodeData {
   type: "column";
   name: string;
   typeString: string;
+  enumPairs?: Array<[string, string]>; // Key-value pairs for Enum types
 }
 
 interface HostNodeData {
   type: "host";
   host: string;
 }
-
-// Type union for all possible tree node data types
-type TreeNodeData = HostNodeData | DatabaseNodeData | TableNodeData | ColumnNodeData;
 
 export interface SchemaTreeViewProps {
   tabId?: string; // Optional tab ID for multi-tab support

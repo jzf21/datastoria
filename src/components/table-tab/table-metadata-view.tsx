@@ -107,7 +107,7 @@ function TableStructureView({
       type: {
         title: "Type",
         sortable: true,
-        align: "center",
+        align: "left",
       },
       default_type: {
         title: "Default Type",

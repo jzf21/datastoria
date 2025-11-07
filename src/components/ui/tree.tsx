@@ -11,6 +11,7 @@ import { ChevronRight, type LucideIcon } from "lucide-react";
 import React, { useCallback, useMemo, useRef } from "react";
 import { searchTree } from "../../lib/tree-search";
 import { Badge } from "./badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./hover-card";
 
 interface TreeDataItem {
   id: string;
@@ -30,6 +31,8 @@ interface TreeDataItem {
   _expanded?: boolean;
   // Custom tag/badge to render alongside the node text
   tag?: React.ReactNode | (() => React.ReactNode);
+  // Hover card content - if provided, the entire row will be wrapped in a HoverCard
+  hoverCardContent?: React.ReactNode;
 }
 
 type TreeProps = React.HTMLAttributes<HTMLDivElement> & {
@@ -372,9 +375,8 @@ const Tree = React.forwardRef<HTMLDivElement, TreeProps>(
             const isSelected = selectedItemId === node.id;
             const Icon = node.icon || (hasChildren ? folderIcon : itemIcon);
 
-            return (
+            const rowContent = (
               <div
-                key={node.id}
                 data-index={virtualRow.index}
                 className={cn(
                   "relative flex items-center py-1 cursor-pointer transition-colors",
@@ -440,6 +442,27 @@ const Tree = React.forwardRef<HTMLDivElement, TreeProps>(
                   </span>
               </div>
             );
+
+            // Wrap in HoverCard if hoverCardContent is provided
+            if (node.hoverCardContent) {
+              return (
+                <HoverCard key={node.id} openDelay={200} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    {rowContent}
+                  </HoverCardTrigger>
+                  <HoverCardContent 
+                    side="bottom" 
+                    align="center"
+                    className="w-auto min-w-[200px] max-w-md z-[100] p-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {node.hoverCardContent}
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            }
+
+            return <React.Fragment key={node.id}>{rowContent}</React.Fragment>;
           })}
         </div>
       </div>

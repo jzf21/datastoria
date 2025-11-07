@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataSampleView } from "./data-sample-view";
+import { PartLogView } from "./part-log-view";
 import { PartitionSizeView } from "./partition-view";
 import { QueryLogView } from "./query-log-view";
 import { TableMetadataView } from "./table-metadata-view";
@@ -60,7 +61,7 @@ export function TableTab({ database, table, engine }: TableTabProps) {
     ? new Set([...baseAvailableTabs].filter((tab) => tab !== "table-size" && tab !== "partitions"))
     : baseAvailableTabs;
 
-  const initialTab = availableTabs.has("data-sample") ? "data-sample" : "metadata";
+  const initialTab = availableTabs.has("table-size") ? "table-size" : "metadata";
   const [currentTab, setCurrentTab] = useState<string>(initialTab);
 
   // Track which tabs have been loaded (to load data only once)
@@ -80,6 +81,7 @@ export function TableTab({ database, table, engine }: TableTabProps) {
   const tableSizeRef = useRef<RefreshableTabViewRef>(null);
   const partitionRef = useRef<RefreshableTabViewRef>(null);
   const queryLogRef = useRef<RefreshableTabViewRef>(null);
+  const partLogRef = useRef<RefreshableTabViewRef>(null);
 
   // Helper function to get the current ref based on active tab
   const getCurrentRef = useCallback((): RefreshableTabViewRef | null => {
@@ -94,6 +96,8 @@ export function TableTab({ database, table, engine }: TableTabProps) {
         return partitionRef.current;
       case "query-log":
         return queryLogRef.current;
+      case "part-log":
+        return partLogRef.current;
       default:
         return null;
     }
@@ -250,9 +254,12 @@ export function TableTab({ database, table, engine }: TableTabProps) {
               role="tabpanel"
               aria-hidden={currentTab !== "part-log"}
             >
-              <div className="h-full flex items-center justify-center text-muted-foreground">
-                Part Log content coming soon
-              </div>
+              <PartLogView
+                ref={partLogRef}
+                database={database}
+                table={table}
+                autoLoad={loadedTabs.has("part-log")}
+              />
             </div>
           )}
         </div>

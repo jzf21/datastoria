@@ -452,6 +452,7 @@ ORDER BY t`,
             cpu: {
               type: "table",
               id: "query-kind",
+              width: 100,
               titleOption: {
                 title: "Query Kind",
               },
@@ -461,9 +462,13 @@ ORDER BY t`,
                   direction: "desc",
                 },
               },
-              columns: [
-                { name: "OSCPUVirtualTimeMicroseconds", title: "CPU Time (μs)", format: "microsecond", sortable: true },
-              ],
+              fieldOptions: {
+                OSCPUVirtualTimeMicroseconds: { 
+                  title: "CPU Time (μs)", 
+                  format: "microsecond", 
+                  sortable: true 
+                },
+              },
               query: {
                 sql: `
 SELECT 
@@ -481,7 +486,7 @@ WHERE
 ORDER BY OSCPUVirtualTimeMicroseconds DESC
                 `,
               },
-            } as TableDescriptor,
+            },
           },
         },
 
