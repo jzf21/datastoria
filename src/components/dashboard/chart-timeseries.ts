@@ -1,6 +1,11 @@
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import { Formatter } from "@/lib/formatter";
-import type { ChartDescriptor, ColumnDef, FormatterFn, QueryResponse } from "./chart-utils";
+import { Formatter, type ObjectFormatter } from "@/lib/formatter";
+import type { ChartDescriptor, ColumnDef, FormatterFn, QueryResponse, TimeseriesDescriptor } from "./chart-utils";
+
+// Type guard to check if format is an ObjectFormatter
+function isObjectFormatter(format: string | ObjectFormatter): format is ObjectFormatter {
+  return typeof format !== "string";
+}
 
 // Base interfaces
 export interface ChartRenderer {
@@ -29,7 +34,13 @@ export class TimeSeriesRenderer implements ChartRenderer {
       timeLabels.push(DateTimeExtension.formatDateTime(new Date(t), "HH:mm:ss"));
     }
 
-    const hasMultipleMetrics = chartDescriptor.columns.length > 1;
+    const timeseriesDescriptor = chartDescriptor as TimeseriesDescriptor;
+    const columns = timeseriesDescriptor.fieldOptions 
+      ? (timeseriesDescriptor.fieldOptions instanceof Map
+          ? Array.from(timeseriesDescriptor.fieldOptions.values())
+          : Object.values(timeseriesDescriptor.fieldOptions))
+      : [];
+    const hasMultipleMetrics = columns.length > 1;
 
     const series = [];
     queryResponse.data.forEach((metric: { tags: string[]; values: number[] }) => {
@@ -148,26 +159,47 @@ export class TimeSeriesChartBuilder implements ChartOptionBuilder {
     const yAxisFormatters: FormatterFn[] = [];
     const legendOption: { name: string; icon: string }[] = [];
 
-    if (chartDescriptor.yAxis === undefined) {
-      chartDescriptor.yAxis = [];
+    const timeseriesDescriptor = chartDescriptor as TimeseriesDescriptor;
+    
+    if (timeseriesDescriptor.yAxis === undefined) {
+      timeseriesDescriptor.yAxis = [];
+    }
+
+    // Convert fieldOptions to array format for backward compatibility
+    let columns: (string | ColumnDef)[] = [];
+    if (timeseriesDescriptor.fieldOptions) {
+      // Convert Map/Record to array, sorted by position if available
+      const fieldOptionsArray = timeseriesDescriptor.fieldOptions instanceof Map
+        ? Array.from(timeseriesDescriptor.fieldOptions.entries())
+        : Object.entries(timeseriesDescriptor.fieldOptions);
+      
+      // Sort by position if available
+      fieldOptionsArray.sort((a, b) => {
+        const posA = a[1].position ?? Number.MAX_SAFE_INTEGER;
+        const posB = b[1].position ?? Number.MAX_SAFE_INTEGER;
+        return posA - posB;
+      });
+      
+      columns = fieldOptionsArray.map(([key, value]) => ({ ...value, name: key }));
     }
     
-    for (let i = 0, size = chartDescriptor.columns.length; i < size; i++) {
-      let column = chartDescriptor.columns[i];
+    for (let i = 0, size = columns.length; i < size; i++) {
+      let column = columns[i];
 
       // string type of column is allowed for simple configuration
       // during rendering, it's turned into an object for simple processing
       if (typeof column === "string") {
-        chartDescriptor.columns[i] = {
+        columns[i] = {
           name: column,
           yAxis: 0,
         };
-        column = chartDescriptor.columns[i];
+        column = columns[i];
       }
 
       // legend
+      const columnName = typeof column === "string" ? column : (column.title || column.name || "Unknown");
       legendOption.push({
-        name: typeof column === "string" ? column : column.title || column.name,
+        name: columnName,
         icon: "circle",
       });
 
@@ -175,21 +207,27 @@ export class TimeSeriesChartBuilder implements ChartOptionBuilder {
       const yAxisIndex = typeof column === "string" ? 0 : column.yAxis || 0;
       
       // Make sure the array has enough objects for further access
-      while (chartDescriptor.yAxis.length < yAxisIndex + 1) {
-        chartDescriptor.yAxis.push({});
+      while (timeseriesDescriptor.yAxis.length < yAxisIndex + 1) {
+        timeseriesDescriptor.yAxis.push({});
       }
 
       while (yAxisFormatters.length < yAxisIndex + 1) {
         yAxisFormatters.push((v) => v.toString());
       }
 
-      const formatName =
+      const format =
         typeof column === "string" || column.format === undefined
-          ? chartDescriptor.yAxis[yAxisIndex]?.format !== undefined
-            ? chartDescriptor.yAxis[yAxisIndex].format
+          ? timeseriesDescriptor.yAxis[yAxisIndex]?.format !== undefined
+            ? timeseriesDescriptor.yAxis[yAxisIndex].format
             : "short_number"
           : column.format;
-      yAxisFormatters[yAxisIndex] = Formatter.getInstance().getFormatter(formatName);
+      
+      if (isObjectFormatter(format)) {
+        // format is an ObjectFormatter, use it directly
+        yAxisFormatters[yAxisIndex] = format;
+      } else {
+        yAxisFormatters[yAxisIndex] = Formatter.getInstance().getFormatter(format);
+      }
     }
 
     const echartOption = {
@@ -202,7 +240,7 @@ export class TimeSeriesChartBuilder implements ChartOptionBuilder {
         type: "scroll",
         top: 0,
         data: legendOption,
-        show: chartDescriptor.legend === undefined || (chartDescriptor.legend.placement !== "none" && chartDescriptor.legend.placement !== "bottom"),
+        show: timeseriesDescriptor.legend === undefined || (timeseriesDescriptor.legend.placement !== "none" && timeseriesDescriptor.legend.placement !== "bottom"),
       },
       brush: {
         xAxisIndex: "all",
@@ -232,13 +270,13 @@ export class TimeSeriesChartBuilder implements ChartOptionBuilder {
       },
       grid: {
         left: 60,
-        right: chartDescriptor.yAxis.length > 1 ? 60 : 20,
+        right: timeseriesDescriptor.yAxis.length > 1 ? 60 : 20,
         bottom: 30,
-        top: chartDescriptor.legend === undefined || chartDescriptor.legend.placement === "inside" || chartDescriptor.legend.placement === "none" ? 50 : 30,
+        top: timeseriesDescriptor.legend === undefined || timeseriesDescriptor.legend.placement === "inside" || timeseriesDescriptor.legend.placement === "none" ? 50 : 30,
         // Maintain v5 behavior for label positioning
         outerBoundsMode: 'none'
       },
-      yAxis: chartDescriptor.yAxis.map((yAxis, index) => {
+      yAxis: timeseriesDescriptor.yAxis.map((yAxis, index) => {
         return {
           type: "value",
           min: yAxis.min ?? 0,

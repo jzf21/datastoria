@@ -1,4 +1,4 @@
-import type { StatDescriptor, TableDescriptor, TransposeTableDescriptor } from "@/components/dashboard/chart-utils";
+import type { TableDescriptor, TransposeTableDescriptor } from "@/components/dashboard/chart-utils";
 import DashboardContainer, { type DashboardContainerRef } from "@/components/dashboard/dashboard-container";
 import type { Dashboard } from "@/components/dashboard/dashboard-model";
 import { TabManager } from "@/components/tab-manager";

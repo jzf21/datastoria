@@ -55,6 +55,22 @@ export interface ThresholdSpec {
   color: string;
 }
 
+// AlertExpression type for alert/expression conversion functions
+export interface AlertExpression {
+  id?: string;
+  expressionText: string;
+  from: string;
+  where?: string;
+  select: {
+    field?: string;
+    name: string;
+  };
+  offset?: string;
+  alertExpected: number | { type: "percentage"; value: number; text: string };
+  window?: any;
+  groupBy?: any[];
+}
+
 // For time series chart to show
 export interface MarkerSpec {
   start: number;
@@ -296,10 +312,12 @@ export function toEChartSeriesOption(
   return renderer.renderSeries(chartDescriptor, yAxisFormatters, columnMap, queryResponse);
 }
 
-function toDetailTableDescriptor(expr: AlertExpression): ChartDescriptor {
-  const chartDescriptor: ChartDescriptor = {
+function toDetailTableDescriptor(expr: AlertExpression): TableDescriptor {
+  const chartDescriptor: TableDescriptor = {
     type: "table",
-    title: expr.expressionText,
+    titleOption: {
+      title: expr.expressionText,
+    },
     fieldOptions: {},
     width: 100, // Required field
     query: {
@@ -320,7 +338,7 @@ function toDetailTableDescriptor(expr: AlertExpression): ChartDescriptor {
   return chartDescriptor;
 }
 
-export function toChartDescriptor(expr: AlertExpression): ChartDescriptor {
+export function toChartDescriptor(expr: AlertExpression): TimeseriesDescriptor {
   const yAxsis: YAxisOption[] = [{}];
   const fieldOptions: Record<string, FieldOption> = {
     [expr.select.name]: { fill: false },
@@ -348,10 +366,12 @@ export function toChartDescriptor(expr: AlertExpression): ChartDescriptor {
     threshold.displayText = "" + (expr.alertExpected as number);
   }
 
-  const chartDescriptor: ChartDescriptor = {
+  const chartDescriptor: TimeseriesDescriptor = {
     type: "line",
     id: expr.id,
-    title: expr.expressionText,
+    titleOption: {
+      title: expr.expressionText,
+    },
     yAxis: yAxsis,
     fieldOptions: fieldOptions,
     width: 100, // Required field
@@ -370,10 +390,10 @@ export function toChartDescriptor(expr: AlertExpression): ChartDescriptor {
       fields: [expr.select],
       groupBy: expr.groupBy,
     } as JsonQuery,
-
+    // Note: threshold and details are legacy properties not in the type definition
+    // They are preserved here for backward compatibility but not type-checked
     threshold: threshold,
-
     details: toDetailTableDescriptor(expr),
-  };
+  } as TimeseriesDescriptor & { threshold?: ThresholdSpec; details?: ChartDescriptor };
   return chartDescriptor;
 }

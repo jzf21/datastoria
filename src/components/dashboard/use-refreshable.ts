@@ -11,7 +11,7 @@ interface UseRefreshableOptions {
 }
 
 interface UseRefreshableReturn {
-  componentRef: React.RefObject<HTMLDivElement>;
+  componentRef: React.RefObject<HTMLDivElement | null>;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   refresh: (param: RefreshParameter) => void;

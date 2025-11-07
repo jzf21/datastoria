@@ -1,5 +1,10 @@
-import { Formatter } from "@/lib/formatter";
+import { Formatter, type ObjectFormatter } from "@/lib/formatter";
 import type { ChartDescriptor, ColumnDef, FieldOption, FormatterFn, QueryResponse, TimeseriesDescriptor } from "./chart-utils";
+
+// Type guard to check if format is an ObjectFormatter
+function isObjectFormatter(format: string | ObjectFormatter): format is ObjectFormatter {
+  return typeof format !== "string";
+}
 
 // Base interfaces
 export interface ChartRenderer {
@@ -57,7 +62,7 @@ export class PieChartRenderer implements ChartRenderer {
         group += metric.tags[i];
       }
 
-      const displayName = group !== "" ? group : title;
+      const displayName = group !== "" ? group : (title || metricName);
 
       pieData.push({
         name: displayName,
@@ -153,8 +158,9 @@ export class PieChartOptionBuilder implements ChartOptionBuilder {
       }
 
       // legend
+      const columnName = typeof column === "string" ? column : (column.title || column.name || "Unknown");
       legendOption.push({
-        name: typeof column === "string" ? column : column.title || column.name,
+        name: columnName,
         icon: "circle",
       });
 
@@ -165,8 +171,13 @@ export class PieChartOptionBuilder implements ChartOptionBuilder {
         yAxisFormatters.push((v) => v.toString());
       }
 
-      const formatName = typeof column === "string" || column.format === undefined ? "short_number" : column.format;
-      yAxisFormatters[yAxisIndex] = Formatter.getInstance().getFormatter(formatName);
+      const format = typeof column === "string" || column.format === undefined ? "short_number" : column.format;
+      if (isObjectFormatter(format)) {
+        // format is an ObjectFormatter, use it directly
+        yAxisFormatters[yAxisIndex] = format;
+      } else {
+        yAxisFormatters[yAxisIndex] = Formatter.getInstance().getFormatter(format);
+      }
     }
 
     const echartOption = {
