@@ -50,6 +50,60 @@ const predefinedDashboard = {
         {
           type: "stat",
           titleOption: {
+            title: "Warnings",
+          },
+          width: 1,
+          description: "How long the server has been running",
+          query: {
+            sql: "SELECT count() FROM system.warnings",
+          },
+          drilldown: {
+            warnings: {
+              type: "table",
+              titleOption: {
+                title: "Warnings",
+                description: "The number of warnings on the server",
+              },
+              query: {
+                sql: "SELECT * FROM system.warnings",
+              },
+            } as TableDescriptor,
+          },
+        },
+
+        {
+          type: "stat",
+          titleOption: {
+            title: "Last Error",
+          },
+          width: 1,
+          description: "How long the server has been running",
+          query: {
+            sql: "SELECT max(last_error_time) FROM system.errors",
+          },
+          drilldown: {
+            warnings: {
+              type: "table",
+              titleOption: {
+                title: "Warnings",
+                description: "The number of warnings on the server",
+              },
+              query: {
+                sql: "SELECT * FROM system.errors ORDER BY last_error_time DESC",
+              },
+              sortOption: {
+                initialSort: {
+                  column: "last_error_time",
+                  direction: "desc",
+                },
+              },
+            } as TableDescriptor,
+          },
+        },
+
+        {
+          type: "stat",
+          titleOption: {
             title: "Databases",
           },
           width: 1,
@@ -468,11 +522,11 @@ interface SkippedDashboard {
   reason: string;
 }
 
-interface DashboardTabProps {
+interface ServerTabProps {
   host: string;
 }
 
-const DashboardTabComponent = ({ host }: DashboardTabProps) => {
+const ServerTabComponent = ({ host }: ServerTabProps) => {
   const { selectedConnection } = useConnection();
   const [dashboard, setDashboard] = useState<Dashboard>(predefinedDashboard);
   const [error, setError] = useState<string | null>(null);
@@ -821,5 +875,5 @@ const DashboardTabComponent = ({ host }: DashboardTabProps) => {
   );
 };
 
-export const DashboardTab = memo(DashboardTabComponent);
+export const ServerTab = memo(ServerTabComponent);
 

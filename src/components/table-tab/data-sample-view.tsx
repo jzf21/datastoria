@@ -4,8 +4,8 @@ import { Dialog } from "@/components/use-dialog";
 import { Api, type ApiCanceller, type ApiErrorResponse, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { toastManager } from "@/lib/toast";
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 export interface DataSampleViewProps {
   database: string;
@@ -152,7 +152,7 @@ const formatValueForDisplay = (val: unknown): string => {
   return String(val);
 };
 
-export const DataSampleView = forwardRef<RefreshableTabViewRef, DataSampleViewProps>(({ database, table, autoLoad = false }, ref) => {
+const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleViewProps>(({ database, table, autoLoad = false }, ref) => {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
@@ -419,4 +419,6 @@ export const DataSampleView = forwardRef<RefreshableTabViewRef, DataSampleViewPr
   );
 });
 
-DataSampleView.displayName = "DataSampleView";
+DataSampleViewComponent.displayName = "DataSampleView";
+
+export const DataSampleView = memo(DataSampleViewComponent);

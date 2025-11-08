@@ -557,49 +557,125 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
 
         const container = valueContainerRef.current;
         const text = valueTextRef.current;
-        const containerWidth = container.offsetWidth;
+        
+        // Get computed styles to account for padding
+        const containerStyles = getComputedStyle(container);
+        const paddingLeft = parseFloat(containerStyles.paddingLeft) || 0;
+        const paddingRight = parseFloat(containerStyles.paddingRight) || 0;
+        
+        // Use clientWidth which excludes padding, or calculate available width
+        const containerWidth = container.clientWidth || (container.offsetWidth - paddingLeft - paddingRight);
         const containerHeight = container.offsetHeight;
 
-        if (containerWidth === 0 || containerHeight === 0) return; // Not yet rendered
+        if (containerWidth <= 0 || containerHeight <= 0) return; // Not yet rendered
 
         // Get the actual text content (skip if it's a skeleton)
+        // For React components like NumberFlow, textContent gives us the rendered text
         const textContent = text.textContent?.trim() || "";
         if (!textContent || textContent === "") return; // No text to measure
 
-        // Create a temporary hidden element to measure natural size
-        const tempElement = document.createElement("div");
-        tempElement.style.position = "absolute";
-        tempElement.style.visibility = "hidden";
-        tempElement.style.whiteSpace = "nowrap";
-        tempElement.style.fontSize = "3rem";
-        tempElement.style.fontWeight = "600"; // font-semibold
-        tempElement.style.fontFamily = getComputedStyle(text).fontFamily;
-        tempElement.textContent = textContent;
-        document.body.appendChild(tempElement);
+        // Create a hidden measurement element with the same font properties
+        // This gives us accurate width measurement without affecting the actual element
+        const measureElement = document.createElement("div");
+        const textStyles = getComputedStyle(text);
+        
+        // Copy all font-related styles that affect width
+        measureElement.style.position = "absolute";
+        measureElement.style.visibility = "hidden";
+        measureElement.style.top = "-9999px";
+        measureElement.style.left = "-9999px";
+        measureElement.style.whiteSpace = "nowrap";
+        measureElement.style.fontSize = "3rem"; // Measure at base size (3rem)
+        measureElement.style.fontWeight = textStyles.fontWeight;
+        measureElement.style.fontFamily = textStyles.fontFamily;
+        measureElement.style.fontStyle = textStyles.fontStyle;
+        measureElement.style.letterSpacing = textStyles.letterSpacing;
+        measureElement.style.textTransform = textStyles.textTransform;
+        measureElement.style.lineHeight = textStyles.lineHeight;
+        measureElement.style.fontVariant = textStyles.fontVariant;
+        measureElement.style.textRendering = textStyles.textRendering;
+        measureElement.textContent = textContent; // Use the actual rendered text
+        
+        document.body.appendChild(measureElement);
+        
+        // Force a reflow to get accurate measurements
+        void measureElement.offsetWidth;
 
-        // Force a reflow
-        void tempElement.offsetWidth;
-
-        const naturalWidth = tempElement.offsetWidth;
-        const naturalHeight = tempElement.offsetHeight;
+        // Measure the natural width at 3rem
+        // Use both scrollWidth and offsetWidth for accuracy
+        const naturalWidth = Math.max(measureElement.scrollWidth, measureElement.offsetWidth);
+        const naturalHeight = measureElement.offsetHeight;
 
         // Clean up
-        document.body.removeChild(tempElement);
+        document.body.removeChild(measureElement);
 
-        // If text fits, use default size
-        if (naturalWidth <= containerWidth && naturalHeight <= containerHeight) {
-          setFontSize(3);
+        // Use a more conservative safety margin to prevent any overflow
+        // 8px on each side (16px total) to account for:
+        // - Sub-pixel rendering differences
+        // - Font rendering variations
+        // - Browser rounding differences
+        // - Any potential layout shifts
+        const widthMargin = 16;
+        const heightMargin = 4;
+        const availableWidth = Math.max(0, containerWidth - widthMargin);
+        const availableHeight = Math.max(0, containerHeight - heightMargin);
+
+        // If text fits at 3rem, use default size
+        if (naturalWidth <= availableWidth && naturalHeight <= availableHeight) {
+          if (fontSize !== 3) {
+            setFontSize(3);
+          }
           return;
         }
 
-        // Calculate scale factor based on both width and height constraints
-        const widthScale = containerWidth / naturalWidth;
-        const heightScale = containerHeight / naturalHeight;
+        // Calculate scale factor based on natural dimensions
+        // Ensure we don't divide by zero
+        if (naturalWidth <= 0 || naturalHeight <= 0) {
+          return;
+        }
+        
+        const widthScale = availableWidth / naturalWidth;
+        const heightScale = availableHeight / naturalHeight;
         const scale = Math.min(widthScale, heightScale, 1); // Don't scale up, only down
 
-        // Set new font size (3rem is the base size)
-        const newFontSize = Math.max(0.75, scale * 3); // Minimum 0.75rem
-        setFontSize(newFontSize);
+        // Calculate new font size (3rem is the base size)
+        // Apply an additional 3% reduction for extra safety
+        const safetyScale = 0.97;
+        let newFontSizeRem = Math.max(0.75, scale * 3 * safetyScale); // Minimum 0.75rem
+        
+        // Verify: measure again at the calculated size to ensure it fits
+        const verifyElement = document.createElement("div");
+        verifyElement.style.position = "absolute";
+        verifyElement.style.visibility = "hidden";
+        verifyElement.style.top = "-9999px";
+        verifyElement.style.left = "-9999px";
+        verifyElement.style.whiteSpace = "nowrap";
+        verifyElement.style.fontSize = `${newFontSizeRem}rem`;
+        verifyElement.style.fontWeight = textStyles.fontWeight;
+        verifyElement.style.fontFamily = textStyles.fontFamily;
+        verifyElement.style.fontStyle = textStyles.fontStyle;
+        verifyElement.style.letterSpacing = textStyles.letterSpacing;
+        verifyElement.style.textTransform = textStyles.textTransform;
+        verifyElement.style.lineHeight = textStyles.lineHeight;
+        verifyElement.style.fontVariant = textStyles.fontVariant;
+        verifyElement.style.textRendering = textStyles.textRendering;
+        verifyElement.textContent = textContent;
+        
+        document.body.appendChild(verifyElement);
+        void verifyElement.offsetWidth;
+        const verifiedWidth = Math.max(verifyElement.scrollWidth, verifyElement.offsetWidth);
+        document.body.removeChild(verifyElement);
+        
+        // If still too wide, scale down further
+        if (verifiedWidth > availableWidth) {
+          const additionalScale = availableWidth / verifiedWidth;
+          newFontSizeRem = Math.max(0.75, newFontSizeRem * additionalScale * 0.98); // Extra 2% margin
+        }
+        
+        // Only update if the change is significant (to avoid infinite loops and flickering)
+        if (Math.abs(newFontSizeRem - fontSize) > 0.05) {
+          setFontSize(newFontSizeRem);
+        }
       };
 
       // Use requestAnimationFrame to ensure DOM is updated and content is rendered

@@ -1,10 +1,10 @@
-import { DashboardTab } from "@/components/dashboard-tab/dashboard-tab";
 import { DatabaseTab } from "@/components/database-tab/database-tab";
 import { DependencyTab } from "@/components/dependency-tab/dependency-tab";
 import { QueryTab } from "@/components/query-tab/query-tab";
 import { SchemaTreeView } from "@/components/schema/schema-tree-view";
-import { TableTab } from "@/components/table-tab/table-tab";
+import { ServerTab } from "@/components/server-tab/server-tab";
 import { TabManager, type TabInfo } from "@/components/tab-manager";
+import { TableTab } from "@/components/table-tab/table-tab";
 import { Tabs } from "@/components/ui/tabs";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -58,7 +58,7 @@ export function MainPage() {
           tabId = getDatabaseTabId(database);
           newTab = { id: tabId, type: "database", database };
           break;
-        case "dashboard":
+        case "server":
           if (!host) return;
           tabId = getDashboardTabId(host);
           newTab = { id: tabId, type: "dashboard", host };
@@ -233,7 +233,7 @@ export function MainPage() {
             role="tabpanel"
             aria-hidden={activeTab !== tab.id}
           >
-            <DashboardTab host={tab.host} />
+            <ServerTab host={tab.host} />
           </div>
         );
       }

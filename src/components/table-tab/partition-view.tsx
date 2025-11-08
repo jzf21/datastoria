@@ -7,7 +7,7 @@ import { Api, type ApiErrorResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { toastManager } from "@/lib/toast";
 import { Loader2, Trash2 } from "lucide-react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { Dialog } from "../use-dialog";
 import type { RefreshableTabViewRef } from "./table-tab";
 
@@ -145,7 +145,7 @@ export interface PartitionViewProps {
   autoLoad?: boolean;
 }
 
-export const PartitionSizeView = forwardRef<RefreshableTabViewRef, PartitionViewProps>(
+const PartitionSizeViewComponent = forwardRef<RefreshableTabViewRef, PartitionViewProps>(
   ({ database, table, autoLoad = false }, ref) => {
     const { selectedConnection } = useConnection();
     const tableComponentRef = useRef<RefreshableComponent>(null);
@@ -312,4 +312,6 @@ ORDER BY
   }
 );
 
-PartitionSizeView.displayName = "PartitionSizeView";
+PartitionSizeViewComponent.displayName = "PartitionSizeView";
+
+export const PartitionSizeView = memo(PartitionSizeViewComponent);

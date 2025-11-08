@@ -815,7 +815,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     }, [error, data.length, shouldShowSkeleton, sortedData, columns, getCellAlignmentClass, formatCellValue, descriptor.showIndexColumn]);
 
     return (
-      <Card ref={componentRef} className="@container/card relative">
+      <Card ref={componentRef} className="@container/card relative overflow-hidden">
         <FloatingProgressBar show={isLoading} />
         <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
           {hasTitle && descriptor.titleOption && (

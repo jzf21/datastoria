@@ -731,7 +731,7 @@ ORDER BY lower(database), database, table, columnName`,
       // If a host node is clicked, open the dashboard tab
       if (item.data.type === "host") {
         const hostData = item.data as HostNodeData;
-        TabManager.sendOpenDashboardTabRequest(hostData.host, tabId);
+        TabManager.sendOpenServerTabRequest(hostData.host, tabId);
       }
       // If a database node is clicked, open the database tab
       else if (item.data.type === "database") {

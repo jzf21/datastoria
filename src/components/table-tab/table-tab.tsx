@@ -88,6 +88,7 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   const partLogRef = useRef<RefreshableTabViewRef>(null);
 
   // Helper function to get the current ref based on active tab
+  // Directly access refs to avoid unnecessary callback recreation
   const getCurrentRef = useCallback((): RefreshableTabViewRef | null => {
     switch (currentTab) {
       case "data-sample":
@@ -115,15 +116,15 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   // Re-check ref availability after mount and when currentTab changes
   // This ensures we detect when the ref becomes available after child component mounts
   useEffect(() => {
-    // Use a small timeout to allow child components to mount and set their refs
-    const timeoutId = setTimeout(() => {
+    // Use requestAnimationFrame to check after render, more efficient than setTimeout
+    const rafId = requestAnimationFrame(() => {
       const ref = getCurrentRef();
       const hasRefreshCap = hasRefreshCapability(ref);
       setHasRefresh(hasRefreshCap);
       setSupportsTimeSpan(ref?.supportsTimeSpanSelector === true);
-    }, 0);
+    });
 
-    return () => clearTimeout(timeoutId);
+    return () => cancelAnimationFrame(rafId);
   }, [currentTab, getCurrentRef]);
 
   // Mark tab as loaded when it becomes active for the first time

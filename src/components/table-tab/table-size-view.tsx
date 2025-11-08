@@ -2,7 +2,7 @@ import type { TableDescriptor } from "@/components/dashboard/chart-utils";
 import DashboardContainer, { type DashboardContainerRef } from "@/components/dashboard/dashboard-container";
 import type { Dashboard } from "@/components/dashboard/dashboard-model";
 import type { TimeSpan } from "@/components/dashboard/timespan-selector";
-import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, memo, useImperativeHandle, useMemo, useRef } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
 
 export interface TableSizeViewProps {
@@ -11,7 +11,7 @@ export interface TableSizeViewProps {
   autoLoad?: boolean;
 }
 
-export const TableSizeView = forwardRef<RefreshableTabViewRef, TableSizeViewProps>(
+const TableSizeViewComponent = forwardRef<RefreshableTabViewRef, TableSizeViewProps>(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ({ database, table, autoLoad: _autoLoad }, ref) => {
     const dashboardContainerRef = useRef<DashboardContainerRef>(null);
@@ -424,4 +424,6 @@ ORDER BY 1, 2, 3`,
   }
 );
 
-TableSizeView.displayName = "TableSizeView";
+TableSizeViewComponent.displayName = "TableSizeView";
+
+export const TableSizeView = memo(TableSizeViewComponent);

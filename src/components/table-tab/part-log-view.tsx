@@ -2,7 +2,7 @@ import type { StatDescriptor } from "@/components/dashboard/chart-utils";
 import DashboardContainer, { type DashboardContainerRef } from "@/components/dashboard/dashboard-container";
 import type { Dashboard } from "@/components/dashboard/dashboard-model";
 import type { TimeSpan } from "@/components/dashboard/timespan-selector";
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import type { RefreshableTabViewRef } from "./table-tab";
 
@@ -12,7 +12,7 @@ export interface PartLogViewProps {
   autoLoad?: boolean;
 }
 
-export const PartLogView = forwardRef<RefreshableTabViewRef, PartLogViewProps>(({ database, table }, ref) => {
+const PartLogViewComponent = forwardRef<RefreshableTabViewRef, PartLogViewProps>(({ database, table }, ref) => {
   const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan | undefined>(undefined);
   const dashboardContainerRef = useRef<DashboardContainerRef>(null);
 
@@ -146,4 +146,6 @@ WITH FILL STEP {rounding:UInt32}
   );
 });
 
-PartLogView.displayName = "PartLogView";
+PartLogViewComponent.displayName = "PartLogView";
+
+export const PartLogView = memo(PartLogViewComponent);

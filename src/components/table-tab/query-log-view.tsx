@@ -3,7 +3,7 @@ import DashboardContainer, { type DashboardContainerRef } from "@/components/das
 import type { Dashboard, DashboardGroup } from "@/components/dashboard/dashboard-model";
 import type { TimeSpan } from "@/components/dashboard/timespan-selector";
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import type { RefreshableTabViewRef } from "./table-tab";
 
@@ -13,7 +13,7 @@ export interface QueryLogViewProps {
   autoLoad?: boolean;
 }
 
-export const QueryLogView = forwardRef<RefreshableTabViewRef, QueryLogViewProps>(({ database, table }, ref) => {
+const QueryLogViewComponent = forwardRef<RefreshableTabViewRef, QueryLogViewProps>(({ database, table }, ref) => {
   const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan | undefined>(undefined);
   const dashboardContainerRef = useRef<DashboardContainerRef>(null);
 
@@ -505,4 +505,6 @@ ORDER BY OSCPUVirtualTimeMicroseconds DESC
   );
 });
 
-QueryLogView.displayName = "QueryLogView";
+QueryLogViewComponent.displayName = "QueryLogView";
+
+export const QueryLogView = memo(QueryLogViewComponent);

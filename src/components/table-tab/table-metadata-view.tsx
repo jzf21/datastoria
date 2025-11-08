@@ -5,7 +5,7 @@ import RefreshableTransposedTableComponent from "@/components/dashboard/refresha
 import type { TimeSpan } from "@/components/dashboard/timespan-selector";
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { StringUtils } from "@/lib/string-utils";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
 
 export interface TableMetadataViewProps {
@@ -14,7 +14,7 @@ export interface TableMetadataViewProps {
   autoLoad?: boolean;
 }
 
-function TableDDLView({
+const TableDDLView = memo(function TableDDLView({
   database,
   table,
   refreshTrigger,
@@ -84,9 +84,9 @@ function TableDDLView({
   }, [autoLoad, refreshTrigger]);
 
   return <RefreshableTransposedTableComponent ref={tableComponentRef} descriptor={tableDescriptor} />;
-}
+});
 
-function TableStructureView({
+const TableStructureView = memo(function TableStructureView({
   database,
   table,
   refreshTrigger,
@@ -173,9 +173,9 @@ function TableStructureView({
   }, [autoLoad, refreshTrigger]);
 
   return <RefreshableTableComponent ref={tableComponentRef} descriptor={tableDescriptor} />;
-}
+});
 
-export const TableMetadataView = forwardRef<RefreshableTabViewRef, TableMetadataViewProps>(
+const TableMetadataViewComponent = forwardRef<RefreshableTabViewRef, TableMetadataViewProps>(
   ({ database, table, autoLoad = false }, ref) => {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -195,4 +195,6 @@ export const TableMetadataView = forwardRef<RefreshableTabViewRef, TableMetadata
   }
 );
 
-TableMetadataView.displayName = "TableMetadataView";
+TableMetadataViewComponent.displayName = "TableMetadataView";
+
+export const TableMetadataView = memo(TableMetadataViewComponent);
