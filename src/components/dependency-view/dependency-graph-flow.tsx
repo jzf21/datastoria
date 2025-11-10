@@ -115,7 +115,7 @@ function CustomEdge({ id, sourceX, sourceY, targetX, targetY, data, markerEnd }:
           <div
             style={{
               position: "absolute",
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              transform: `translate(-50%, -100%) translate(${labelX}px,${labelY - 3}px)`,
               background: "hsl(var(--background))",
               padding: "4px 8px",
               borderRadius: "4px",

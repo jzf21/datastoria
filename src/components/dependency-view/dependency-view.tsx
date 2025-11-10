@@ -16,7 +16,11 @@ import { DependencyBuilder, type DependencyGraphNode } from "./DependencyBuilder
 
 // The response data object
 interface Table {
+  /**
+   * The id of the table, namely the database name and the table name
+   */
   id: string;
+  uuid: string;
   database: string;
   name: string;
   engine: string;
@@ -62,9 +66,14 @@ const DependencyViewComponent = ({ database }: DependencyViewProps) => {
 
     // Execute the dependency query directly (without version)
     const api = Api.create(selectedConnection);
-    const dependencySql = `
+
+    (async () => {
+      try {
+        const response = await api.executeAsync({
+          sql: `
 SELECT
-    concat(database, '_', name) AS id,
+    concat(database, '.', name) AS id,
+    uuid,
     database,
     name,
     engine,
@@ -73,12 +82,7 @@ SELECT
     dependencies_table AS dependenciesTable
 FROM system.tables
 WHERE database = '${database}' OR has(dependencies_database, '${database}')
-`;
-
-    (async () => {
-      try {
-        const response = await api.executeAsync({
-          sql: dependencySql,
+`,
           params: {
             default_format: "JSON",
             output_format_json_quote_64bit_integers: 0,
@@ -146,7 +150,7 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
 
   return (
     <PanelGroup direction="horizontal" className="h-full w-full">
-      {/* The parent does not have 'relative', the relative is defined in the collapsible-dependency-view */}
+      {/* The parent does not have 'relative', the relative is defined in the dependency-tab */}
       <FloatingProgressBar show={isLoading} />
       {nodes.size > 0 && (
         <>

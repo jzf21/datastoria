@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { QueryExecutor } from "../query-tab/query-execution/query-executor";
 import { TabManager } from "../tab-manager";
 import { showDropTableConfirmationDialog } from "./drop-table-confirmation-dialog";
 
@@ -230,13 +229,9 @@ interface HostNodeData {
 
 export interface SchemaTreeViewProps {
   tabId?: string; // Optional tab ID for multi-tab support
-  onExecuteQuery?: (
-    sql: string,
-    options?: { displayFormat?: "sql" | "text"; formatter?: (text: string) => string }
-  ) => void; // Deprecated: use event-based approach instead
 }
 
-export function SchemaTreeView({ onExecuteQuery, tabId }: SchemaTreeViewProps) {
+export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [treeData, setTreeData] = useState<TreeDataItem[]>([]);
@@ -466,19 +461,6 @@ export function SchemaTreeView({ onExecuteQuery, tabId }: SchemaTreeViewProps) {
     [selectedConnection, toDatabaseTreeNodes]
   );
 
-  const executeQuery = useCallback(
-    (sql: string, options?: { displayFormat?: "sql" | "text"; formatter?: (text: string) => string }) => {
-      // Emit event for event-based communication
-      QueryExecutor.sendQueryRequest(sql, options, tabId);
-
-      // Fallback to prop-based approach for backward compatibility
-      if (onExecuteQuery) {
-        onExecuteQuery(sql, options);
-      }
-    },
-    [onExecuteQuery, tabId]
-  );
-
   const [contextMenuNode, setContextMenuNode] = useState<TreeDataItem | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
@@ -516,19 +498,6 @@ export function SchemaTreeView({ onExecuteQuery, tabId }: SchemaTreeViewProps) {
       };
     }
   }, [contextMenuNode]);
-
-  const handleShowCreateDatabase = useCallback(() => {
-    if (contextMenuNode?.data?.type === "database") {
-      const dbData = contextMenuNode.data as DatabaseNodeData;
-      const sql = `SHOW CREATE DATABASE ${dbData.name}`;
-      executeQuery(sql, {
-        displayFormat: "sql",
-        formatter: (text: string) => text.replaceAll("\\n", "\n").replaceAll("\\", ""),
-      });
-    }
-    setContextMenuNode(null);
-    setContextMenuPosition(null);
-  }, [contextMenuNode, executeQuery]);
 
   const loadDatabases = useCallback(() => {
     if (!selectedConnection) {
