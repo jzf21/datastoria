@@ -1,7 +1,7 @@
 import { DatabaseTab } from "@/components/database-tab/database-tab";
 import { DependencyView } from "@/components/dependency-view/dependency-view";
-import { QueryTab } from "@/components/query-tab/query-tab";
 import { QueryLogTab } from "@/components/query-log-tab/query-log-tab";
+import { QueryTab } from "@/components/query-tab/query-tab";
 import { SchemaTreeView } from "@/components/schema/schema-tree-view";
 import { ServerTab } from "@/components/server-tab/server-tab";
 import { TabManager, type TabInfo } from "@/components/tab-manager";
@@ -15,34 +15,10 @@ import { MainPageTabList } from "./main-page-tab-list";
 export function MainPage() {
   const { selectedConnection } = useConnection();
   const [activeTab, setActiveTab] = useState<string>("query");
-  const [tabs, setTabs] = useState<TabInfo[]>([]);
+  const [tabs, setTabs] = useState<TabInfo[]>([{ id: "query", type: "query" }]);
   const [pendingTabId, setPendingTabId] = useState<string | null>(null);
   const previousConnectionRef = useRef<string | null>(null);
   const previousConnectionKeyRef = useRef<string | null>(null);
-
-  // Helper functions to generate tab IDs
-  const getTableTabId = useCallback((database: string, table: string) => {
-    return `table:${database}.${table}`;
-  }, []);
-
-  const getDependencyTabId = useCallback((database: string) => {
-    return `dependency:${database}`;
-  }, []);
-
-  const getDatabaseTabId = useCallback((database: string) => {
-    return `database:${database}`;
-  }, []);
-
-  const getDashboardTabId = useCallback((host: string) => {
-    return `dashboard:${host}`;
-  }, []);
-
-  const getQueryLogTabId = useCallback((queryId?: string) => {
-    if (queryId) {
-      return `Query Log: ${queryId}`;
-    }
-    return "query-log";
-  }, []);
 
   // Handle open tab events (unified handler)
   useEffect(() => {
@@ -53,31 +29,31 @@ export function MainPage() {
 
       switch (type) {
         case "query":
-          // Query tab is always present, just activate it
-          setActiveTab("query");
-          return;
+          tabId = "query";
+          newTab = { id: "query", type: "query" };
+          break;
         case "table":
           if (!database || !table) return;
-          tabId = getTableTabId(database, table);
+          tabId = `table:${database}.${table}`;
           newTab = { id: tabId, type: "table", database, table, engine };
           break;
         case "dependency":
           if (!database) return;
-          tabId = getDependencyTabId(database);
+          tabId = `dependency:${database}`;
           newTab = { id: tabId, type: "dependency", database };
           break;
         case "database":
           if (!database) return;
-          tabId = getDatabaseTabId(database);
+          tabId = `database:${database}`;
           newTab = { id: tabId, type: "database", database };
           break;
         case "server":
           if (!host) return;
-          tabId = getDashboardTabId(host);
+          tabId = `dashboard:${host}`;
           newTab = { id: tabId, type: "dashboard", host };
           break;
         case "query-log":
-          tabId = getQueryLogTabId(event.detail.queryId);
+          tabId = event.detail.queryId ? `Query Log: ${event.detail.queryId}` : "query-log";
           newTab = { id: tabId, type: "query-log", queryId: event.detail.queryId, eventDate: event.detail.eventDate };
           break;
         default:
@@ -103,7 +79,7 @@ export function MainPage() {
 
     const unsubscribe = TabManager.onOpenTab(handler);
     return unsubscribe;
-  }, [getTableTabId, getDependencyTabId, getDatabaseTabId, getDashboardTabId, getQueryLogTabId]);
+  }, []);
 
   // Activate pending tab after it's added to the list
   useEffect(() => {
@@ -113,16 +89,15 @@ export function MainPage() {
     }
   }, [pendingTabId, tabs]);
 
-
   // Helper function to get the next tab ID, or previous if no next exists
   const getNextOrPreviousTabId = useCallback((tabId: string, tabsList: TabInfo[]) => {
-    // Create a full list including query tab at the beginning (query tab is always present)
     // Tabs are in insertion order, so we just use them as-is
-    const allTabIds = ["query", ...tabsList.map((t) => t.id)];
+    const allTabIds = tabsList.map((t) => t.id);
 
     const currentIndex = allTabIds.findIndex((id) => id === tabId);
     if (currentIndex === -1) {
-      return "query";
+      // If tab not found, return first tab if available, or empty string
+      return allTabIds.length > 0 ? allTabIds[0] : "";
     }
 
     // Try to get the next tab
@@ -135,8 +110,8 @@ export function MainPage() {
       return allTabIds[currentIndex - 1];
     }
 
-    // Fallback to query tab
-    return "query";
+    // No other tabs available
+    return "";
   }, []);
 
   // Helper function to get the previous tab ID (kept for backward compatibility with other handlers)
@@ -144,11 +119,11 @@ export function MainPage() {
     // Tabs are in insertion order, so we just use them as-is
     const currentIndex = tabsList.findIndex((t) => t.id === tabId);
     if (currentIndex === -1) {
-      return "query";
+      return "";
     }
 
     if (currentIndex === 0) {
-      return "query";
+      return "";
     }
 
     return tabsList[currentIndex - 1].id;
@@ -163,7 +138,12 @@ export function MainPage() {
         setTabs((prevTabs) => {
           // Find the next/previous tab before removing the closed tab
           const nextTabId = getNextOrPreviousTabId(tabId, prevTabs);
-          setActiveTab(nextTabId);
+          if (nextTabId) {
+            setActiveTab(nextTabId);
+          } else {
+            // No other tabs available, set to empty string
+            setActiveTab("");
+          }
           return prevTabs.filter((t) => t.id !== tabId);
         });
       } else {
@@ -176,13 +156,6 @@ export function MainPage() {
   // Handle closing tabs to the right of a given tab
   const handleCloseTabsToRight = useCallback(
     (tabId: string) => {
-      // If tabId is "query", close all tabs
-      if (tabId === "query") {
-        setTabs([]);
-        setActiveTab("query");
-        return;
-      }
-
       setTabs((prevTabs) => {
         // Tabs are in insertion order, so we just use them as-is
         const currentIndex = prevTabs.findIndex((t) => t.id === tabId);
@@ -208,13 +181,6 @@ export function MainPage() {
   // Handle closing all tabs except the clicked one
   const handleCloseOthers = useCallback(
     (tabId: string) => {
-      // If tabId is "query", close all other tabs (but keep query tab)
-      if (tabId === "query") {
-        setTabs([]);
-        setActiveTab("query");
-        return;
-      }
-
       setTabs((prevTabs) => {
         const newTabs = prevTabs.filter((t) => t.id === tabId);
 
@@ -229,10 +195,10 @@ export function MainPage() {
     [activeTab]
   );
 
-  // Handle closing all tabs (but keep Query tab)
+  // Handle closing all tabs
   const handleCloseAll = useCallback(() => {
-    setTabs([]);
-    // Always switch to query tab after closing all
+    // Keep only the query tab
+    setTabs([{ id: "query", type: "query" }]);
     setActiveTab("query");
   }, []);
 
@@ -255,13 +221,15 @@ export function MainPage() {
       previousConnectionName !== null &&
       (previousConnectionName !== currentConnectionName || previousConnectionKey !== currentConnectionKey)
     ) {
-      handleCloseAll();
+      // Reset to just the query tab
+      setTabs([{ id: "query", type: "query" }]);
+      setActiveTab("query");
     }
 
     // Update the refs to track the current connection
     previousConnectionRef.current = currentConnectionName;
     previousConnectionKeyRef.current = currentConnectionKey;
-  }, [selectedConnection, handleCloseAll]);
+  }, [selectedConnection]);
 
   // Tabs are kept in insertion order (no sorting) so new tabs appear at the end
   const sortedTabs = useMemo(() => {
@@ -271,6 +239,18 @@ export function MainPage() {
   // Memoize tab content to prevent unnecessary re-renders
   const tabContent = useMemo(() => {
     return sortedTabs.map((tab) => {
+      if (tab.type === "query") {
+        return (
+          <div
+            key={tab.id}
+            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
+            role="tabpanel"
+            aria-hidden={activeTab !== tab.id}
+          >
+            <QueryTab />
+          </div>
+        );
+      }
       if (tab.type === "dashboard") {
         return (
           <div
@@ -359,14 +339,6 @@ export function MainPage() {
               getPreviousTabId={getPreviousTabId}
             />
             <div className="flex-1 overflow-hidden relative">
-              {/* Query Tab - Always mounted */}
-              <div
-                className={`h-full ${activeTab === "query" ? "block" : "hidden"}`}
-                role="tabpanel"
-                aria-hidden={activeTab !== "query"}
-              >
-                <QueryTab />
-              </div>
               {/* All Tabs - Always mounted */}
               {tabContent}
             </div>
@@ -376,4 +348,3 @@ export function MainPage() {
     </div>
   );
 }
-

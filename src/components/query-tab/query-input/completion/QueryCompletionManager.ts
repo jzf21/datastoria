@@ -25,6 +25,7 @@ export class QueryCompletionManager {
   private clusterCompletion: CompletionItem[] = [];
   private engineCompletion: CompletionItem[] = [];
   private currentConnectionName: string | null = null;
+  private qualifiedTableCompletions: CompletionItem[] = [];
 
   public onConnectionSelected(connection: Connection | null): void {
     if (connection == null) {
@@ -40,6 +41,9 @@ export class QueryCompletionManager {
     this.currentConnectionName = connection.name;
 
     const api = Api.create(connection);
+
+    // Clear qualified table completions for new connection
+    this.qualifiedTableCompletions = [];
 
     // The SQL returns 4 columns: name/type/score/description
     api.executeSQL(
@@ -125,9 +129,53 @@ UNION ALL
             this.miscCompletion.push(completion);
           }
         });
+
+        // Add 'on cluster xxx' keyword to miscCompletion when in cluster mode
+        if (connection.cluster.length > 0) {
+          this.miscCompletion.push({
+            caption: `ON CLUSTER ${connection.cluster}`,
+            value: `ON CLUSTER ${connection.cluster}`,
+            meta: 'keyword',
+            score: -10,
+          });
+        }
+
+        // Add qualified table completions if they've been loaded
+        if (this.qualifiedTableCompletions.length > 0) {
+          this.miscCompletion.push(...this.qualifiedTableCompletions);
+        }
       },
       (error) => {
         console.error('Failed to load completion data:', error);
+      }
+    );
+
+    //
+    // Get keywords from system.keywords if the table exists
+    //
+    api.executeSQL(
+      {
+        sql: `SELECT keyword, 'keyword', -10, '' FROM system.keywords ORDER BY keyword`,
+        params: {
+          default_format: 'JSONCompact',
+        },
+      },
+      (response) => {
+        const returnList = response.data.data as any[];
+        const keywordCompletions: CompletionItem[] = returnList.map((eachRowObject) => {
+          return {
+            caption: eachRowObject[0],
+            value: eachRowObject[0],
+            meta: 'keyword',
+            score: -10,
+          } as CompletionItem;
+        });
+        // Add keywords to miscCompletion
+        this.miscCompletion.push(...keywordCompletions);
+      },
+      (error) => {
+        // Silently fail if system.keywords table doesn't exist
+        // This is expected for older ClickHouse versions
       }
     );
 
@@ -145,6 +193,7 @@ UNION ALL
         this.tableCompletion.clear();
 
         const returnList = response.data.data as any[];
+        const qualifiedTableCompletions: CompletionItem[] = [];
         returnList.forEach((eachRowObject) => {
           const database = eachRowObject[0];
           const table = eachRowObject[1];
@@ -159,7 +208,27 @@ UNION ALL
             meta: 'table',
             score: 100,
           });
+
+          // Add qualified table name (database.table) to miscCompletion
+          const qualifiedName = `${database}.${table}`;
+          qualifiedTableCompletions.push({
+            caption: qualifiedName,
+            value: qualifiedName,
+            meta: 'table',
+            score: 100,
+          });
         });
+        
+        // Store qualified table completions in class property
+        this.qualifiedTableCompletions = qualifiedTableCompletions;
+        
+        // Add all qualified table names to miscCompletion
+        // If miscCompletion is empty, the main query hasn't completed yet, but that's okay
+        // The qualified names will be added when the main query completes
+        // If miscCompletion already has items, add them now
+        if (this.miscCompletion.length > 0) {
+          this.miscCompletion.push(...qualifiedTableCompletions);
+        }
       },
       (error) => {
         console.error('Failed to load table completion data:', error);
@@ -321,6 +390,12 @@ UNION ALL
                   }
                   if (
                     currentToken.value.localeCompare('SETTINGS', undefined, { sensitivity: 'accent' }) === 0
+                  ) {
+                    callback(null, this.allSettingsCompletion);
+                    return;
+                  }
+                  if (
+                    currentToken.value.localeCompare('SETTING', undefined, { sensitivity: 'accent' }) === 0
                   ) {
                     callback(null, this.allSettingsCompletion);
                     return;

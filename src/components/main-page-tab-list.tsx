@@ -8,7 +8,17 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, ChevronRight, Database, Monitor, Package, Search, Table as TableIcon, Terminal, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  Monitor,
+  Package,
+  Search,
+  Table as TableIcon,
+  Terminal,
+  X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 
@@ -176,7 +186,9 @@ const MainPageTabListComponent = ({
   const tabLabels = useMemo(() => {
     return sortedTabs
       .map((tab) => {
-        if (tab.type === "query-log") {
+        if (tab.type === "query") {
+          return { id: tab.id, label: "Query", icon: Terminal };
+        } else if (tab.type === "query-log") {
           return { id: tab.id, label: tab.queryId || "Query Log Viewer", icon: Search };
         } else if (tab.type === "dashboard") {
           return { id: tab.id, label: `${tab.host}`, icon: Monitor };
@@ -208,32 +220,6 @@ const MainPageTabListComponent = ({
       )}
       <div ref={tabsScrollContainerRef} className="flex-1 overflow-x-auto scrollbar-hide">
         <TabsList className="inline-flex justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div className="inline-flex items-center flex-shrink-0">
-                <TabsTrigger
-                  value="query"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                  onClick={() => onTabChange("query")}
-                >
-                  <Terminal className="h-4 w-4 mr-1.5" />
-                  Query
-                </TabsTrigger>
-              </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem onClick={() => onCloseTabsToRight("query")} disabled={tabs.length === 0}>
-                Close to the right
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem onClick={() => onCloseOthers("query")} disabled={tabs.length === 0}>
-                Close others
-              </ContextMenuItem>
-              <ContextMenuItem onClick={onCloseAll} disabled={tabs.length === 0}>
-                Close all
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
           {sortedTabs.map((tab, index) => {
             const hasTabsToRight = index < sortedTabs.length - 1;
             const hasOtherTabs = tabs.length > 1;

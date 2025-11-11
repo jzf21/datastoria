@@ -1,7 +1,7 @@
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircleIcon } from "lucide-react";
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { QueryResponseHeaderView } from "./query-response-header-view";
 import type { QueryResponseViewModel } from "./query-view-model";
@@ -18,33 +18,85 @@ export interface ApiErrorResponse {
   httpHeaders?: Record<string, string>;
 }
 
+interface ErrorLocation {
+  lineNumber: number;
+  columnNumber: number;
+  contextLines: Array<{ lineNum: number; content: string; isErrorLine: boolean }>;
+  caretPosition: number;
+}
+
+interface ErrorLocationViewProps {
+  errorLocation: ErrorLocation;
+}
+
+const ErrorLocationView = memo(function ErrorLocationView({ errorLocation }: ErrorLocationViewProps) {
+  return (
+    <div className="mb-3">
+      <div className="my-2 font-medium">
+        Error Context: Line {errorLocation.lineNumber}, Col {errorLocation.columnNumber}:
+      </div>
+      <div className="font-mono text-sm bg-muted/50 dark:bg-muted/30 p-3 rounded border border-yellow-400/40 dark:border-yellow-700/40">
+        {errorLocation.contextLines.map((line, index) => (
+          <div key={index}>
+            <div className="whitespace-pre">
+              <span className="text-muted-foreground mr-2 select-none">{String(line.lineNum).padStart(4, " ")} |</span>
+              <span className={line.isErrorLine ? "text-destructive" : ""}>{line.content}</span>
+            </div>
+            {line.isErrorLine && (
+              <div className="whitespace-pre text-destructive">
+                <span className="text-muted-foreground mr-2 select-none">{"".padStart(4, " ")} |</span>
+                <span>{" ".repeat(errorLocation.caretPosition)}^</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+
 export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: string }) {
   const clickHouseErrorCode = error.httpHeaders?.["x-clickhouse-exception-code"];
-  const detailMessage =
-    typeof error.data === "object" && error.data !== null
-      ? JSON.stringify(error.data, null, 2)
-      : typeof error.data === "string"
-        ? error.data
-        : null;
 
-        /*
-        * TODO: QueryId = 4199d73a-c844-42dc-9600-eecef6edb804, Check logs for this query at: http://monitor.olap.data-infra.shopee.io/v2/tracing/detail?_sidebar=collapsed&id=019a69245625d13da59307c1bd78f0ec Code: 206. DB::Exception: No alias for subquery or table function in JOIN (set joined_subquery_requires_alias=0 to disable restriction). While processing ' (SELECT * FROM system.tables AS B)'. (ALIAS_REQUIRED) (version vSClickhouse-22.3-011)
-        * extract while parsing xxxxx
-        */
-  // Parse line and column for exception code 62
-  const parseErrorLocation = () => {
+  // Memoize detailMessage computation
+  const detailMessage = useMemo(() => {
+    if (typeof error.data === "object" && error.data !== null) {
+      return JSON.stringify(error.data, null, 2);
+    }
+    if (typeof error.data === "string") {
+      return error.data;
+    }
+    return null;
+  }, [error.data]);
+
+  /*
+   * TODO: QueryId = 4199d73a-c844-42dc-9600-eecef6edb804, Check logs for this query at: http://monitor.olap.data-infra.shopee.io/v2/tracing/detail?_sidebar=collapsed&id=019a69245625d13da59307c1bd78f0ec Code: 206. DB::Exception: No alias for subquery or table function in JOIN (set joined_subquery_requires_alias=0 to disable restriction). While processing ' (SELECT * FROM system.tables AS B)'. (ALIAS_REQUIRED) (version vSClickhouse-22.3-011)
+   * extract while parsing xxxxx
+   */
+  // Parse line and column for exception code 62 - memoized to avoid recalculation
+  const errorLocation = useMemo(() => {
     if (clickHouseErrorCode !== "62" || !detailMessage || !sql) {
       return null;
     }
 
     // Extract line and column from pattern: (line 12, col 4)
-    const match = detailMessage.match(/\(line\s+(\d+),\s*col\s+(\d+)\)/i);
-    if (!match) {
-      return null;
-    }
+    let match = detailMessage.match(/\(line\s+(\d+),\s*col\s+(\d+)\)/i);
+    let lineNumber: number;
+    let columnNumber: number;
 
-    const lineNumber = parseInt(match[1], 10);
-    const columnNumber = parseInt(match[2], 10);
+    if (match) {
+      lineNumber = parseInt(match[1], 10);
+      columnNumber = parseInt(match[2], 10);
+    } else {
+      // Fallback: try pattern "failed at position yyy" where yyy is a number
+      match = detailMessage.match(/failed at position\s+(\d+)/i);
+      if (!match) {
+        return null;
+      }
+      // For this pattern, line number is 1, column is the captured position
+      lineNumber = 1;
+      columnNumber = parseInt(match[1], 10);
+    }
 
     if (isNaN(lineNumber) || isNaN(columnNumber) || lineNumber < 1 || columnNumber < 1) {
       return null;
@@ -63,6 +115,7 @@ export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: st
 
     // Build context lines with line numbers
     const contextLines: Array<{ lineNum: number; content: string; isErrorLine: boolean }> = [];
+    let errorLineContent = "";
     for (let i = startLine; i <= endLine; i++) {
       const lineIndex = i - 1; // Convert to 0-based index
       const lineContent = sqlLines[lineIndex] || "";
@@ -74,6 +127,10 @@ export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: st
         displayContent = lineContent.substring(0, 50);
       }
 
+      if (isErrorLine) {
+        errorLineContent = displayContent;
+      }
+
       contextLines.push({
         lineNum: i,
         content: displayContent,
@@ -81,8 +138,7 @@ export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: st
       });
     }
 
-    // Calculate caret position for error line
-    const errorLineContent = contextLines.find((line) => line.isErrorLine)?.content || "";
+    // Calculate caret position for error line - use tracked errorLineContent instead of find
     const caretPosition = Math.min(columnNumber - 1, errorLineContent.length - 1);
 
     return {
@@ -91,9 +147,23 @@ export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: st
       contextLines,
       caretPosition,
     };
-  };
+  }, [clickHouseErrorCode, detailMessage, sql]);
 
-  const errorLocation = parseErrorLocation();
+  const [showFullDetailMessage, setShowFullDetailMessage] = useState(false);
+
+  // Memoize truncation logic
+  const shouldTruncateDetailMessage = useMemo(
+    () => errorLocation && detailMessage && detailMessage.length > 128,
+    [errorLocation, detailMessage]
+  );
+
+  const displayDetailMessage = useMemo(
+    () =>
+      shouldTruncateDetailMessage && !showFullDetailMessage && detailMessage
+        ? detailMessage.substring(0, 128)
+        : detailMessage,
+    [shouldTruncateDetailMessage, showFullDetailMessage, detailMessage]
+  );
 
   return (
     <Alert variant="destructive" className="border-0 p-3 text-yellow-900 dark:text-yellow-600">
@@ -108,39 +178,30 @@ export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: st
           </div>
         )}
         {detailMessage && detailMessage.length > 0 && (
-          <div>
-            <pre className="whitespace-pre-wrap overflow-x-auto font-mono text-sm bg-muted/50 dark:bg-muted/30 p-3 rounded border border-yellow-400/40 dark:border-yellow-700/40">
-              {detailMessage}
-            </pre>
+          <div className="whitespace-pre-wrap overflow-x-auto font-mono text-sm bg-muted/50 dark:bg-muted/30 p-3 rounded border border-yellow-400/40 dark:border-yellow-700/40">
+            {displayDetailMessage}
+            {shouldTruncateDetailMessage && !showFullDetailMessage && (
+              <>
+                {" "}
+                <span
+                  className="text-primary underline cursor-pointer hover:text-primary/80 font-mono inline"
+                  onClick={() => setShowFullDetailMessage(true)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setShowFullDetailMessage(true);
+                    }
+                  }}
+                >
+                  ...
+                </span>
+              </>
+            )}
           </div>
         )}
-        {errorLocation && (
-          <div className="mb-3">
-            <div className="my-2 font-medium">
-              Error Context: Line {errorLocation.lineNumber}, Col {errorLocation.columnNumber}:
-            </div>
-            <div className="font-mono text-sm bg-muted/50 dark:bg-muted/30 p-3 rounded border border-yellow-400/40 dark:border-yellow-700/40">
-              {errorLocation.contextLines.map((line, index) => (
-                <div key={index}>
-                  <div className="whitespace-pre">
-                    <span className="text-muted-foreground mr-2 select-none">
-                      {String(line.lineNum).padStart(4, " ")} |
-                    </span>
-                    <span className={line.isErrorLine ? "text-destructive" : ""}>{line.content}</span>
-                  </div>
-                  {line.isErrorLine && (
-                    <div className="whitespace-pre text-destructive">
-                      <span className="text-muted-foreground mr-2 select-none">
-                        {String(errorLocation.lineNumber).padStart(4, " ")} |
-                      </span>
-                      <span>{" ".repeat(errorLocation.caretPosition)}^</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {errorLocation && <ErrorLocationView errorLocation={errorLocation} />}
       </AlertDescription>
     </Alert>
   );
@@ -149,29 +210,34 @@ export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: st
 export function QueryResponseView({ queryResponse, isLoading = false, sql }: QueryResponseViewProps) {
   const [selectedTab, setSelectedTab] = useState("result");
 
-  if (isLoading) {
-    return (
-      <div className="h-full w-full overflow-auto p-4 flex flex-col items-center justify-center">
-        <div className="text-sm text-muted-foreground">Executing query...</div>
-      </div>
-    );
-  }
+  // Memoize error object creation
+  const error: ApiErrorResponse | undefined = useMemo(
+    () =>
+      queryResponse.errorMessage === null
+        ? undefined
+        : {
+            errorMessage: queryResponse.errorMessage as string,
+            data: queryResponse.data,
+            httpHeaders: queryResponse.httpHeaders,
+          },
+    [queryResponse.errorMessage, queryResponse.data, queryResponse.httpHeaders]
+  );
 
-  const error: ApiErrorResponse | undefined =
-    queryResponse.errorMessage === null
-      ? undefined
-      : {
-          errorMessage: queryResponse.errorMessage as string,
-          data: queryResponse.data,
-          httpHeaders: queryResponse.httpHeaders,
-        };
+  // Memoize response text computation
+  const responseText = useMemo(
+    () => (typeof queryResponse.data === "string" ? queryResponse.data : JSON.stringify(queryResponse.data, null, 2)),
+    [queryResponse.data]
+  );
 
-  const responseText =
-    typeof queryResponse.data === "string" ? queryResponse.data : JSON.stringify(queryResponse.data, null, 2);
+  // Memoize formatted response
+  const rawQueryResponse = useMemo(
+    () => (queryResponse.formatter ? queryResponse.formatter(responseText) : responseText),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryResponse.formatter, responseText]
+  );
 
-  const rawQueryResponse = queryResponse.formatter ? queryResponse.formatter(responseText) : responseText;
-
-  const renderResponse = () => {
+  // Memoize response rendering
+  const renderResponse = useMemo(() => {
     if (rawQueryResponse.length === 0) {
       return (
         <div className="p-4 text-sm text-muted-foreground">
@@ -193,28 +259,26 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
     } else {
       return <pre className="text-sm">{rawQueryResponse}</pre>;
     }
-  };
+  }, [rawQueryResponse, queryResponse.displayFormat]);
+
+  if (isLoading) {
+    return (
+      <div className="h-full w-full overflow-auto p-4 flex flex-col items-center justify-center">
+        <div className="text-sm text-muted-foreground">Executing query...</div>
+      </div>
+    );
+  }
 
   return (
     <Tabs value={selectedTab} onValueChange={setSelectedTab} className="mt-2">
       <div className="w-full border-b bg-background">
         <TabsList className="inline-flex min-w-full justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
-          {error && (
-            <TabsTrigger
-              value="result"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-            >
-              Result
-            </TabsTrigger>
-          )}
-          {!error && (
-            <TabsTrigger
-              value="result"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-            >
-              Result
-            </TabsTrigger>
-          )}
+          <TabsTrigger
+            value="result"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            Result
+          </TabsTrigger>
           {queryResponse.httpHeaders && (
             <TabsTrigger
               value="headers"
@@ -234,7 +298,7 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
 
       {!error && (
         <TabsContent value="result" className="overflow-auto">
-          <div className="relative">{renderResponse()}</div>
+          <div className="relative">{renderResponse}</div>
         </TabsContent>
       )}
 

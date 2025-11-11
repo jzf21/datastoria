@@ -8,12 +8,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { ConnectionSelector } from "./connection/connection-selector";
-import { TabManager } from "./tab-manager";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { MoonIcon, SunIcon } from "@radix-ui/react-icons";
-import { Database, Search, Terminal } from "lucide-react";
+import { Database, Search, Settings, Terminal } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ConnectionSelector } from "./connection/connection-selector";
+import { showQueryContextEditDialog } from "./query-tab/query-control/query-context-edit-dialog";
+import { TabManager } from "./tab-manager";
 import { useTheme } from "./theme-provider";
 
 export function AppSidebar() {
@@ -70,6 +71,16 @@ export function AppSidebar() {
                     onClick={() => TabManager.sendOpenQueryLogTabRequest()}
                   >
                     <Search className="h-5 w-5" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    tooltip="Query Context"
+                    size="lg"
+                    className="justify-center"
+                    onClick={() => showQueryContextEditDialog()}
+                  >
+                    <Settings className="h-5 w-5" />
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </>

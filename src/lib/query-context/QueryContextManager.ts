@@ -6,10 +6,10 @@ const QUERY_CONTEXT_STORAGE_KEY = 'query-context';
 class QueryContextManager {
   private static instance: QueryContextManager;
   private defaultContext: QueryContext = {
-    isTracingEnabled: false,
-    showRowNumber: true,
-    maxResultRows: 1000,
-    maxExecutionTime: 60,
+    opentelemetry_start_trace_probability: false,
+    output_format_pretty_row_numbers: true,
+    output_format_pretty_max_rows: 1000,
+    max_execution_time: 60,
   };
 
   public static getInstance(): QueryContextManager {
@@ -20,22 +20,29 @@ class QueryContextManager {
   }
 
   public getContext(): QueryContext {
-    const stored = LocalStorage.getInstance().getAsJSON<QueryContext>(
-      QUERY_CONTEXT_STORAGE_KEY,
-      () => this.defaultContext
-    );
+    const stored = this.getStoredContext();
+    // Merge defaults with stored values (defaults are applied when reading)
     return { ...this.defaultContext, ...stored };
   }
 
+  public getStoredContext(): Partial<QueryContext> {
+    // Get stored context without defaults (for editing)
+    return LocalStorage.getInstance().getAsJSON<Partial<QueryContext>>(
+      QUERY_CONTEXT_STORAGE_KEY,
+      () => ({})
+    );
+  }
+
   public setContext(context: Partial<QueryContext>): void {
-    const current = this.getContext();
-    const updated = { ...current, ...context };
-    LocalStorage.getInstance().setJSON(QUERY_CONTEXT_STORAGE_KEY, updated);
+    // Save exactly what is passed, without merging with defaults
+    // Defaults will be applied when reading via getContext()
+    LocalStorage.getInstance().setJSON(QUERY_CONTEXT_STORAGE_KEY, context);
   }
 
   public updateContext(updates: Partial<QueryContext>): void {
-    const current = this.getContext();
-    this.setContext({ ...current, ...updates });
+    // Get stored context without defaults, merge updates, then save
+    const stored = this.getStoredContext();
+    this.setContext({ ...stored, ...updates });
   }
 }
 

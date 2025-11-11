@@ -13,6 +13,7 @@ import { PartitionSizeView } from "./partition-view";
 import { QueryLogView } from "./query-log-view";
 import { TableMetadataView } from "./table-metadata-view";
 import { TableSizeView } from "./table-size-view";
+import { getSystemTableTabs } from "./system-table/system-table-registry";
 
 export interface TableTabProps {
   database: string;
@@ -47,6 +48,15 @@ const ENGINE_TABS_MAP = new Map<string, Set<string>>([
 ]);
 
 const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
+  // Check if this is a system table and if it has custom rendering
+  const isSystemDatabase = useMemo(() => database.toLowerCase() === "system", [database]);
+  const customSystemTabs = useMemo(() => {
+    if (isSystemDatabase) {
+      return getSystemTableTabs(table);
+    }
+    return undefined;
+  }, [isSystemDatabase, table]);
+
   // Hide Table Size and Partitions tabs if engine starts with "System"
   const isSystemTable = useMemo(() => (engine?.startsWith("System") || engine?.startsWith("MySQL")) ?? false, [engine]);
 
@@ -64,8 +74,12 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   }, [isSystemTable, baseAvailableTabs]);
 
   const initialTab = useMemo(() => {
+    // If custom system tabs exist, use the first one
+    if (customSystemTabs && customSystemTabs.length > 0) {
+      return `custom-${0}`;
+    }
     return availableTabs.has("table-size") ? "table-size" : "metadata";
-  }, [availableTabs]);
+  }, [availableTabs, customSystemTabs]);
   const [currentTab, setCurrentTab] = useState<string>(initialTab);
 
   // Track which tabs have been loaded (to load data only once)
@@ -157,42 +171,108 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
     handleRefresh(timeSpan);
   }, [handleRefresh]);
 
+  // If custom system tabs exist, render them
+  if (customSystemTabs && customSystemTabs.length > 0) {
+    const hasMultipleTabs = customSystemTabs.length > 1;
+    
+    return (
+      <div className="h-full w-full flex flex-col overflow-hidden">
+        <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex flex-col flex-1 overflow-hidden">
+          {hasMultipleTabs && (
+            <div className="flex justify-between items-center gap-2 m-2">
+              <TabsList>
+                {customSystemTabs.map(([displayText], index) => (
+                  <TabsTrigger key={`custom-${index}`} value={`custom-${index}`}>
+                    {displayText}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          )}
+          <div className="flex-1 relative overflow-hidden">
+            {customSystemTabs.map(([, Component], index) => {
+              const tabValue = `custom-${index}`;
+              return (
+                <div
+                  key={tabValue}
+                  className={`absolute inset-0 overflow-auto px-2 ${currentTab === tabValue ? "block" : "hidden"}`}
+                  role="tabpanel"
+                  aria-hidden={currentTab !== tabValue}
+                >
+                  <Component database={database} table={table} />
+                </div>
+              );
+            })}
+          </div>
+        </Tabs>
+      </div>
+    );
+  }
+
+  // Default rendering for non-custom system tables
+  const hasMultipleTabs = availableTabs.size > 1;
+  
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex justify-between items-center gap-2 m-2">
-          <TabsList>
-            {availableTabs.has("table-size") && <TabsTrigger value="table-size">Table Size</TabsTrigger>}
-            {availableTabs.has("data-sample") && <TabsTrigger value="data-sample">Data Sample</TabsTrigger>}
-            {availableTabs.has("metadata") && <TabsTrigger value="metadata">Metadata</TabsTrigger>}
-            {availableTabs.has("partitions") && <TabsTrigger value="partitions">Partitions</TabsTrigger>}
-            {availableTabs.has("query-log") && <TabsTrigger value="query-log">Query Log</TabsTrigger>}
-            {availableTabs.has("part-log") && <TabsTrigger value="part-log">Part Log</TabsTrigger>}
-          </TabsList>
-          {hasRefresh ? (
-            <div className="flex items-center gap-2">
-              {supportsTimeSpan && (
-                <TimeSpanSelector
-                  defaultTimeSpan={selectedTimeSpan}
-                  showTimeSpanSelector={true}
-                  showRefresh={false}
-                  showAutoRefresh={false}
-                  size="sm"
-                  onSelectedSpanChanged={handleTimeSpanChanged}
-                />
-              )}
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => handleRefresh()}
-                className="h-9 w-9"
-                disabled={isRefreshing}
-              >
-                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              </Button>
-            </div>
-          ) : null}
-        </div>
+        {hasMultipleTabs && (
+          <div className="flex justify-between items-center gap-2 m-2">
+            <TabsList>
+              {availableTabs.has("table-size") && <TabsTrigger value="table-size">Table Size</TabsTrigger>}
+              {availableTabs.has("data-sample") && <TabsTrigger value="data-sample">Data Sample</TabsTrigger>}
+              {availableTabs.has("metadata") && <TabsTrigger value="metadata">Metadata</TabsTrigger>}
+              {availableTabs.has("partitions") && <TabsTrigger value="partitions">Partitions</TabsTrigger>}
+              {availableTabs.has("query-log") && <TabsTrigger value="query-log">Query Log</TabsTrigger>}
+              {availableTabs.has("part-log") && <TabsTrigger value="part-log">Part Log</TabsTrigger>}
+            </TabsList>
+            {hasRefresh ? (
+              <div className="flex items-center gap-2">
+                {supportsTimeSpan && (
+                  <TimeSpanSelector
+                    defaultTimeSpan={selectedTimeSpan}
+                    showTimeSpanSelector={true}
+                    showRefresh={false}
+                    showAutoRefresh={false}
+                    size="sm"
+                    onSelectedSpanChanged={handleTimeSpanChanged}
+                  />
+                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleRefresh()}
+                  className="h-9 w-9"
+                  disabled={isRefreshing}
+                >
+                  {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        )}
+        {!hasMultipleTabs && hasRefresh && (
+          <div className="flex justify-end items-center gap-2 m-2">
+            {supportsTimeSpan && (
+              <TimeSpanSelector
+                defaultTimeSpan={selectedTimeSpan}
+                showTimeSpanSelector={true}
+                showRefresh={false}
+                showAutoRefresh={false}
+                size="sm"
+                onSelectedSpanChanged={handleTimeSpanChanged}
+              />
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => handleRefresh()}
+              className="h-9 w-9"
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+          </div>
+        )}
         <div className="flex-1 relative overflow-hidden">
           {/* All tabs are always mounted, visibility controlled by CSS */}
           {availableTabs.has("table-size") && (
