@@ -578,6 +578,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
             axisPointer: {
               type: "line",
             },
+            appendToBody: true,
             formatter: (params: unknown) => {
               if (!Array.isArray(params)) {
                 return "";
@@ -604,7 +605,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                   const formatter = FormatterInstance.getFormatter(format);
                   const formattedValue = formatter(value);
 
-                  result += `<div style="margin-top: 2px;">
+                  result += `<div style="margin-top: 2px; white-space: nowrap;">
                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:${param.color};margin-right:5px;"></span>
                     ${param.seriesName}: <strong>${formattedValue}</strong>
                   </div>`;

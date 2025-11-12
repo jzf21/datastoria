@@ -1,3 +1,5 @@
+import { SuggestionList } from "@/components/shared/suggestion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,28 +12,109 @@ import { ensureConnectionRuntimeInitialized } from "@/lib/connection/Connection"
 import { ConnectionManager } from "@/lib/connection/ConnectionManager";
 import type { QueryContext } from "@/lib/query-context/QueryContext";
 import { QueryContextManager } from "@/lib/query-context/QueryContextManager";
-import { TextHighlighter } from "@/lib/text-highlighter";
 import { toastManager } from "@/lib/toast";
-import { cn } from "@/lib/utils";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Info, Plus, Trash2, X } from "lucide-react";
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { AlertCircle, Info, Plus, Trash2, X } from "lucide-react";
+import styled from "@emotion/styled";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ReactDOM from "react-dom/client";
 import ReactMarkdown from "react-markdown";
+
+/**
+ * Transforms markdown links in descriptions from relative URLs to absolute ClickHouse documentation URLs.
+ *
+ * Example:
+ * [Table engine Distributed](../../engines/table-engines/special/distributed.md)
+ * becomes:
+ * [Table engine Distributed](https://clickhouse.com/docs/operations/engines/table-engines/special/distributed)
+ *
+ * @param description - The description text that may contain markdown links
+ * @param baseUrl - The base URL for ClickHouse documentation (default: https://clickhouse.com/docs/operations/settings/settings)
+ * @returns The description with all relative markdown links transformed to absolute URLs
+ */
+function transformMarkdownLinks(description: string): string {
+  if (!description) return description;
+
+  // Regular expression to match markdown links: [text](url)
+  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+
+  const replaced = description.replace(markdownLinkRegex, (match, linkText, url) => {
+    // If URL is already absolute (starts with http:// or https://), leave it as is
+    if (/^https?:\/\//.test(url)) {
+      return match;
+    }
+
+    if (url.startsWith("/")) {
+      // Remove .md extension if present
+      const urlWithoutMd = url.replace(/\.md$/, "");
+      return `[${linkText}](https://clickhouse.com/docs${urlWithoutMd})`;
+    }
+
+    // If URL is relative (starts with ../ or ./), transform it
+    if (url.startsWith("../") || url.startsWith("./") || url.startsWith("#")) {
+      // Parse the base URL to get the path
+      const baseUrlObj = new URL("https://clickhouse.com/docs/operations/settings/settings");
+      const basePath = baseUrlObj.pathname;
+
+      // Remove .md extension if present
+      const relativePath = url.replace(/\.md$/, "");
+
+      // Resolve relative path
+      // Split base path into segments
+      const baseSegments = basePath.split("/").filter(Boolean);
+
+      // Process relative path
+      const relativeSegments = relativePath.split("/").filter(Boolean);
+
+      // Remove segments for each ".."
+      const resultSegments = [...baseSegments];
+      for (const segment of relativeSegments) {
+        if (segment === "..") {
+          resultSegments.pop();
+        } else if (segment !== ".") {
+          resultSegments.push(segment);
+        }
+      }
+
+      // Construct the new absolute URL
+      const newPath = "/" + resultSegments.join("/");
+      const newUrl = `${baseUrlObj.origin}${newPath}`;
+
+      return `[${linkText}](${newUrl})`;
+    }
+
+    // For other relative URLs (without ../ or ./), leave as is or handle as needed
+    return match;
+  });
+
+  return replaced;
+}
 
 interface SettingRow {
   name: string;
   type: string;
   value: string;
   description: string;
+  isNameEditable?: boolean; // Default: true
+  isDeletable?: boolean; // Default: true
 }
+
+const StyledMarkdown = styled(ReactMarkdown)`
+  a {
+    color: #0070f3;
+    text-decoration: none;
+    &:hover {
+      text-decoration: underline;
+      color: #0051a2;
+    }
+  }
+`;
 
 // Reusable component for rendering markdown descriptions
 function SettingDescription({ description }: { description: string }) {
   return (
-    <div className="text-sm text-foreground [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:ml-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:ml-4 [&_ol]:mb-2 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:mb-2 [&_strong]:font-semibold [&_em]:italic">
-      <ReactMarkdown>{description || "No description available."}</ReactMarkdown>
+    <div className="text-sm text-foreground [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:ml-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:ml-4 [&_ol]:mb-2 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:mb-2 [&_strong]:font-semibold [&_em]:italic [&_a]:underline [&_a]:text-primary [&_a:hover]:text-primary/80">
+      <StyledMarkdown>{description || "No description available."}</StyledMarkdown>
     </div>
   );
 }
@@ -45,6 +128,33 @@ interface SystemSetting {
 
 export interface ShowQueryContextEditDialogOptions {
   onCancel?: () => void;
+}
+
+// Type for bottom section content
+type BottomSectionContent = { type: "error"; message: string } | null;
+
+// Error message component for bottom section
+function ErrorMessage({ message, title }: { message: string; title?: string }) {
+  return (
+    <Card className="w-full rounded-t-none border-t-0 max-h-[140px] flex flex-col">
+      <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
+        <Alert
+          variant="destructive"
+          className="border-0 rounded-t-none p-3 h-full flex items-start bg-destructive/10 dark:bg-destructive/20"
+        >
+          <div className="flex items-start gap-2 w-full h-full min-h-0">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+              <AlertTitle className="text-sm shrink-0">{title || "Error"}</AlertTitle>
+              <AlertDescription className="mt-1 break-words overflow-wrap-anywhere whitespace-pre-wrap text-xs overflow-y-auto flex-1 min-h-0">
+                {message}
+              </AlertDescription>
+            </div>
+          </div>
+        </Alert>
+      </CardContent>
+    </Card>
+  );
 }
 
 interface SettingNameInputWithSuggestionsProps {
@@ -67,98 +177,29 @@ function SettingNameInputWithSuggestions({
   isLastRow = false,
 }: SettingNameInputWithSuggestionsProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [inputValue, setInputValue] = useState(row.name);
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const suggestionListRef = useRef<SettingSuggestionListHandle>(null);
   const hasAutoOpenedRef = useRef(false); // Track if we've already auto-opened this row
-
-  // Sync inputValue with row.name when row changes (but not when editing)
-  useEffect(() => {
-    if (!isEditing) {
-      setInputValue(row.name);
-    }
-  }, [row.name, isEditing]);
+  const isNameEditable = row.isNameEditable !== false; // Default: true
 
   // Filter out settings that are already used in other rows
   const availableSettingsForRow = useMemo(() => {
     return availableSettings.filter((s) => !existingRows.some((r, i) => i !== rowIndex && r.name === s.name));
   }, [availableSettings, existingRows, rowIndex]);
 
-  // Initialize search when dropdown opens
-  const inputValueRef = useRef(inputValue);
-  useEffect(() => {
-    inputValueRef.current = inputValue;
-  }, [inputValue]);
-
-  useEffect(() => {
-    if (dropdownPosition && suggestionListRef.current) {
-      // Use a small delay to ensure the component is mounted
-      setTimeout(() => {
-        if (suggestionListRef.current) {
-          suggestionListRef.current.search(inputValueRef.current);
-        }
-      }, 0);
-    }
-  }, [dropdownPosition]); // Only run when dropdownPosition changes
-
-  const updateDropdownPosition = useCallback(() => {
-    if (inputRef.current && isEditing) {
-      const rect = inputRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: Math.max(rect.width, 400),
-      });
-    }
-  }, [isEditing]);
-
   // Automatically enter edit mode when row name is empty (new row)
   // Only auto-edit if this is the last row to prevent multiple rows from editing simultaneously
   // Use a ref to ensure this only happens once per row, not every time isEditing changes
   useEffect(() => {
-    if (!row.name.trim() && !isEditing && isLastRow && !hasAutoOpenedRef.current) {
+    if (!row.name.trim() && !isEditing && isLastRow && !hasAutoOpenedRef.current && isNameEditable) {
       hasAutoOpenedRef.current = true; // Mark that we've auto-opened this row
       setIsEditing(true);
-      // Focus the input after a brief delay to ensure it's rendered
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          updateDropdownPosition();
-        }
-      }, 0);
     }
-  }, [row.name, isEditing, isLastRow, updateDropdownPosition]);
+  }, [row.name, isEditing, isLastRow, isNameEditable]);
 
   const handleFocus = useCallback(() => {
-    setIsEditing(true);
-    setInputValue(row.name);
-
-    setTimeout(() => {
-      if (inputRef.current && document.activeElement !== inputRef.current) {
-        inputRef.current.focus();
-      }
-      updateDropdownPosition();
-    }, 0);
-  }, [row.name, updateDropdownPosition]);
-
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      setInputValue(value);
-      updateDropdownPosition();
-      // Update the row name as user types
-      if (onNameChange) {
-        onNameChange(rowIndex, value);
-      }
-      // Update search in suggestion list
-      if (dropdownPosition && suggestionListRef.current) {
-        suggestionListRef.current.search(value);
-      }
-    },
-    [updateDropdownPosition, onNameChange, rowIndex, dropdownPosition]
-  );
+    if (isNameEditable) {
+      setIsEditing(true);
+    }
+  }, [isNameEditable]);
 
   const handleSelectSetting = useCallback(
     (setting: SystemSetting) => {
@@ -167,387 +208,57 @@ function SettingNameInputWithSuggestions({
         onNameChange(rowIndex, setting.name);
       }
       setIsEditing(false);
-      setDropdownPosition(null);
     },
     [onNameChange, rowIndex]
   );
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      // Handle ESC key even when there are no filtered settings
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation(); // Prevent dialog from closing
-        if (dropdownPosition !== null) {
-          // If dropdown is open, only close the dropdown (keep editing mode)
-          setDropdownPosition(null);
-        } else {
-          // If dropdown is not open, exit edit mode and close the dialog
-          setIsEditing(false);
-          onCancel();
-        }
-        return;
-      }
-
-      // Arrow keys and Enter only work when dropdown is open
-      if (!dropdownPosition) return;
-
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        suggestionListRef.current?.nextItem();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        suggestionListRef.current?.prevItem();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        suggestionListRef.current?.selectCurrent();
-      }
-    },
-    [onCancel, dropdownPosition]
-  );
-
-  // Update dropdown position when input position changes
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      updateDropdownPosition();
-
-      const handleScroll = () => updateDropdownPosition();
-      const handleResize = () => updateDropdownPosition();
-
-      window.addEventListener("scroll", handleScroll, true);
-      window.addEventListener("resize", handleResize);
-
-      const tableContainer = inputRef.current.closest('[class*="max-h"]');
-      if (tableContainer) {
-        tableContainer.addEventListener("scroll", handleScroll);
-      }
-
-      return () => {
-        window.removeEventListener("scroll", handleScroll, true);
-        window.removeEventListener("resize", handleResize);
-        if (tableContainer) {
-          tableContainer.removeEventListener("scroll", handleScroll);
-        }
-      };
-    } else {
-      setDropdownPosition(null);
+  const handleCancel = useCallback(() => {
+    setIsEditing(false);
+    // Only call onCancel (which removes the row) if this is a new row with no name
+    // For existing rows, just exit edit mode without deleting
+    if (!row.name.trim()) {
+      onCancel();
     }
-  }, [isEditing, updateDropdownPosition]);
-
-  // Handle click outside to close dropdown
-  useEffect(() => {
-    if (!isEditing) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target) return;
-
-      // Check if click is on the input
-      if (inputRef.current && inputRef.current.contains(target)) {
-        return;
-      }
-
-      // Check if click is on the dropdown using data attribute (most reliable)
-      const clickedDropdown = target.closest('[data-setting-suggestion-dropdown="true"]');
-      if (clickedDropdown) {
-        return;
-      }
-
-      // Also check by ref as fallback
-      if (dropdownRef.current && dropdownRef.current.contains(target)) {
-        return;
-      }
-
-      // Click is outside both input and dropdown
-      // For new rows with empty name, call onCancel to remove the row
-      // For existing rows, just close the edit mode
-      if (!row.name.trim() && onCancel) {
-        onCancel();
-      } else {
-        setIsEditing(false);
-        setInputValue(row.name);
-        setDropdownPosition(null);
-      }
-    };
-
-    // Use mousedown to catch before focus changes
-    // Small delay to ensure the dropdown is rendered and refs are set
-    const timeoutId = setTimeout(() => {
-      document.addEventListener("mousedown", handleClickOutside);
-    }, 0);
-
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isEditing, row.name, onCancel]);
+  }, [onCancel, row.name]);
 
   if (isEditing) {
     return (
-      <>
-        <Input
-          ref={inputRef}
-          value={inputValue}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
-          placeholder="Type to search settings..."
-          className="w-full h-8"
-          autoFocus
-        />
-        {dropdownPosition &&
-          createPortal(
-            <SettingSuggestionList
-              ref={suggestionListRef}
-              settings={availableSettingsForRow}
-              onSelect={handleSelectSetting}
-              initialSelectedIndex={null}
-              dropdownRef={dropdownRef}
-              position={dropdownPosition}
-            />,
-            document.body
-          )}
-      </>
+      <SuggestionList
+        items={availableSettingsForRow.map((s) => ({
+          name: s.name,
+          type: s.type,
+          description: s.description,
+        }))}
+        onSelect={(item) => {
+          const setting = availableSettingsForRow.find((s) => s.name === item.name);
+          if (setting) {
+            handleSelectSetting(setting);
+          }
+        }}
+        initialValue={row.name}
+        onValueChange={(value) => {
+          if (onNameChange) {
+            onNameChange(rowIndex, value);
+          }
+        }}
+        onCancel={handleCancel}
+        placeholder="Type to search settings..."
+        className="w-full h-8"
+      />
     );
   }
 
   return (
     <div
-      className="text-sm font-medium truncate cursor-pointer hover:underline min-h-[32px] flex items-center"
-      onClick={handleFocus}
+      className={`text-sm font-medium truncate min-h-[32px] flex items-center ${
+        isNameEditable ? "cursor-pointer hover:underline" : ""
+      }`}
+      onClick={isNameEditable ? handleFocus : undefined}
     >
-      {row.name || <span className="text-muted-foreground italic">Click to edit</span>}
+      {row.name || (isNameEditable ? <span className="text-muted-foreground italic">Click to edit</span> : "")}
     </div>
   );
 }
-
-export interface SettingSuggestionListHandle {
-  nextItem: () => void;
-  prevItem: () => void;
-  selectCurrent: () => void;
-  search: (searchValue: string) => void;
-}
-
-interface SettingSuggestionListProps {
-  settings: SystemSetting[];
-  onSelect: (setting: SystemSetting) => void;
-  initialSelectedIndex?: number | null;
-  dropdownRef?: React.RefObject<HTMLDivElement | null>;
-  position?: { top: number; left: number; width: number };
-}
-
-const SettingSuggestionList = forwardRef<SettingSuggestionListHandle, SettingSuggestionListProps>(
-  ({ settings, onSelect, initialSelectedIndex = null, dropdownRef, position }, ref) => {
-    const parentRef = useRef<HTMLDivElement>(null);
-    const [selectedIndex, setSelectedIndex] = useState<number | null>(initialSelectedIndex);
-    const selectedIndexRef = useRef<number | null>(initialSelectedIndex);
-    const [searchValue, setSearchValue] = useState<string>("");
-
-    // Filter settings based on search value
-    const filteredSettings = useMemo(() => {
-      if (!searchValue.trim()) {
-        return settings;
-      }
-
-      const searchLower = searchValue.toLowerCase();
-      return settings
-        .filter((s) => s.name.toLowerCase().includes(searchLower))
-        .sort((a, b) => {
-          const aNameMatch = a.name.toLowerCase().startsWith(searchLower);
-          const bNameMatch = b.name.toLowerCase().startsWith(searchLower);
-          if (aNameMatch && !bNameMatch) return -1;
-          if (!aNameMatch && bNameMatch) return 1;
-          return a.name.localeCompare(b.name);
-        });
-    }, [settings, searchValue]);
-
-    // Update selectedIndex when initialSelectedIndex changes (but only if it's different)
-    useEffect(() => {
-      if (initialSelectedIndex !== null && initialSelectedIndex !== undefined) {
-        setSelectedIndex(initialSelectedIndex);
-        selectedIndexRef.current = initialSelectedIndex;
-      }
-    }, [initialSelectedIndex]);
-
-    const rowVirtualizer = useVirtualizer({
-      count: filteredSettings.length,
-      getScrollElement: () => parentRef.current,
-      estimateSize: () => 32, // Fixed height per item (single line)
-      overscan: 5,
-    });
-
-    // Helper function to scroll to an index
-    const scrollToIndex = useCallback(
-      (index: number) => {
-        if (index >= 0 && index < filteredSettings.length && parentRef.current) {
-          try {
-            rowVirtualizer.scrollToIndex(index, {
-              align: "start",
-              behavior: "auto",
-            });
-          } catch (error) {
-            // Ignore scroll errors (e.g., if index is out of bounds)
-            console.warn("Failed to scroll to index:", index, error);
-          }
-        }
-      },
-      [filteredSettings.length, rowVirtualizer]
-    );
-
-    // Expose imperative methods
-    useImperativeHandle(
-      ref,
-      () => ({
-        nextItem: () => {
-          if (filteredSettings.length === 0) return;
-          const newIndex =
-            selectedIndexRef.current === null || selectedIndexRef.current === undefined
-              ? 0
-              : Math.min(selectedIndexRef.current + 1, filteredSettings.length - 1);
-
-          selectedIndexRef.current = newIndex;
-          setSelectedIndex(newIndex);
-          scrollToIndex(newIndex);
-        },
-        prevItem: () => {
-          if (filteredSettings.length === 0) return;
-          const newIndex =
-            selectedIndexRef.current === null || selectedIndexRef.current === undefined
-              ? filteredSettings.length - 1
-              : Math.max(selectedIndexRef.current - 1, 0);
-
-          selectedIndexRef.current = newIndex;
-          setSelectedIndex(newIndex);
-          scrollToIndex(newIndex);
-        },
-        selectCurrent: () => {
-          const currentIndex = selectedIndexRef.current;
-          if (currentIndex !== null && currentIndex !== undefined && filteredSettings[currentIndex]) {
-            onSelect(filteredSettings[currentIndex]);
-          }
-        },
-        search: (value: string) => {
-          setSearchValue(value);
-          // Reset selection when search changes
-          selectedIndexRef.current = null;
-          setSelectedIndex(null);
-        },
-      }),
-      [filteredSettings, onSelect, scrollToIndex]
-    );
-
-    const displayedSetting =
-      selectedIndex !== null && selectedIndex !== undefined ? filteredSettings[selectedIndex] : null;
-
-    // Calculate width and maxWidth internally
-    const width = displayedSetting ? "800px" : "400px";
-    const maxWidth = position ? `calc(100vw - ${position.left}px - 16px)` : undefined;
-
-    if (filteredSettings.length === 0) {
-      return <div className="p-4 text-sm text-muted-foreground text-center">No settings found.</div>;
-    }
-
-    const content = (
-      <div className="flex w-full">
-        {/* Left: List of names */}
-        <div
-          ref={parentRef}
-          className={cn(
-            "w-[400px] max-h-[300px] overflow-y-auto shrink-0 self-start bg-popover border",
-            displayedSetting ? "rounded-l-md" : "rounded-md"
-          )}
-        >
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const setting = filteredSettings[virtualRow.index];
-              const isSelected = selectedIndex === virtualRow.index;
-
-              return (
-                <div
-                  key={setting.name}
-                  data-index={virtualRow.index}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                  onMouseEnter={() => {
-                    selectedIndexRef.current = virtualRow.index;
-                    setSelectedIndex(virtualRow.index);
-                  }}
-                  onMouseLeave={() => {
-                    // Don't clear selectedIndex here - let it persist for keyboard navigation
-                  }}
-                >
-                  <div
-                    className={cn(
-                      "px-3 py-1.5 cursor-pointer transition-colors flex items-center",
-                      isSelected && "bg-accent text-accent-foreground"
-                    )}
-                    onMouseDown={(e) => {
-                      // Prevent input blur when clicking dropdown item
-                      e.preventDefault();
-                      // Select the setting
-                      onSelect(setting);
-                    }}
-                  >
-                    <span className="font-medium text-sm flex-1 min-w-0 truncate">
-                      {TextHighlighter.highlight(setting.name, searchValue, "text-yellow-500 dark:text-yellow-400")}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Right: Description panel - only show when an item is selected */}
-        {displayedSetting && (
-          <div className="w-[400px] max-h-[300px] overflow-y-auto p-3 bg-popover self-start border rounded-r-md">
-            <div className="space-y-2">
-              <div className="text-xs text-muted-foreground mb-2">
-                Type: <span className="font-mono">{displayedSetting.type}</span>
-              </div>
-              <SettingDescription description={displayedSetting.description} />
-            </div>
-          </div>
-        )}
-      </div>
-    );
-
-    // If position is provided, wrap in the positioned div with calculated width
-    if (position) {
-      return (
-        <div
-          ref={dropdownRef}
-          data-setting-suggestion-dropdown="true"
-          className="fixed shadow-lg z-[10000]"
-          style={{
-            top: `${position.top}px`,
-            left: `${position.left}px`,
-            width: width,
-            maxWidth: maxWidth,
-          }}
-        >
-          {content}
-        </div>
-      );
-    }
-
-    // Otherwise return content directly
-    return content;
-  }
-);
-SettingSuggestionList.displayName = "SettingSuggestionList";
 
 interface SettingTableRowProps {
   row: SettingRow;
@@ -632,9 +343,11 @@ function SettingTableRow({
               <Info className="h-3.5 w-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={() => handleRemoveRow(index)} className="h-7 w-7">
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {row.isDeletable !== false && (
+            <Button variant="ghost" size="icon" onClick={() => handleRemoveRow(index)} className="h-7 w-7">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </TableCell>
     </TableRow>
@@ -671,6 +384,7 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
   const [rows, setRows] = useState<SettingRow[]>([]);
   const [availableSettings, setAvailableSettings] = useState<SystemSetting[]>([]);
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
+  const [bottomSectionContent, setBottomSectionContent] = useState<BottomSectionContent>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
   // Get connection from ConnectionManager (since dialog is rendered outside React tree)
@@ -702,6 +416,8 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
         type: "Bool",
         value: String(context.output_format_pretty_row_numbers),
         description: "Show row numbers in query results",
+        isNameEditable: false,
+        isDeletable: false,
       });
     }
     if (context.output_format_pretty_max_rows !== undefined) {
@@ -710,6 +426,8 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
         type: "UInt64",
         value: String(context.output_format_pretty_max_rows),
         description: "Maximum number of result rows",
+        isNameEditable: false,
+        isDeletable: false,
       });
     }
     if (context.max_execution_time !== undefined) {
@@ -718,12 +436,22 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
         type: "UInt64",
         value: String(context.max_execution_time),
         description: "Maximum execution time in seconds",
+        isNameEditable: false,
+        isDeletable: false,
       });
     }
 
     // Add any other custom settings from context
     Object.keys(context).forEach((key) => {
-      if (!["isTracingEnabled", "showRowNumber", "maxResultRows", "maxExecutionTime", "format"].includes(key)) {
+      if (
+        ![
+          "opentelemetry_start_trace_probability",
+          "output_format_pretty_row_numbers",
+          "output_format_pretty_max_rows",
+          "max_execution_time",
+          "default_format",
+        ].includes(key)
+      ) {
         const value = context[key];
         if (value !== undefined) {
           contextRows.push({
@@ -742,14 +470,21 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
   // Load available settings from system.settings
   const loadAvailableSettings = useCallback(async () => {
     if (!selectedConnection) {
-      toastManager.show("No connection selected", "error");
+      setBottomSectionContent({
+        type: "error",
+        message: "No connection selected",
+      });
       return;
     }
+
+    // Clear any previous errors
+    setBottomSectionContent(null);
 
     try {
       const api = Api.create(selectedConnection);
       const response = await api.executeAsync({
-        sql: "SELECT name, type, description, default FROM system.settings ORDER BY name",
+        // in old version, there's no 'default' value field
+        sql: "SELECT name, type, description, value FROM system.settings ORDER BY name",
         params: {
           default_format: "JSONCompact",
         },
@@ -760,7 +495,7 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
         const settings: SystemSetting[] = data.data.map(([name, type, description, defaultValue]) => ({
           name,
           type,
-          description: description || "",
+          description: transformMarkdownLinks(description || ""),
           default: defaultValue || "",
         }));
         setAvailableSettings(settings);
@@ -773,7 +508,7 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
 
             const matchedSetting = settings.find((s) => s.name === row.name);
             if (matchedSetting && matchedSetting.description) {
-              return { ...row, description: matchedSetting.description };
+              return { ...row, description: transformMarkdownLinks(matchedSetting.description) };
             }
             return row;
           });
@@ -781,7 +516,10 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
       }
     } catch (error) {
       const apiError = error as ApiErrorResponse;
-      toastManager.show(`Failed to load settings: ${apiError.errorMessage}`, "error");
+      setBottomSectionContent({
+        type: "error",
+        message: `Failed to load settings: ${apiError.errorMessage}`,
+      });
     }
   }, [selectedConnection]);
 
@@ -880,9 +618,12 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
           type: matchedSetting.type,
           value: matchedSetting.default || "",
           description: matchedSetting.description,
+          // Preserve isNameEditable and isDeletable if they exist
+          isNameEditable: newRows[index].isNameEditable,
+          isDeletable: newRows[index].isDeletable,
         };
       } else {
-        // Just update the name
+        // Just update the name, preserve other properties
         newRows[index] = { ...newRows[index], name };
       }
       setRows(newRows);
@@ -960,7 +701,7 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
       {/* Main Content - Centered */}
       <div className="flex-1 overflow-y-auto flex items-center justify-center p-8 relative">
         <div className="w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden">
-          <Card className="w-full relative flex-shrink-0">
+          <Card className={`w-full relative flex-shrink-0 ${bottomSectionContent ? "rounded-b-none" : ""}`}>
             {/* Close Button - Top Right inside Card */}
             <Button variant="ghost" size="icon" onClick={handleClose} className="absolute top-2 right-2 h-8 w-8 z-10">
               <X className="h-4 w-4" />
@@ -972,7 +713,7 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
             <CardContent>
               <div className="space-y-4">
                 <div className="border rounded-md overflow-visible">
-                  <div ref={tableScrollRef} className="h-[500px] overflow-y-auto overflow-x-visible">
+                  <div ref={tableScrollRef} className="h-[300px] overflow-y-auto overflow-x-visible">
                     <Table>
                       <TableHeader>
                         <TableRow className="h-9">
@@ -1031,6 +772,17 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
               </div>
             </CardContent>
           </Card>
+
+          {/* Bottom Section Area - Fixed height container, content adapts inside */}
+          <div className="h-[140px] relative overflow-hidden flex items-start">
+            <div
+              className={`w-full transition-all duration-300 ease-in-out ${
+                bottomSectionContent ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4 pointer-events-none"
+              }`}
+            >
+              {bottomSectionContent?.type === "error" && <ErrorMessage message={bottomSectionContent.message} />}
+            </div>
+          </div>
         </div>
       </div>
     </div>

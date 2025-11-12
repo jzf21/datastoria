@@ -45,7 +45,7 @@
     "axios": "^1.13.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cmdk": "^1.1.1",
+    "@frankchen029/cmdk": "^1.0.8",
     "crypto-js": "^4.2.0",
     "d3-graphviz": "^5.0.2",
     "d3-selection": "^3.0.0",

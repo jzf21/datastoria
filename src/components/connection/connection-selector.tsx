@@ -6,7 +6,7 @@ import { useConnection } from "@/lib/connection/ConnectionContext";
 import { ConnectionManager } from "@/lib/connection/ConnectionManager";
 import { TextHighlighter } from "@/lib/text-highlighter";
 import { cn } from "@/lib/utils";
-import { useCommandState } from "cmdk";
+import { useCommandState } from "@frankchen029/cmdk";
 import { Check, Pencil, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
