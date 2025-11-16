@@ -1,81 +1,313 @@
+/**
+ * Tree Search Algorithm
+ *
+ * This module implements a position-based tree search algorithm that supports:
+ * - Exact path matching for non-terminal segments
+ * - Fuzzy (substring) matching for the last segment
+ * - Trailing dot expansion (empty last segment expands matched parent)
+ *
+ * ## Algorithm Overview
+ *
+ * The search query is split by a separator (default: ".") into segments.
+ * Only leading empty strings are filtered out; trailing empty strings are preserved
+ * to indicate trailing dot expansion.
+ *
+ * ### Segment Splitting Examples:
+ * - "text" → ["text"]
+ * - "system.pos" → ["system", "pos"]
+ * - "system.pos." → ["system", "pos", ""] (trailing empty indicates expansion)
+ *
+ * ### Search Process:
+ *
+ * The `searchNodes` function processes nodes recursively with a position parameter
+ * indicating which segment to match:
+ *
+ * 1. **Non-terminal segments** (position < length - 1):
+ *    - Require exact match (case-insensitive)
+ *    - If current node matches exactly, recurse to children with position + 1
+ *    - Example: For "system.metric", position 0 requires exact match of "system"
+ *
+ * 2. **Last segment** (position === length - 1):
+ *    - If empty string: Expand matched parent node (show all children)
+ *      - Example: "system." → matches "system" exactly, then expands to show all children
+ *    - If not empty: Perform fuzzy (substring) search on current node and children
+ *      - Example: "system.metric" → matches "system" exactly, then fuzzy matches "metric" in children
+ *
+ * ### Examples:
+ *
+ * **Example 1: "system"**
+ * - Segments: ["system"]
+ * - Position 0: Last segment, not empty → fuzzy search for "system"
+ * - Result: Matches any node containing "system" as substring
+ *
+ * **Example 2: "system.pos"**
+ * - Segments: ["system", "pos"]
+ * - Position 0: Exact match "system" → recurse with position 1
+ * - Position 1: Last segment, not empty → fuzzy search for "pos" in children
+ * - Result: Matches "system" exactly, then fuzzy matches "pos" in its children
+ *
+ * **Example 3: "system.pos."**
+ * - Segments: ["system", "pos", ""]
+ * - Position 0: Exact match "system" → recurse with position 1
+ * - Position 1: Exact match "pos" → recurse with position 2
+ * - Position 2: Last segment is empty → expand matched parent
+ * - Result: Matches "system" and "pos" exactly, then expands to show all children of "pos"
+ *
+ * **Example 4: "system.metric"**
+ * - Segments: ["system", "metric"]
+ * - Position 0: Exact match "system" → recurse with position 1
+ * - Position 1: Last segment, not empty → fuzzy search for "metric" in children
+ * - Result: Matches "system" exactly, then fuzzy matches "metric" in "metric_log" and "metrics"
+ */
+
 import type { TreeDataItem } from "@/components/ui/tree";
 import React from "react";
 import { TextHighlighter } from "../lib/text-highlighter";
 
-export function substringMatch(text: string, pattern: string): { matches: boolean; start: number; end: number } {
-  const textLower = text.toLowerCase();
-  const patternLower = pattern.toLowerCase();
-  const index = textLower.indexOf(patternLower);
-
-  return {
-    matches: index >= 0,
-    start: index,
-    end: index + pattern.length,
-  };
+interface SearchContext {
+  /**
+   * The segments of the search query.
+   * For example, if the search query is "system.query_log", the segments are ["system", "query_log"].
+   */
+  segments: string[];
+  hasTrailingDot: boolean;
+  highlight: (text: string, start: number, end: number) => React.ReactNode;
+  /**
+   * Function to perform substring matching (case-insensitive).
+   * Returns match information including start and end indices.
+   */
+  match: (node: TreeDataItem, pattern: string) => { matches: boolean; start: number; end: number };
 }
 
-// Build tree structure from flat dotted item list (e.g., class names)
-export function buildTree(dottedItemList: string[]): TreeDataItem[] {
-  const tree: TreeDataItem[] = [];
-  const packageMap = new Map<string, TreeDataItem>();
+function searchNodes(
+  node: TreeDataItem,
+  context: SearchContext,
+  position: number = 0,
+  currentPath: string[] = []
+): TreeDataItem | null {
+  const { segments, highlight } = context;
+  const isFolderNode = node.type ? node.type === "folder" : node.children !== undefined && node.children.length > 0;
+  const displayText = String(node.displayText || node.text);
 
-  dottedItemList.forEach((itemName: string) => {
-    const parts = itemName.split(".");
-    let currentPath = "";
+  // Check if we're at the last segment
+  const isLastSegment = position === segments.length - 1;
+  const currentSegment = segments[position];
 
-    // Create package nodes
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      const parentPath = currentPath;
-      currentPath = currentPath ? `${currentPath}.${part}` : part;
+  let matches = false;
+  let highlightedText: React.ReactNode = displayText;
 
-      if (!packageMap.has(currentPath)) {
-        const packageNode: TreeDataItem = {
-          id: currentPath,
-          text: currentPath,
-          displayText: part,
-          search: part.toLowerCase(),
-          children: [],
-          type: "folder",
+  // Non-terminal segment: require exact match
+  if (!isLastSegment) {
+    // Check if current node matches the segment exactly (case-insensitive)
+    const exactMatch = displayText.toLowerCase() === currentSegment.toLowerCase();
+
+    if (exactMatch) {
+      matches = true;
+      highlightedText = highlight(displayText, 0, displayText.length);
+
+      // Check if next segment is empty (trailing dot case)
+      const nextSegment = segments[position + 1];
+      const isNextSegmentEmpty = nextSegment === "";
+
+      if (isNextSegmentEmpty) {
+        // Trailing dot: show all children without processing them
+        // Only the current node should be highlighted and expanded
+        if (node.children) {
+          const unprocessedChildren = node.children.map((child) => ({
+            ...child,
+            displayText: child.text, // Always use original text, never highlighted displayText
+            _expanded: false, // Children should not be expanded
+          }));
+
+          return {
+            ...node,
+            displayText: highlightedText,
+            children: unprocessedChildren,
+            _expanded: true, // Only the matched parent is expanded
+          };
+        }
+
+        return {
+          ...node,
+          displayText: highlightedText,
+          children: node.children ? [] : undefined,
+          _expanded: true,
         };
+      }
 
-        packageMap.set(currentPath, packageNode);
-
-        if (parentPath) {
-          const parentNode = packageMap.get(parentPath);
-          if (parentNode && parentNode.children) {
-            parentNode.children.push(packageNode);
+      // Recurse to children with next position
+      const children: TreeDataItem[] = [];
+      if (node.children) {
+        const childCurrentPath = [...currentPath, displayText];
+        for (const child of node.children) {
+          const childResult = searchNodes(child, context, position + 1, childCurrentPath);
+          if (childResult) {
+            children.push(childResult);
           }
-        } else {
-          tree.push(packageNode);
+        }
+      }
+
+      // Include node if it matches or has matching children
+      if (children.length > 0) {
+        return {
+          ...node,
+          displayText: highlightedText,
+          children,
+          _expanded: true, // Expand nodes that match non-terminal segments
+        };
+      }
+
+      // Node matches but has no matching children - still include it
+      return {
+        ...node,
+        displayText: highlightedText,
+        children: node.children ? [] : undefined,
+      };
+    }
+
+    // Current node doesn't match - check children
+    const children: TreeDataItem[] = [];
+    if (node.children) {
+      const childCurrentPath = [...currentPath, displayText];
+      for (const child of node.children) {
+        const childResult = searchNodes(child, context, position, childCurrentPath);
+        if (childResult) {
+          children.push(childResult);
         }
       }
     }
 
-    // Create class/item node
-    const simpleItemName = parts[parts.length - 1];
-    const itemNode: TreeDataItem = {
-      id: itemName,
-      text: itemName,
-      displayText: simpleItemName,
-      search: simpleItemName.toLowerCase(),
-      type: "leaf",
-    };
-
-    // Add item to its package
-    const packagePath = parts.slice(0, -1).join(".");
-    if (packagePath) {
-      const packageNode = packageMap.get(packagePath);
-      if (packageNode && packageNode.children) {
-        packageNode.children.push(itemNode);
-      }
-    } else {
-      // Item in default package
-      tree.push(itemNode);
+    // Include node if it has matching children
+    if (children.length > 0) {
+      return {
+        ...node,
+        children,
+        _expanded: true,
+      };
     }
-  });
 
-  return tree;
+    return null;
+  }
+
+  // Last segment: handle fuzzy search or expansion
+  const isLastSegmentEmpty = currentSegment === "";
+
+  if (isLastSegmentEmpty) {
+    // Trailing dot: expand matched parent node (show all children)
+    // The parent should have matched all previous segments exactly
+    // Only the matched parent should be highlighted and expanded
+    // Children should be shown but NOT highlighted or expanded
+    if (isFolderNode && node.children) {
+      matches = true;
+      highlightedText = highlight(displayText, 0, displayText.length);
+
+      // Include all children without searching them, ensuring they are not highlighted or expanded
+      // Always use the original text property, never displayText (which might be highlighted)
+      const unprocessedChildren = node.children.map((child) => ({
+        ...child,
+        displayText: child.text, // Always use original text, never highlighted displayText
+        _expanded: false, // Children should not be expanded
+      }));
+
+      return {
+        ...node,
+        displayText: highlightedText,
+        children: unprocessedChildren,
+        _expanded: true, // Only the matched parent is expanded
+      };
+    }
+
+    // For leaf nodes with trailing dot, check if parent path matches
+    return {
+      ...node,
+      _expanded: false,
+    };
+  }
+
+  // Last segment is not empty: perform fuzzy (substring) search
+  const fuzzyMatch = context.match(node, currentSegment);
+
+  if (fuzzyMatch.matches) {
+    matches = true;
+    highlightedText = highlight(displayText, fuzzyMatch.start, fuzzyMatch.end);
+  }
+
+  // Process children for fuzzy matching
+  const children: TreeDataItem[] = [];
+  if (node.children) {
+    const childCurrentPath = [...currentPath, displayText];
+    for (const child of node.children) {
+      // For last segment, also search children with the same position (fuzzy search)
+      const childResult = searchNodes(child, context, position, childCurrentPath);
+      if (childResult) {
+        children.push(childResult);
+      }
+    }
+  }
+
+  // Additional highlighting: if node doesn't match but has matching children,
+  // check if it's a complete word match (to highlight parent nodes in path)
+  if (!matches && isFolderNode && children.length > 0) {
+    const completeMatch = context.match(node, currentSegment);
+    if (completeMatch.matches && completeMatch.start === 0 && completeMatch.end === displayText.length) {
+      matches = true;
+      highlightedText = highlight(displayText, completeMatch.start, completeMatch.end);
+    }
+  }
+
+  // Include node if it matches or has matching children
+  if (matches || children.length > 0) {
+    // Determine expansion: expand if node matches or has matching children
+    const shouldExpand = matches || children.length > 0;
+
+    return {
+      ...node,
+      _expanded: shouldExpand,
+      displayText: matches ? highlightedText : node.displayText,
+      children: children.length > 0 ? children : node.children ? [] : undefined,
+    };
+  }
+
+  return null;
+}
+
+// Search nodes but skip matching nodes above the start level
+// This ensures parent nodes (above startLevel) are included for structure but not matched/highlighted
+function searchTreeFromGivenLevel(
+  nodes: TreeDataItem[],
+  context: SearchContext,
+  startLevel: number,
+  currentLevel: number = 0
+): TreeDataItem[] {
+  // If we're above the start level, don't search nodes at this level
+  // Just include them if they have matching children at deeper levels
+  if (currentLevel < startLevel) {
+    const result: TreeDataItem[] = [];
+    for (const node of nodes) {
+      if (node.children) {
+        const matchedChildren = searchTreeFromGivenLevel(node.children, context, startLevel, currentLevel + 1);
+        if (matchedChildren.length > 0) {
+          // Although we search from given level, we only show parent nodes when there's match
+          // So that we can show some text to indicate no match found
+          result.push({
+            ...node,
+            children: matchedChildren,
+          });
+        }
+      }
+    }
+    return result;
+  }
+
+  // We're at or below the start level - search all nodes normally
+  const result: TreeDataItem[] = [];
+  for (const node of nodes) {
+    const nodeResult = searchNodes(node, context, 0, []);
+    if (nodeResult) {
+      result.push(nodeResult);
+    }
+  }
+  return result;
 }
 
 // Search tree nodes by given input following the PRD rules.
@@ -86,6 +318,7 @@ export function searchTree(
     pathSeparator?: string;
     highlighter?: (text: string, start: number, end: number) => React.ReactNode;
     startLevel?: number; // Level to start searching from (0 = root, 1 = children of root, etc.)
+    match?: (node: TreeDataItem, pattern: string) => { matches: boolean; start: number; end: number };
   }
 ): TreeDataItem[] {
   if (search === "") {
@@ -95,410 +328,55 @@ export function searchTree(
     return [];
   }
 
-  // Parse input segments, filtering out empty ones
+  // Parse input segments: only skip leading empty strings, preserve trailing empty for expansion
   const pathSeparator = options?.pathSeparator ?? ".";
   const startLevel = options?.startLevel ?? 0;
   const highlight =
     options?.highlighter ??
     ((text: string, start: number, end: number) => TextHighlighter.highlight2(text, start, end, "text-yellow-500"));
-  const segments = search.split(pathSeparator).filter((segment) => segment.trim() !== "");
+
+  // Default substringMatch implementation (case-sensitive)
+  const substringMatch =
+    options?.match ??
+    ((node: TreeDataItem, pattern: string) => {
+      const index = node.search.indexOf(pattern);
+
+      return {
+        matches: index >= 0,
+        start: index,
+        end: index + pattern.length,
+      };
+    });
+
+  // Split by separator and only filter leading empty strings
+  const rawSegments = search.split(pathSeparator);
+  const segments: string[] = [];
+  let foundNonEmpty = false;
+  for (const segment of rawSegments) {
+    if (segment.trim() !== "") {
+      foundNonEmpty = true;
+      segments.push(segment);
+    } else if (foundNonEmpty) {
+      // Only preserve trailing empty strings (after we've seen non-empty)
+      segments.push("");
+    }
+    // Skip leading empty strings (before we've seen non-empty)
+  }
+
   const hasTrailingDot = search.endsWith(pathSeparator);
 
   if (segments.length === 0) {
     return tree;
   }
 
-  function matchesPath(
-    nodePath: string[],
-    segments: string[],
-    requireCompleteMatch: boolean = false
-  ): {
-    matches: boolean;
-    matchedSegments: Array<{ segmentIndex: number; nodeIndex: number; matchedIndices: number[] }>;
-  } {
-    const matchedSegments: Array<{ segmentIndex: number; nodeIndex: number; matchedIndices: number[] }> = [];
+  const context: SearchContext = {
+    segments,
+    hasTrailingDot,
+    highlight,
+    match: substringMatch,
+  };
 
-    // Find consecutive matching starting from any position in nodePath
-    for (let startIndex = 0; startIndex <= nodePath.length - segments.length; startIndex++) {
-      let allMatch = true;
-      const tempMatchedSegments: Array<{ segmentIndex: number; nodeIndex: number; matchedIndices: number[] }> = [];
-
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        const nodePathPart = nodePath[startIndex + i];
-
-        let matches = false;
-        const matchedIndices: number[] = [];
-
-        if (requireCompleteMatch) {
-          // For complete matching (e.g., trailing dot), the segment must exactly match the nodePathPart
-          if (nodePathPart.toLowerCase() === segment.toLowerCase()) {
-            matches = true;
-            // All indices match
-            for (let j = 0; j < nodePathPart.length; j++) {
-              matchedIndices.push(j);
-            }
-          }
-        } else {
-          // Substring matching (default behavior)
-          const substringResult = substringMatch(nodePathPart, segment);
-          if (substringResult.matches) {
-            matches = true;
-            for (let j = substringResult.start; j < substringResult.end; j++) {
-              matchedIndices.push(j);
-            }
-          }
-        }
-
-        if (matches) {
-          tempMatchedSegments.push({
-            segmentIndex: i,
-            nodeIndex: startIndex + i,
-            matchedIndices,
-          });
-        } else {
-          allMatch = false;
-          break;
-        }
-      }
-
-      if (allMatch) {
-        matchedSegments.push(...tempMatchedSegments);
-        return {
-          matches: true,
-          matchedSegments,
-        };
-      }
-    }
-
-    return {
-      matches: false,
-      matchedSegments: [],
-    };
-  }
-
-  function getNodePath(node: TreeDataItem, currentPath: string[] = []): string[] {
-    // Build the full path from currentPath + current node
-    // If node.text contains the separator, it might already be a path, but typically it's just the node name
-    const nodeName = String(node.displayText || node.text);
-    // When startLevel > 0, currentPath is already adjusted (empty at startLevel, then builds from there)
-    // So we just need to add nodeName to currentPath
-    return [...currentPath, nodeName];
-  }
-
-  function searchNode(node: TreeDataItem, currentPath: string[] = [], depth: number = 0): TreeDataItem | null {
-    const nodeName = String(node.displayText || node.text);
-    
-    // If this node is before the start level, just pass through and search children
-    // Don't match the node itself, but include it if it has matching children
-    if (depth < startLevel) {
-      const children: TreeDataItem[] = [];
-      if (node.children) {
-        for (const child of node.children) {
-          // Build path for children: if we're at depth < startLevel, continue building path
-          // When we reach startLevel, the path should start fresh from there
-          const childDepth = depth + 1;
-          const childPath = childDepth === startLevel
-            ? []  // Child is at startLevel, path starts from here
-            : [...currentPath, nodeName];  // Continue building path
-          const childResult = searchNode(child, childPath, childDepth);
-          if (childResult) {
-            children.push(childResult);
-          }
-        }
-      }
-      
-      // Include node if it has matching children, but don't match the node itself
-      if (children.length > 0) {
-        return {
-          ...node,
-          children,
-        };
-      }
-      return null;
-    }
-    const isFolderNode = node.type ? node.type === "folder" : node.children !== undefined && node.children.length > 0;
-    const nodePath = getNodePath(node, currentPath);
-    const displayText = String(node.displayText || node.text);
-
-    let matches = false;
-    let highlightedText: React.ReactNode = displayText;
-    const isSingleSegment = !hasTrailingDot && segments.length === 1;
-    const lastSegment = segments[segments.length - 1];
-
-    // Check if this node matches the search pattern
-    if (hasTrailingDot) {
-      // For trailing dot, show all nodes under the matched path
-      // The text before the dot must completely match the node name (not substring)
-      // Check if the last N segments of nodePath match the search segments exactly
-      if (nodePath.length >= segments.length) {
-        const pathTail = nodePath.slice(-segments.length);
-        let pathMatches = true;
-        for (let i = 0; i < segments.length; i++) {
-          if (pathTail[i].toLowerCase() !== segments[i].toLowerCase()) {
-            pathMatches = false;
-            break;
-          }
-        }
-        
-        if (pathMatches) {
-          if (isFolderNode) {
-            // For trailing dot, match nodes whose path ends with the segments
-            // This means the last N segments of the path exactly match the search segments
-            // where N = segments.length
-            // The pathTail already matches, so if pathTail.length === segments.length, 
-            // it means the path ends exactly at the segments
-            if (pathTail.length === segments.length && nodePath.length >= segments.length) {
-              // Check if this node's name is the last segment (i.e., path ends here)
-              // This ensures we match "system" in path ["Host1", "system"] when searching "system."
-              const nodeNameMatchesLastSegment = displayText.toLowerCase() === segments[segments.length - 1].toLowerCase();
-              if (nodeNameMatchesLastSegment) {
-                matches = true;
-                // Highlight the entire displayText since it's a complete match
-                highlightedText = highlight(displayText, 0, displayText.length);
-              }
-            }
-            // Nodes with nodePath.length > segments.length are children under the matched path
-            // They will be included via the hasTrailingDot && matches logic when processing children
-          } else {
-            // For leaf nodes, check if their parent path matches
-            const packagePath = nodePath.slice(0, -1);
-            if (packagePath.length >= segments.length) {
-              const packagePathTail = packagePath.slice(-segments.length);
-              let packageMatches = true;
-              for (let i = 0; i < segments.length; i++) {
-                if (packagePathTail[i].toLowerCase() !== segments[i].toLowerCase()) {
-                  packageMatches = false;
-                  break;
-                }
-              }
-              if (packageMatches) {
-                matches = true;
-                // Don't highlight leaf nodes when using trailing dot - they're just shown as children
-              }
-            }
-          }
-        }
-      }
-    } else {
-      // Regular matching
-      if (isSingleSegment) {
-        // Single segment: only direct name matches
-        const directMatch = substringMatch(displayText, lastSegment);
-        matches = directMatch.matches;
-        if (matches) {
-          highlightedText = highlight(displayText, directMatch.start, directMatch.end);
-        }
-      } else {
-        // Multi-segment: segments before last dot need complete match, last segment uses substring match
-        // Example: "system.metric" -> "system" must match completely, "metric" can be substring in "metric_log"
-        const allButLastSegments = segments.slice(0, -1);
-        
-        // Check if the path ends with the segments (except last) - supports nested paths like ["host", "system"]
-        if (nodePath.length >= allButLastSegments.length) {
-          const pathTail = nodePath.slice(-allButLastSegments.length);
-          let pathTailMatches = true;
-          for (let i = 0; i < allButLastSegments.length; i++) {
-            if (pathTail[i].toLowerCase() !== allButLastSegments[i].toLowerCase()) {
-              pathTailMatches = false;
-              break;
-            }
-          }
-          
-          if (pathTailMatches) {
-            // Path matches, now check this node
-            // The pathTail matched means the last N segments of nodePath match allButLastSegments
-            // We need to check if this node is at the boundary where the path matches
-            if (isFolderNode) {
-              // Check if this node is the one at the end of the matching path tail
-              // The pathTail already matched, now check if this node's displayText is the last segment
-              // This means: the last segment of pathTail (which is this node) matches the last segment of allButLastSegments
-              const pathTail = nodePath.slice(-allButLastSegments.length);
-              const isPathNode = pathTail.length === allButLastSegments.length &&
-                pathTail.every((seg, idx) => seg.toLowerCase() === allButLastSegments[idx].toLowerCase()) &&
-                displayText.toLowerCase() === allButLastSegments[allButLastSegments.length - 1].toLowerCase();
-              
-              if (isPathNode) {
-                // This is the path node (e.g., "system" in "system.metric")
-                // Mark as matching - children will be filtered by last segment during children processing
-                matches = true;
-                highlightedText = highlight(displayText, 0, displayText.length);
-              } else if (nodePath.length > allButLastSegments.length) {
-                // This is a child node - check if its name matches the last segment as substring
-                const nodeName = displayText;
-                const lastSegmentMatch = substringMatch(nodeName, lastSegment);
-                if (lastSegmentMatch.matches) {
-                  matches = true;
-                  highlightedText = highlight(displayText, lastSegmentMatch.start, lastSegmentMatch.end);
-                }
-              }
-            } else {
-              // For leaf nodes: check if name matches last segment as substring
-              // But only if parent path matches
-              const simpleClassName = displayText;
-              const substringResult = substringMatch(simpleClassName, lastSegment);
-              if (substringResult.matches) {
-                matches = true;
-                highlightedText = highlight(simpleClassName, substringResult.start, substringResult.end);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Process children first to determine if this node should be highlighted
-    const children: TreeDataItem[] = [];
-    if (node.children) {
-      // Build the path for children - this is the currentPath + this node's name
-      const childCurrentPath = [...currentPath, displayText];
-      const childDepth = depth + 1;
-      for (const child of node.children) {
-        const childResult = searchNode(child, childCurrentPath, childDepth);
-        if (childResult) {
-          children.push(childResult);
-        } else if (hasTrailingDot && matches) {
-          // For trailing dot searches, if this node matches, include all children even if they don't match
-          // This ensures "system." shows all children of "system"
-          children.push(child);
-        } else if (!hasTrailingDot && segments.length > 1 && matches) {
-          // For multi-segment searches where this node matches the path,
-          // include children that match the last segment
-          const childPath = getNodePath(child, childCurrentPath);
-          // Check if child is directly under this matched node
-          if (childPath.length === nodePath.length + 1) {
-            const childName = String(child.displayText || child.text);
-            const lastSegmentMatch = substringMatch(childName, lastSegment);
-            if (lastSegmentMatch.matches) {
-              // Child matches the last segment, include it
-              children.push({
-                ...child,
-                displayText: highlight(childName, lastSegmentMatch.start, lastSegmentMatch.end),
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Additional highlighting logic for package nodes that are part of a matching path
-    if (!matches && isFolderNode && children.length > 0) {
-      // Check if this package node matches any of the search segments
-      // Only highlight if it's a complete match (the entire displayText matches the segment)
-      // This prevents highlighting "com" in "commons" when searching for "com"
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        const substringResult = substringMatch(displayText, segment);
-        if (substringResult.matches && substringResult.start === 0 && substringResult.end === displayText.length) {
-          // Only highlight if the match covers the entire displayText (complete word match)
-          matches = true;
-          highlightedText = highlight(displayText, substringResult.start, substringResult.end);
-          break; // Found a match, no need to check other segments
-        }
-      }
-    }
-
-    // Include node if it matches or has matching children
-    if (matches || children.length > 0) {
-      // Determine if this node should be expanded
-      let shouldExpand = false;
-
-      if (matches) {
-        // If this node matches, determine if it should be expanded based on search criteria
-        if (hasTrailingDot) {
-          // For trailing dot searches, expand if this node exactly matches the search path
-          // OR if it directly matches one of the search segments
-          const isAtExactSearchDepth = nodePath.length === segments.length;
-          const directlyMatchesSegment = segments.some((segment) => substringMatch(displayText, segment).matches);
-          shouldExpand = isAtExactSearchDepth || directlyMatchesSegment;
-        } else {
-          if (segments.length > 1) {
-            // Multi-segment: expand if this node matches the path (all segments except last)
-            // This expands parents to reveal the matched child, but the matched child itself
-            // will not be expanded (its state remains unchanged)
-            const allButLastSegments = segments.slice(0, -1);
-            if (nodePath.length === allButLastSegments.length) {
-              const pathMatch = matchesPath(nodePath, allButLastSegments, true);
-              shouldExpand = pathMatch.matches;
-            } else {
-              // Also expand if this node directly matches a search segment (parent expansion)
-              const directlyMatchesSegment = segments.some((segment) => substringMatch(displayText, segment).matches);
-              shouldExpand = directlyMatchesSegment;
-            }
-          } else {
-            // Single segment: do NOT expand the matched node itself
-            // The matched node should remain in its current expanded/collapsed state
-            // Only expand if it has matching children that need to be shown
-            shouldExpand = false;
-          }
-        }
-      }
-
-      // For nodes that don't match but have matching children
-      if (!matches && children.length > 0) {
-        // Always expand nodes that have matching children, regardless of search type
-        // This ensures users can see the matched nodes (e.g., host node when searching "system.")
-        // or when searching "level" to show collapsed children "level1" and "level2"
-        shouldExpand = true;
-      }
-      
-      // Special case: if a matched node has matching children that are collapsed,
-      // we need to expand it to show them (e.g., searching "level" to show "level1" and "level2")
-      if (matches && children.length > 0 && isSingleSegment) {
-        // The node itself matches, and it has matching children
-        // We need to expand it to show the matching children
-        shouldExpand = true;
-      }
-
-      // For single-segment search, only return matching children (not all children)
-      // This preserves the expanded state when there are no matching children (rule 2.1)
-      let returnedChildren = children;
-      
-      // For trailing dot searches where this node matches, include all children
-      if (hasTrailingDot && matches && isFolderNode && node.children) {
-        // Include all original children, not just matching ones
-        const childCurrentPath = [...currentPath, displayText];
-        returnedChildren = node.children.map(child => {
-          const childResult = searchNode(child, childCurrentPath);
-          return childResult || child;
-        });
-      }
-      
-      // For multi-segment searches (like "system.m"), expand nodes that match the path
-      // and show children that match the last segment
-      if (!hasTrailingDot && segments.length > 1 && matches && isFolderNode) {
-        // Make sure children are properly included
-        if (returnedChildren.length === 0 && node.children) {
-          // Re-check children for multi-segment search
-          const childCurrentPath = [...currentPath, displayText];
-          for (const child of node.children) {
-            const childResult = searchNode(child, childCurrentPath);
-            if (childResult) {
-              returnedChildren.push(childResult);
-            }
-          }
-        }
-      }
-
-      return {
-        ...node,
-        _expanded: shouldExpand,
-        displayText: matches ? highlightedText : node.displayText,
-        children: returnedChildren.length > 0 ? returnedChildren : node.children ? [] : undefined,
-      };
-    }
-
-    return null;
-  }
-
-  const result: TreeDataItem[] = [];
-  for (const node of tree) {
-    // Start from depth 0 for root nodes
-    const nodeResult = searchNode(node, [], 0);
-    if (nodeResult) {
-      result.push(nodeResult);
-    }
-  }
-
-  return result;
+  // Use searchTreeFromGivenLevel for all cases - it handles startLevel === 0 correctly
+  // (when currentLevel < startLevel is false, it searches normally)
+  return searchTreeFromGivenLevel(tree, context, startLevel);
 }

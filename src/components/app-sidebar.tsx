@@ -25,11 +25,9 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" tooltip="ClickHouse Console" className="justify-center">
-              <a href="/" className="flex items-center justify-center">
-                <img src="/logo_clickhouse.svg" alt="ClickHouse" className="h-6 w-6" />
-              </a>
-            </SidebarMenuButton>
+            <a href="/" className="flex items-center justify-center">
+              <img src="/logo_clickhouse.svg" alt="ClickHouse" className="h-6 w-6" />
+            </a>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -39,11 +37,7 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <ConnectionSelector
                 trigger={
-                  <SidebarMenuButton
-                    tooltip={"Manage Connections"}
-                    size="lg"
-                    className="justify-center"
-                  >
+                  <SidebarMenuButton tooltip={"Manage Connections"} size="lg" className="justify-center">
                     <Database className="h-5 w-5" />
                   </SidebarMenuButton>
                 }
@@ -137,4 +131,3 @@ function ThemeToggleButton() {
     </SidebarMenuButton>
   );
 }
-

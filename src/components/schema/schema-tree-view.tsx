@@ -140,9 +140,10 @@ function parseEnumType(typeString: string): { baseType: string; pairs: Array<[st
 }
 
 // Create a column tree node
-function toColumnTreeNode(column: { name: string; type: string }): TreeDataItem {
+function toColumnTreeNode(column: { name: string; type: string; comment?: string | null }): TreeDataItem {
   const columnName = String(column.name || "Unknown");
   const columnType = String(column.type || "");
+  const columnComment = column.comment || null;
 
   // Check if it's an Enum type
   const enumInfo = parseEnumType(columnType);
@@ -151,22 +152,48 @@ function toColumnTreeNode(column: { name: string; type: string }): TreeDataItem 
   const tagContent = enumInfo ? enumInfo.baseType : columnType;
   const tag = <span className="ml-2 text-[10px] text-muted-foreground">{tagContent}</span>;
 
-  // Create hover card content if it's an Enum with pairs
-  const hoverCardContent =
-    enumInfo && enumInfo.pairs.length > 0 ? (
-      <div className="space-y-1">
-        <div className="font-semibold text-sm">{enumInfo.baseType}</div>
-        <div className="space-y-1">
-          {enumInfo.pairs.map(([key, value], index) => (
-            <div key={index} className="text-xs font-mono">
-              <span className="text-muted-foreground">{key}</span>
-              <span className="mx-2">=</span>
-              <span>{value}</span>
+  // Use nodeTooltip for Enum types (complex content with multiple items)
+  const textTooltip =
+    enumInfo && enumInfo.pairs.length > 0
+      ? (() => {
+          // If there's a comment, show it in the tooltip along with Enum pairs
+          if (columnComment) {
+            return (
+              <div className="space-y-1">
+                <div className="font-semibold text-sm">{columnName}</div>
+                <div className="text-xs text-muted-foreground whitespace-pre-wrap">{columnComment}</div>
+                <div className="mt-2 pt-2 border-t space-y-1">
+                  <div className="font-semibold text-xs">{enumInfo.baseType}</div>
+                  <div className="space-y-1">
+                    {enumInfo.pairs.map(([key, value], index) => (
+                      <div key={index} className="text-xs font-mono">
+                        <span className="text-muted-foreground">{key}</span>
+                        <span className="mx-2">=</span>
+                        <span>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          // Just Enum pairs
+          return (
+            <div className="space-y-1">
+              <div className="font-semibold text-sm">{enumInfo.baseType}</div>
+              <div className="space-y-1">
+                {enumInfo.pairs.map(([key, value], index) => (
+                  <div key={index} className="text-xs font-mono">
+                    <span className="text-muted-foreground">{key}</span>
+                    <span className="mx-2">=</span>
+                    <span>{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
-    ) : undefined;
+          );
+        })()
+      : undefined;
 
   return {
     id: `column:${column.name}`,
@@ -175,12 +202,13 @@ function toColumnTreeNode(column: { name: string; type: string }): TreeDataItem 
     type: "leaf" as const,
     icon: getColumnIcon(columnType),
     tag: tag,
-    hoverCardContent: hoverCardContent,
+    textTooltip: textTooltip,
     data: {
       type: "column",
       name: columnName,
       typeString: columnType,
       enumPairs: enumInfo?.pairs || undefined,
+      columnComment: columnComment || undefined,
     } as ColumnNodeData,
   };
 }
@@ -190,8 +218,10 @@ interface TableItemDO {
   dbEngine: string;
   table: string | null;
   tableEngine: string | null;
+  tableComment: string | null;
   columnName: string | null;
   columnType: string | null;
+  columnComment: string | null;
   version: string;
 }
 
@@ -211,6 +241,7 @@ interface TableNodeData {
   fullName: string;
   tableEngine: string; // Shortened version for display
   fullTableEngine: string; // Full engine name for logic
+  tableComment?: string | null;
   isLoading?: boolean;
 }
 
@@ -219,6 +250,7 @@ interface ColumnNodeData {
   name: string;
   typeString: string;
   enumPairs?: Array<[string, string]>; // Key-value pairs for Enum types
+  columnComment?: string | null;
 }
 
 interface HostNodeData {
@@ -268,6 +300,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
     let currentTable: string | null = null;
     let currentTableEngine = "";
     let currentFullTableEngine = "";
+    let currentTableComment: string | null = null;
     let tableNodes: TreeDataItem[] = [];
     let columnNodes: TreeDataItem[] = [];
     let hasDistributedTable = false;
@@ -288,6 +321,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
             table: currentTable,
             tableEngine: currentTableEngine,
             fullTableEngine: currentFullTableEngine,
+            tableComment: currentTableComment,
           });
           tableNode.children = columnNodes;
           tableNodes.push(tableNode);
@@ -324,6 +358,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
         currentTable = null;
         currentTableEngine = "";
         currentFullTableEngine = "";
+        currentTableComment = null;
         columnNodes = [];
       }
 
@@ -338,6 +373,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
             table: currentTable,
             tableEngine: currentTableEngine,
             fullTableEngine: currentFullTableEngine,
+            tableComment: currentTableComment,
           });
           tableNode.children = columnNodes;
           tableNodes.push(tableNode);
@@ -349,6 +385,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
           currentTable = tableName;
           currentFullTableEngine = String(row.tableEngine || "");
           currentTableEngine = currentFullTableEngine;
+          currentTableComment = row.tableComment ? String(row.tableComment) : null;
 
           // Shorten engine names for display
           const len = "MergeTree".length;
@@ -371,6 +408,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
           currentTable = null;
           currentTableEngine = "";
           currentFullTableEngine = "";
+          currentTableComment = null;
         }
       }
 
@@ -378,7 +416,8 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
       if (tableName && row.columnName) {
         const columnName = String(row.columnName);
         const columnType = String(row.columnType || "");
-        const columnNode = toColumnTreeNode({ name: columnName, type: columnType });
+        const columnComment = row.columnComment ? String(row.columnComment) : null;
+        const columnNode = toColumnTreeNode({ name: columnName, type: columnType, comment: columnComment });
         columnNode.id = `table:${currentDatabase}.${tableName}.${columnName}`;
         columnNodes.push(columnNode);
       }
@@ -396,6 +435,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
         table: currentTable,
         tableEngine: currentTableEngine,
         fullTableEngine: currentFullTableEngine,
+        tableComment: currentTableComment,
       });
       tableNode.children = columnNodes;
       tableNodes.push(tableNode);
@@ -539,8 +579,10 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
     databases.engine AS dbEngine,
     tables.name AS table,
     tables.engine AS tableEngine,
+    tables.comment AS tableComment,
     columns.name AS columnName,
     columns.type AS columnType,
+    columns.comment AS columnComment,
     (SELECT value FROM system.build_options WHERE name = 'VERSION_INTEGER') AS version
 FROM
     system.databases
@@ -773,10 +815,18 @@ ORDER BY lower(database), database, table, columnName`,
     table: string;
     tableEngine: string;
     fullTableEngine: string;
+    tableComment?: string | null;
   }): TreeDataItem => {
     const tableName = String(table.table || "Unknown");
     const databaseName = String(table.database || "Unknown");
     const fullName = `${databaseName}.${tableName}`;
+    const tableComment = table.tableComment || null;
+
+    // Use textTooltip for table comment
+    const textTooltip = tableComment ? (
+      <div className="text-xs text-muted-foreground whitespace-pre-wrap">{tableComment}</div>
+    ) : undefined;
+
     return {
       id: `table:${fullName}`,
       text: tableName,
@@ -785,6 +835,7 @@ ORDER BY lower(database), database, table, columnName`,
       type: "folder", // Has columns as children
       children: [],
       tag: <SchemaTreeBadge>{table.tableEngine || ""}</SchemaTreeBadge>,
+      textTooltip: textTooltip,
       data: {
         type: "table",
         database: databaseName,
@@ -792,6 +843,7 @@ ORDER BY lower(database), database, table, columnName`,
         fullName: fullName,
         tableEngine: table.tableEngine || "",
         fullTableEngine: table.fullTableEngine || "",
+        tableComment: tableComment || undefined,
       } as TableNodeData,
     };
   };

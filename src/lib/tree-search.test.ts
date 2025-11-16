@@ -17,6 +17,20 @@ function createTestTree(): TreeDataItem[] {
         type: 'folder',
         children: [
           {
+            id: 'table:system.query_log',
+            text: 'query_log',
+            search: 'query_log',
+            type: 'folder',
+            children: [
+              {
+                id: 'table:system.query_log.col1',
+                text: 'col1',
+                search: 'col1',
+                type: 'leaf',
+              },
+            ],
+          },
+          {
             id: 'table:system.metric_log',
             text: 'metric_log',
             search: 'metric_log',
@@ -84,11 +98,90 @@ describe('tree-search', () => {
       expect(systemNode).toBeDefined();
       expect(systemNode?.text).toBe('system');
 
+      // System node should be highlighted
+      const systemDisplayText = systemNode?.displayText;
+      expect(systemDisplayText).toBeDefined();
+      const systemIsHighlighted = typeof systemDisplayText === 'object' && systemDisplayText !== null;
+      expect(systemIsHighlighted).toBe(true);
+
+      // System node should be expanded
+      expect(systemNode?._expanded).toBe(true);
+
       // Should include all children of system
-      expect(systemNode?.children?.length).toBe(3);
+      expect(systemNode?.children?.length).toBe(4);
       expect(systemNode?.children?.map((c) => c.text)).toEqual(
-        expect.arrayContaining(['metric_log', 'metrics', 'tables'])
+        expect.arrayContaining(['query_log', 'metric_log', 'metrics', 'tables'])
       );
+
+      // Children should NOT be highlighted (displayText should be plain string, not React element)
+      for (const child of systemNode?.children || []) {
+        const childDisplayText = child.displayText;
+        const childIsHighlighted = typeof childDisplayText === 'object' && childDisplayText !== null;
+        expect(childIsHighlighted).toBe(false);
+        // Children should have their original text as displayText
+        expect(childDisplayText).toBe(child.text);
+      }
+
+      // Children should NOT be expanded
+      for (const child of systemNode?.children || []) {
+        expect(child._expanded).toBe(false);
+      }
+    });
+
+    it('should highlight both system and query_log when searching "system.query_log."', () => {
+      const tree = createTestTree();
+      const result = searchTree(tree, 'system.query_log.');
+
+      // Should find the system database node
+      const systemNode = result[0]?.children?.find((node) => node.text === 'system');
+      expect(systemNode).toBeDefined();
+      expect(systemNode?.text).toBe('system');
+      
+      // System node should be highlighted (displayText should be a React element, not plain string)
+      const systemDisplayText = systemNode?.displayText;
+      expect(systemDisplayText).toBeDefined();
+      // If it's highlighted, displayText will be an object (React element), not a plain string
+      const systemIsHighlighted = typeof systemDisplayText === 'object' && systemDisplayText !== null;
+      expect(systemIsHighlighted).toBe(true);
+      
+      // CRITICAL: When searching "system.query_log.", system should only have query_log as a child
+      // (not all children like metric_log, metrics, tables)
+      expect(systemNode?.children?.length).toBe(1);
+      expect(systemNode?.children?.[0]?.text).toBe('query_log');
+      
+      // Should find the query_log table node
+      const queryLogNode = systemNode?.children?.find((node) => node.text === 'query_log');
+      expect(queryLogNode).toBeDefined();
+      expect(queryLogNode?.text).toBe('query_log');
+      
+      // Query_log node should be highlighted
+      const queryLogDisplayText = queryLogNode?.displayText;
+      expect(queryLogDisplayText).toBeDefined();
+      const queryLogIsHighlighted = typeof queryLogDisplayText === 'object' && queryLogDisplayText !== null;
+      expect(queryLogIsHighlighted).toBe(true);
+      
+      // Query_log should be expanded (show children)
+      expect(queryLogNode?._expanded).toBe(true);
+      expect(queryLogNode?.children?.length).toBe(1);
+      expect(queryLogNode?.children?.[0]?.text).toBe('col1');
+    });
+
+    it('should expand query_log when searching "system.query_log." even if system is not expanded', () => {
+      const tree = createTestTree();
+      const result = searchTree(tree, 'system.query_log.');
+
+      // Should find the system database node
+      const systemNode = result[0]?.children?.find((node) => node.text === 'system');
+      expect(systemNode).toBeDefined();
+      
+      // Should find the query_log table node
+      const queryLogNode = systemNode?.children?.find((node) => node.text === 'query_log');
+      expect(queryLogNode).toBeDefined();
+      
+      // Query_log should be expanded to show its children
+      expect(queryLogNode?._expanded).toBe(true);
+      expect(queryLogNode?.children?.length).toBe(1);
+      expect(queryLogNode?.children?.[0]?.text).toBe('col1');
     });
 
     it('should show system node with all children when searching "system." with startLevel=1', () => {
@@ -105,9 +198,9 @@ describe('tree-search', () => {
       expect(systemNode?.text).toBe('system');
 
       // Should include all children of system
-      expect(systemNode?.children?.length).toBe(3);
+      expect(systemNode?.children?.length).toBe(4);
       expect(systemNode?.children?.map((c) => c.text)).toEqual(
-        expect.arrayContaining(['metric_log', 'metrics', 'tables'])
+        expect.arrayContaining(['query_log', 'metric_log', 'metrics', 'tables'])
       );
     });
 
@@ -176,6 +269,30 @@ describe('tree-search', () => {
       expect(childrenNames).toContain('timestamp'); // contains "t"
       expect(childrenNames).not.toContain('value'); // doesn't contain "t"
     });
+
+    it('should show system node with query_log when searching "system.q"', () => {
+      const tree = createTestTree();
+      const result = searchTree(tree, 'system.q');
+
+      // Should have the host node in result (because it has matching children)
+      expect(result.length).toBeGreaterThan(0);
+      const hostNode = result[0];
+      expect(hostNode?.text).toBe('Host1');
+      
+      // Should find the system database node
+      const systemNode = hostNode?.children?.find((node) => node.text === 'system');
+      expect(systemNode).toBeDefined();
+
+      // Should show query_log (contains "q" as substring)
+      const childrenNames = systemNode?.children?.map((c) => c.text) || [];
+      expect(childrenNames.length).toBeGreaterThan(0);
+      expect(childrenNames).toContain('query_log');
+      
+      // Should NOT show other children that don't match "q"
+      expect(childrenNames).not.toContain('metric_log');
+      expect(childrenNames).not.toContain('metrics');
+      expect(childrenNames).not.toContain('tables');
+    });
   });
 
   describe('single segment search', () => {
@@ -218,7 +335,7 @@ describe('tree-search', () => {
       
       const systemNode = result[0]?.children?.find((node) => node.text === 'system');
       expect(systemNode).toBeDefined();
-      expect(systemNode?.children?.length).toBe(3);
+      expect(systemNode?.children?.length).toBe(4);
     });
   });
 
@@ -234,7 +351,7 @@ describe('tree-search', () => {
       // Should find the system database node
       const systemNode = result[0]?.children?.find((node) => node.text === 'system');
       expect(systemNode).toBeDefined();
-      expect(systemNode?.children?.length).toBe(3);
+      expect(systemNode?.children?.length).toBe(4);
     });
 
     it('should work with multi-segment search and startLevel', () => {
