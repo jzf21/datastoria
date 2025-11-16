@@ -3,16 +3,15 @@
 import { Api, type ApiCanceller, type ApiErrorResponse, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { Formatter, type FormatName } from "@/lib/formatter";
-import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import FloatingProgressBar from "../floating-progress-bar";
-import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
+import { CardContent } from "../ui/card";
+import { DropdownMenuItem } from "../ui/dropdown-menu";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import type { FieldOption, SQLQuery, TransposeTableDescriptor } from "./chart-utils";
 import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
+import { DashboardCardLayout } from "./dashboard-card-layout";
+import { showQueryDialog } from "./dashboard-dialog-utils";
 import { inferFieldFormat } from "./format-inference";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import { replaceTimeSpanParams } from "./sql-time-utils";
@@ -462,48 +461,30 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
 
     const hasTitle = !!descriptor.titleOption?.title;
 
+    // Handler for showing query dialog
+    const handleShowQuery = useCallback(() => {
+      showQueryDialog(descriptor.query, descriptor.titleOption?.title);
+    }, [descriptor.query, descriptor.titleOption]);
+
+    // Build dropdown menu items
+    const dropdownItems = (
+      <>
+        {descriptor.query?.sql && <DropdownMenuItem onClick={handleShowQuery}>Show query</DropdownMenuItem>}
+      </>
+    );
+
     return (
-      <Card
-        ref={componentRef}
-        className={cn("@container/card relative overflow-hidden", props.className)}
+      <DashboardCardLayout
+        componentRef={componentRef}
+        className={props.className}
+        isLoading={isLoading}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
+        titleOption={descriptor.titleOption}
+        hasTitle={hasTitle}
+        dropdownItems={dropdownItems}
       >
-        <FloatingProgressBar show={isLoading} />
-        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
-          {hasTitle && descriptor.titleOption && (
-            <CardHeader className="p-0">
-              <CollapsibleTrigger className="w-full">
-                <div className={cn("flex items-center p-3 bg-muted/50 transition-colors gap-2 hover:bg-muted")}>
-                  <ChevronRight
-                    className={cn("h-4 w-4 transition-transform duration-200 shrink-0", !isCollapsed && "rotate-90")}
-                  />
-                  <div className="flex-1 text-left">
-                    <CardDescription
-                      className={cn(
-                        descriptor.titleOption.align ? "text-" + descriptor.titleOption.align : "text-left",
-                        "font-semibold text-foreground m-0"
-                      )}
-                    >
-                      {descriptor.titleOption.title}
-                    </CardDescription>
-                    {descriptor.titleOption.description && (
-                      <CardDescription className="text-xs mt-1 m-0">
-                        {descriptor.titleOption.description}
-                      </CardDescription>
-                    )}
-                  </div>
-                </div>
-              </CollapsibleTrigger>
-            </CardHeader>
-          )}
-          {!hasTitle && descriptor.titleOption && (
-            <CardHeader className="pt-5 pb-3">
-              {descriptor.titleOption.description && (
-                <CardDescription className="text-xs">{descriptor.titleOption.description}</CardDescription>
-              )}
-            </CardHeader>
-          )}
-          <CollapsibleContent>
-            <CardContent className="px-0 pb-0 overflow-auto">
+        <CardContent className="px-0 pb-0 overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-muted/50 select-none h-10">
@@ -519,9 +500,7 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
                 </TableBody>
               </Table>
             </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
+      </DashboardCardLayout>
     );
   }
 );

@@ -3,16 +3,17 @@
 import { Api, type ApiCanceller, type ApiErrorResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { cn } from "@/lib/utils";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Formatter, type FormatName } from "../../lib/formatter";
-import FloatingProgressBar from "../floating-progress-bar";
-import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
+import { CardContent } from "../ui/card";
+import { DropdownMenuItem } from "../ui/dropdown-menu";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import type { ActionColumn, FieldOption, SQLQuery, TableDescriptor } from "./chart-utils";
 import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
+import { DashboardCardLayout } from "./dashboard-card-layout";
+import { showQueryDialog } from "./dashboard-dialog-utils";
 import { inferFormatFromMetaType } from "./format-inference";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import { replaceTimeSpanParams } from "./sql-time-utils";
@@ -793,6 +794,18 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     const hasTitle = !!descriptor.titleOption && descriptor.titleOption?.showTitle !== false;
     const isStickyHeader = descriptor.headOption?.isSticky === true;
 
+    // Handler for showing query dialog
+    const handleShowQuery = useCallback(() => {
+      showQueryDialog(descriptor.query, descriptor.titleOption?.title);
+    }, [descriptor.query, descriptor.titleOption]);
+
+    // Build dropdown menu items
+    const dropdownItems = (
+      <>
+        {descriptor.query?.sql && <DropdownMenuItem onClick={handleShowQuery}>Show query</DropdownMenuItem>}
+      </>
+    );
+
     // Render functions for direct table structure (when sticky header is enabled)
     const renderErrorDirect = useCallback(() => {
       if (!error) return null;
@@ -910,37 +923,17 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
     ]);
 
     return (
-      <Card ref={componentRef} className={cn("@container/card relative overflow-hidden", props.className)}>
-        <FloatingProgressBar show={isLoading} />
-        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
-          {hasTitle && descriptor.titleOption && (
-            <CardHeader className="p-0">
-              <CollapsibleTrigger className="w-full">
-                <div className={cn("flex items-center p-3 bg-muted/50 transition-colors gap-2 hover:bg-muted")}>
-                  <ChevronRight
-                    className={cn("h-4 w-4 transition-transform duration-200 shrink-0", !isCollapsed && "rotate-90")}
-                  />
-                  <div className="flex-1 text-left">
-                    <CardDescription
-                      className={cn(
-                        descriptor.titleOption.align ? "text-" + descriptor.titleOption.align : "text-left",
-                        "font-semibold text-foreground m-0"
-                      )}
-                    >
-                      {descriptor.titleOption.title}
-                    </CardDescription>
-                    {descriptor.titleOption.description && (
-                      <CardDescription className="text-xs mt-1 m-0">
-                        {descriptor.titleOption.description}
-                      </CardDescription>
-                    )}
-                  </div>
-                </div>
-              </CollapsibleTrigger>
-            </CardHeader>
-          )}
-          <CollapsibleContent>
-            <CardContent
+      <DashboardCardLayout
+        componentRef={componentRef}
+        className={props.className}
+        isLoading={isLoading}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
+        titleOption={descriptor.titleOption}
+        hasTitle={hasTitle}
+        dropdownItems={dropdownItems}
+      >
+        <CardContent
               className={cn("px-0 p-0", !isStickyHeader && "overflow-auto", isStickyHeader && "overflow-auto")}
               style={descriptor.height ? ({ maxHeight: `${descriptor.height}vh` } as React.CSSProperties) : undefined}
             >
@@ -1051,9 +1044,7 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
                 </Table>
               )}
             </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
+      </DashboardCardLayout>
     );
   }
 );

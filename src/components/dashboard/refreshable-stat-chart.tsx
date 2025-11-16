@@ -10,10 +10,10 @@ import { CircleAlert, TrendingDown, TrendingUpIcon } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Area, AreaChart, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Formatter } from "../../lib/formatter";
-import FloatingProgressBar from "../floating-progress-bar";
 import { Button } from "../ui/button";
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
+import { CardContent, CardFooter, CardTitle } from "../ui/card";
 import { ChartContainer, ChartTooltip } from "../ui/chart";
+import { DropdownMenuItem } from "../ui/dropdown-menu";
 import { Skeleton } from "../ui/skeleton";
 import { Dialog } from "../use-dialog";
 import { classifyColumns, transformRowsToChartData } from "./chart-data-utils";
@@ -28,6 +28,8 @@ import type {
   TransposeTableDescriptor,
 } from "./chart-utils";
 import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
+import { DashboardCardLayout } from "./dashboard-card-layout";
+import { showQueryDialog } from "./dashboard-dialog-utils";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableTableComponent from "./refreshable-table-component";
 import RefreshableTimeseriesChart from "./refreshable-timeseries-chart";
@@ -900,6 +902,11 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       return descriptor.drilldown !== undefined && Object.keys(descriptor.drilldown).length > 0;
     }, [descriptor.drilldown]);
 
+    // Handler for showing query dialog
+    const handleShowQuery = useCallback(() => {
+      showQueryDialog(descriptor.query, descriptor.titleOption?.title);
+    }, [descriptor.query, descriptor.titleOption]);
+
     // Check if we should use NumberFlow for rendering
     const shouldUseNumberFlow = useCallback((): boolean => {
       // Temporarily set to disable number flow because it doest not fit the view and it's too complicated
@@ -970,17 +977,32 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       );
     };
 
+    // Get height from descriptor, default to 180px
+    const cardHeight = descriptor.height ?? 180;
+    const hasTitle = !!descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false;
+
+    // Build dropdown menu items
+    const dropdownItems = (
+      <>
+        {descriptor.query?.sql && <DropdownMenuItem onClick={handleShowQuery}>Show query</DropdownMenuItem>}
+        {!hasTitle && hasDrilldown() && (
+          <DropdownMenuItem onClick={handleDrilldownClick}>View details</DropdownMenuItem>
+        )}
+      </>
+    );
+
     return (
-      <Card ref={componentRef} className="@container/card relative">
-        <FloatingProgressBar show={isLoadingValue} />
-        <CardHeader className="pt-5 pb-1">
-          {descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false && (
-            <CardDescription
-              className={descriptor.titleOption?.align ? "text-" + descriptor.titleOption.align : "text-center"}
-            >
-              {descriptor.titleOption.title}
-            </CardDescription>
-          )}
+      <DashboardCardLayout
+        componentRef={componentRef}
+        className=""
+        style={{ height: `${cardHeight}px` }}
+        isLoading={isLoadingValue}
+        titleOption={descriptor.titleOption}
+        hasTitle={hasTitle}
+        dropdownItems={dropdownItems}
+        headerBackground={true}
+      >
+        <CardContent className="pt-5 pb-1 px-0 relative">
           <CardTitle
             className={cn(
               descriptor.valueOption?.align ? "text-" + descriptor.valueOption.align : "text-center",
@@ -1062,12 +1084,12 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
           </CardTitle>
 
           {renderComparison()}
-        </CardHeader>
-        <CardFooter className="px-0 pb-2">
-          {/* Render minimap at the bottom - always reserve space if minimap is configured */}
-          {/* Show skeleton for minimap while main skeleton is showing */}
-          {!error && shouldShowMinimap() ? (
-            shouldShowSkeleton ? (
+        </CardContent>
+        {/* Only render CardFooter if minimap is configured */}
+        {!error && shouldShowMinimap() && (
+          <CardFooter className="px-0 pb-2">
+            {/* Show skeleton for minimap while main skeleton is showing */}
+            {shouldShowSkeleton ? (
               <div className="w-full mt-2">
                 <Skeleton className="h-[50px] w-full" />
               </div>
@@ -1078,14 +1100,10 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 isLoading={isLoadingMinimap}
                 minimap={descriptor.minimapOption!}
               />
-            )
-          ) : (
-            <div className="w-full mt-2">
-              <div className="h-[50px]" />
-            </div>
-          )}
-        </CardFooter>
-      </Card>
+            )}
+          </CardFooter>
+        )}
+      </DashboardCardLayout>
     );
   }
 );

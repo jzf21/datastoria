@@ -3,17 +3,12 @@
 import { Api, type ApiCanceller, type ApiErrorResponse, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import { cn } from "@/lib/utils";
 import * as echarts from "echarts";
-import { ChevronRight, EllipsisVertical, Minus } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Formatter, type FormatName } from "../../lib/formatter";
-import FloatingProgressBar from "../floating-progress-bar";
 import { useTheme } from "../theme-provider";
-import { Button } from "../ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "../ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { CardContent } from "../ui/card";
+import { DropdownMenuItem } from "../ui/dropdown-menu";
 import { Skeleton } from "../ui/skeleton";
 import { Dialog } from "../use-dialog";
 import { isTimestampColumn as isTimestampColumnUtil, transformRowsToChartData } from "./chart-data-utils";
@@ -26,6 +21,8 @@ import type {
   TimeseriesDescriptor,
   TransposeTableDescriptor,
 } from "./chart-utils";
+import { DashboardCardLayout } from "./dashboard-card-layout";
+import { showQueryDialog } from "./dashboard-dialog-utils";
 import type { RefreshableComponent, RefreshParameter } from "./refreshable-component";
 import RefreshableStatComponent from "./refreshable-stat-chart";
 import RefreshableTableComponent from "./refreshable-table-component";
@@ -1195,6 +1192,19 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
 
     const hasTitle = !!descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false;
 
+    // Handler for showing query dialog
+    const handleShowQuery = useCallback(() => {
+      showQueryDialog(descriptor.query, descriptor.titleOption?.title);
+    }, [descriptor.query, descriptor.titleOption]);
+
+    // Build dropdown menu items
+    const dropdownItems = (
+      <>
+        {descriptor.query?.sql && <DropdownMenuItem onClick={handleShowQuery}>Show query</DropdownMenuItem>}
+        <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
+      </>
+    );
+
     // Memoize drilldown component to prevent unnecessary remounts
     // This ensures the table component doesn't lose its state when parent re-renders
     const drilldownComponent = useMemo(() => {
@@ -1209,97 +1219,18 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
     }, [hasDrilldown, selectedTimeRange, getFirstDrilldownDescriptor, renderDrilldownComponent]);
 
     return (
-      <Card ref={componentRef} className="@container/card relative overflow-hidden">
-        <FloatingProgressBar show={isLoading} />
-        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
-          {hasTitle && descriptor.titleOption && (
-            <CardHeader className="p-0">
-              <div className="flex items-center">
-                <CollapsibleTrigger className="flex-1">
-                  <div className={cn("flex items-center p-2 bg-muted/50 transition-colors gap-2 hover:bg-muted")}>
-                    <ChevronRight
-                      className={cn("h-4 w-4 transition-transform duration-200 shrink-0", !isCollapsed && "rotate-90")}
-                    />
-                    <div className="flex-1 text-left">
-                      <CardDescription
-                        className={cn(
-                          descriptor.titleOption.align ? "text-" + descriptor.titleOption.align : "text-left",
-                          "font-semibold text-foreground m-0"
-                        )}
-                      >
-                        {descriptor.titleOption.title}
-                      </CardDescription>
-                      {descriptor.titleOption.description && (
-                        <CardDescription className="text-xs mt-1 m-0">
-                          {descriptor.titleOption.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                    <div className="pr-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 p-0 flex items-center justify-center bg-transparent hover:bg-muted hover:ring-2 hover:ring-foreground/20"
-                            title="More options"
-                            aria-label="More options"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <EllipsisVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" sideOffset={0}>
-                          <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </CollapsibleTrigger>
-              </div>
-            </CardHeader>
-          )}
-          {!hasTitle && descriptor.titleOption && (
-            <CardHeader className="pt-5 pb-3">
-              <div className="flex items-center justify-between">
-                {descriptor.titleOption.description && (
-                  <CardDescription className="text-xs">{descriptor.titleOption.description}</CardDescription>
-                )}
-                <div className="ml-auto">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Minus className="h-4 w-4" />
-                        <span className="sr-only">More options</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            </CardHeader>
-          )}
-          {!descriptor.titleOption && (
-            <CardHeader className="p-0">
-              <div className="flex items-center justify-end pr-2 pt-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Minus className="h-4 w-4" />
-                      <span className="sr-only">More options</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={showRawDataDialog}>Show query result</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-          )}
-          <CollapsibleContent>
-            <CardContent className="px-0 p-0">
+      <DashboardCardLayout
+        componentRef={componentRef}
+        className=""
+        isLoading={isLoading}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
+        titleOption={descriptor.titleOption}
+        hasTitle={hasTitle}
+        dropdownItems={dropdownItems}
+        headerBackground={true}
+      >
+        <CardContent className="px-0 p-0">
               {error ? (
                 <div className="flex flex-col items-center justify-center h-[300px] gap-2 text-destructive p-8">
                   <p className="font-semibold">Error loading chart data:</p>
@@ -1324,9 +1255,7 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
                 </>
               )}
             </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
+      </DashboardCardLayout>
     );
   }
 );
