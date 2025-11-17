@@ -37,7 +37,6 @@ export interface DashboardPanelLayoutProps {
 
   // Title/header configuration
   titleOption?: TitleOption;
-  hasTitle?: boolean; // Whether to show title in header (vs description only)
 
   // Dropdown menu items
   dropdownItems?: React.ReactNode;
@@ -62,14 +61,13 @@ export function DashboardPanelLayout({
   isCollapsed,
   setIsCollapsed,
   titleOption,
-  hasTitle,
   dropdownItems,
   children,
   headerClassName,
   headerBackground = false,
 }: DashboardPanelLayoutProps) {
   const isCollapsible = isCollapsed !== undefined && setIsCollapsed !== undefined;
-  const showTitle = hasTitle && titleOption?.title && titleOption?.showTitle !== false;
+  const showTitle = !!titleOption?.title && titleOption?.showTitle !== false;
 
   // Render dropdown menu button
   const renderDropdownMenu = () => {
@@ -140,51 +138,6 @@ export function DashboardPanelLayout({
     return headerElement;
   };
 
-  // Render header with description only (no title)
-  const renderHeaderWithDescription = () => {
-    if (showTitle || !titleOption) return null;
-
-    return (
-      <CardHeader className={cn("pt-5 pb-3", headerClassName)}>
-        <div className="flex items-center justify-between">
-          {titleOption.description && <CardDescription className="text-xs">{titleOption.description}</CardDescription>}
-          <div className="ml-auto">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <EllipsisVertical className="h-4 w-4" />
-                  <span className="sr-only">More options</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">{dropdownItems}</DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </CardHeader>
-    );
-  };
-
-  // Render minimal header (no title option)
-  const renderMinimalHeader = () => {
-    if (titleOption) return null;
-
-    return (
-      <CardHeader className={cn("p-0", headerClassName)}>
-        <div className="flex items-center justify-end pr-2 pt-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <EllipsisVertical className="h-4 w-4" />
-                <span className="sr-only">More options</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">{dropdownItems}</DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
-    );
-  };
-
   return (
     <Card ref={componentRef} className={cn("@container/card relative overflow-hidden", className)} style={style}>
       <FloatingProgressBar show={isLoading} />
@@ -199,7 +152,6 @@ export function DashboardPanelLayout({
           {children}
         </>
       )}
-      {/* Description and minimal headers are always outside Collapsible */}
     </Card>
   );
 }

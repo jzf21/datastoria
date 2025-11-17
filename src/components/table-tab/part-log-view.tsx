@@ -1,4 +1,4 @@
-import type { StatDescriptor } from "@/components/dashboard/dashboard-model";
+import type { StatDescriptor, TableDescriptor } from "@/components/dashboard/dashboard-model";
 import type { Dashboard } from "@/components/dashboard/dashboard-model";
 import DashboardPanels, { type DashboardPanelsRef } from "@/components/dashboard/dashboard-panels";
 import type { TimeSpan } from "@/components/dashboard/timespan-selector";
@@ -215,6 +215,30 @@ WITH FILL STEP {rounding:UInt32}
             headers: {
               "Content-Type": "text/plain",
             },
+          },
+          drilldown: {
+            minimap: {
+              type: "table",
+              id: `part-log-${database}-${table}`,
+              titleOption: {
+                title: "Remove Part Log",
+              },
+              query: {
+                sql: `
+                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                AND 
+                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
+                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
+                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    AND event_type = 'RemovePart'
+                ORDER BY event_time DESC
+                `,
+                headers: {
+                  "Content-Type": "text/plain",
+                },
+              }
+            } as TableDescriptor
           },
         } as StatDescriptor,
       ],

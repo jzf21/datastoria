@@ -44,7 +44,7 @@ const serverStatusDashboard = [
       sql: "SELECT count() FROM system.warnings",
     },
     drilldown: {
-      warnings: {
+      main: {
         type: "table",
         titleOption: {
           title: "Warnings",
@@ -71,7 +71,7 @@ const serverStatusDashboard = [
       format: "timeDiff",
     },
     drilldown: {
-      warnings: {
+      main: {
         type: "table",
         titleOption: {
           title: "Warnings",
@@ -101,7 +101,7 @@ const serverStatusDashboard = [
       sql: "SELECT count() FROM system.databases",
     },
     drilldown: {
-      databases: {
+      main: {
         type: "table",
         titleOption: {
           title: "Databases",
@@ -179,7 +179,7 @@ ORDER BY B.size DESC`,
       format: "binary_size",
     },
     drilldown: {
-      "table-size": {
+      main: {
         type: "table",
         titleOption: {
           title: "Table Size",
@@ -264,7 +264,7 @@ ON A.table = B.name`,
       format: "percentage",
     },
     drilldown: {
-      "used-storage": {
+      main: {
         type: "table",
         titleOption: {
           title: "Used Storage",
@@ -302,7 +302,7 @@ ON A.table = B.name`,
       sql: `SELECT count() FROM system.merges`,
     },
     drilldown: {
-      "ongoing-merges": {
+      main: {
         type: "table",
         titleOption: {
           title: "Ongoing Merges",
@@ -402,7 +402,7 @@ ORDER BY elapsed DESC
       sql: `SELECT count() FROM system.mutations WHERE is_done = 0`,
     },
     drilldown: {
-      "ongoing-mutations": {
+      main: {
         type: "table",
         titleOption: {
           title: "Ongoing Mutations",
@@ -461,7 +461,7 @@ ORDER BY elapsed DESC
       sql: `SELECT count() FROM system.processes`,
     },
     drilldown: {
-      "running-queries": {
+      main: {
         type: "table",
         titleOption: {
           title: "Running Queries",
@@ -557,7 +557,7 @@ SETTINGS skip_unavailable_shards=1
 `,
     },
     drilldown: {
-      "server-count": {
+      main: {
         type: "table",
         titleOption: {
           title: "Server Count",
@@ -600,7 +600,7 @@ SETTINGS skip_unavailable_shards=1
     },
 
     drilldown: {
-      "total-data-size": {
+      main: {
         type: "table",
         titleOption: {
           title: "Disk Space Usage By Server",
@@ -655,7 +655,7 @@ SELECT sum(total_space) FROM clusterAllReplicas('{cluster}', system.disks)
       format: "binary_size",
     },
     drilldown: {
-      "disk-quota": {
+      main: {
         type: "table",
         titleOption: {
           title: "Disk Quota",

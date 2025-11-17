@@ -791,7 +791,6 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
       descriptor.showIndexColumn,
     ]);
 
-    const hasTitle = !!descriptor.titleOption && descriptor.titleOption?.showTitle !== false;
     const isStickyHeader = descriptor.headOption?.isSticky === true;
 
     // Handler for showing query dialog
@@ -928,7 +927,6 @@ const RefreshableTableComponent = forwardRef<RefreshableComponent, RefreshableTa
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
         titleOption={descriptor.titleOption}
-        hasTitle={hasTitle}
         dropdownItems={dropdownItems}
       >
         <CardContent

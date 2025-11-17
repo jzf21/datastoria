@@ -1226,7 +1226,6 @@ const RefreshableTimeseriesChart = forwardRef<RefreshableComponent, RefreshableT
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
         titleOption={descriptor.titleOption}
-        hasTitle={hasTitle}
         dropdownItems={dropdownItems}
         headerBackground={true}
       >

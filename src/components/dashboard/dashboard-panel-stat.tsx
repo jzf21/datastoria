@@ -8,7 +8,7 @@ import NumberFlow from "@number-flow/react";
 import { format } from "date-fns";
 import { CircleAlert, TrendingDown, TrendingUpIcon } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Area, AreaChart, Line, LineChart, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Brush, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Formatter } from "../../lib/formatter";
 import { Button } from "../ui/button";
 import { CardContent, CardFooter, CardTitle } from "../ui/card";
@@ -17,9 +17,11 @@ import { DropdownMenuItem } from "../ui/dropdown-menu";
 import { Skeleton } from "../ui/skeleton";
 import { Dialog } from "../use-dialog";
 import { classifyColumns, transformRowsToChartData } from "./chart-data-utils";
+import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
+import { showQueryDialog } from "./dashboard-dialog-utils";
 import type {
-  PanelDescriptor,
   MinimapOption,
+  PanelDescriptor,
   Reducer,
   SQLQuery,
   StatDescriptor,
@@ -27,10 +29,8 @@ import type {
   TimeseriesDescriptor,
   TransposeTableDescriptor,
 } from "./dashboard-model";
-import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
-import { DashboardPanelLayout } from "./dashboard-panel-common";
-import { showQueryDialog } from "./dashboard-dialog-utils";
 import type { RefreshableComponent, RefreshParameter } from "./dashboard-panel-common";
+import { DashboardPanelLayout } from "./dashboard-panel-common";
 import RefreshableTableComponent from "./dashboard-panel-table";
 import RefreshableTimeseriesChart from "./dashboard-panel-timeseries";
 import RefreshableTransposedTableComponent from "./dashboard-panel-tranposd-table";
@@ -63,12 +63,14 @@ interface StatMinimapProps {
   data: MinimapDataPoint[];
   isLoading: boolean;
   minimap: MinimapOption;
+  onBrushChange?: (startTimestamp: number, endTimestamp: number) => void;
 }
 
-const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data, isLoading, minimap }) {
+const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data, isLoading, minimap, onBrushChange }) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [isInViewport, setIsInViewport] = React.useState(false);
   const [chartColor, setChartColor] = React.useState<string>("hsl(var(--chart-1))");
+  const brushChangeTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get the computed chart color value from CSS variable
   // SVG elements don't support CSS variables, so we need to get the actual computed RGB color
@@ -136,6 +138,10 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data
 
     return () => {
       observer.unobserve(currentElement);
+      if (brushChangeTimeoutRef.current) {
+        clearTimeout(brushChangeTimeoutRef.current);
+        brushChangeTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -180,7 +186,7 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data
     <div ref={containerRef} className="w-full mt-2">
       <ChartContainer
         config={chartConfig}
-        className={`h-[50px] w-full aspect-auto transition-opacity duration-300 ${
+        className={`h-[45px] w-full aspect-auto transition-opacity duration-300 ${
           isLoading ? "opacity-50" : "opacity-100"
         }`}
       >
@@ -239,6 +245,41 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({ id, data
               fill="none"
               isAnimationActive={false}
               dot={false}
+            />
+          )}
+          {onBrushChange && data.length > 0 && (
+            <Brush
+              dataKey="timestamp"
+              height={15}
+              stroke={chartColor}
+              fill={`${chartColor}40`}
+              onChange={(brushData: { startIndex?: number; endIndex?: number }) => {
+                // Clear any pending brush change
+                if (brushChangeTimeoutRef.current) {
+                  clearTimeout(brushChangeTimeoutRef.current);
+                  brushChangeTimeoutRef.current = null;
+                }
+
+                // Debounce the brush change to avoid triggering multiple times during dragging
+                if (brushData && brushData.startIndex !== undefined && brushData.endIndex !== undefined) {
+                  const startIndex = brushData.startIndex;
+                  const endIndex = brushData.endIndex;
+                  if (
+                    startIndex >= 0 &&
+                    endIndex >= 0 &&
+                    startIndex < data.length &&
+                    endIndex < data.length &&
+                    startIndex !== endIndex
+                  ) {
+                    brushChangeTimeoutRef.current = setTimeout(() => {
+                      const startTimestamp = data[startIndex].timestamp;
+                      const endTimestamp = data[endIndex].timestamp;
+                      onBrushChange(startTimestamp, endTimestamp);
+                      brushChangeTimeoutRef.current = null;
+                    }, 300); // 300ms debounce
+                  }
+                }
+              }}
             />
           )}
         </ChartComponent>
@@ -830,19 +871,9 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
       };
     }, [isLoadingValue, hasInitialData]);
 
-    // Get the first drilldown descriptor if available
-    const getFirstDrilldownDescriptor = useCallback((): PanelDescriptor | null => {
-      if (!descriptor.drilldown || Object.keys(descriptor.drilldown).length === 0) {
-        return null;
-      }
-      // Get the first descriptor from the drilldown map
-      const firstKey = Object.keys(descriptor.drilldown)[0];
-      return descriptor.drilldown[firstKey];
-    }, [descriptor.drilldown]);
-
-    // Handle drilldown click
+    // Handle main content drilldown click
     const handleDrilldownClick = useCallback(() => {
-      const drilldownDescriptor = getFirstDrilldownDescriptor();
+      const drilldownDescriptor = descriptor.drilldown?.main;
       if (!drilldownDescriptor) {
         return;
       }
@@ -890,12 +921,74 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
           </div>
         ),
       });
-    }, [getFirstDrilldownDescriptor, props.searchParams, selectedTimeSpan]);
+    }, [descriptor.drilldown, props.searchParams, selectedTimeSpan]);
 
-    // Check if drilldown is available
-    const hasDrilldown = useCallback((): boolean => {
-      return descriptor.drilldown !== undefined && Object.keys(descriptor.drilldown).length > 0;
-    }, [descriptor.drilldown]);
+    // Handle minimap drilldown with selected time range
+    const handleMinimapDrilldown = useCallback(
+      (startTimestamp: number, endTimestamp: number) => {
+        const drilldownDescriptor = descriptor.drilldown?.minimap;
+        if (!drilldownDescriptor) {
+          return;
+        }
+
+        // Create a modified copy of the descriptor for drilldown
+        const modifiedDescriptor: PanelDescriptor = { ...drilldownDescriptor };
+
+        // Hide title in drilldown dialog
+        if (modifiedDescriptor.titleOption) {
+          modifiedDescriptor.titleOption = {
+            ...modifiedDescriptor.titleOption,
+            showTitle: false,
+          };
+        }
+        modifiedDescriptor.collapsed = false;
+
+        // Make table header sticky and set height for tables in dialog mode
+        if (modifiedDescriptor.type === "table") {
+          const tableDescriptor = modifiedDescriptor as TableDescriptor;
+          tableDescriptor.headOption = {
+            ...tableDescriptor.headOption,
+            isSticky: true,
+          };
+          // Set height for dialog mode (70vh matches the dialog height)
+          if (!tableDescriptor.height) {
+            tableDescriptor.height = 70; // 70vh
+          }
+        }
+
+        // Create a time span from the selected range
+        const selectedTimeSpan: TimeSpan = {
+          startISO8601: DateTimeExtension.formatISO8601(new Date(startTimestamp)) || "",
+          endISO8601: DateTimeExtension.formatISO8601(new Date(endTimestamp)) || "",
+        };
+
+        const title = modifiedDescriptor.titleOption?.title || "Drilldown";
+        const description = modifiedDescriptor.titleOption?.description;
+
+        Dialog.showDialog({
+          title,
+          description,
+          className: "max-w-[60vw] h-[70vh]",
+          disableContentScroll: false,
+          mainContent: (
+            <div className="w-full h-full overflow-auto">
+              <DrilldownChartRenderer
+                descriptor={modifiedDescriptor}
+                selectedTimeSpan={selectedTimeSpan}
+                searchParams={props.searchParams}
+              />
+            </div>
+          ),
+        });
+      },
+      [descriptor.drilldown, props.searchParams]
+    );
+
+    // Check if main drilldown is available
+    const hasMainDrilldown = descriptor.drilldown !== undefined && descriptor.drilldown.main !== undefined;
+
+    // Check if minimap drilldown is available
+    const hasMinimapDrilldown = descriptor.drilldown !== undefined && descriptor.drilldown.minimap !== undefined;
 
     // Handler for showing query dialog
     const handleShowQuery = useCallback(() => {
@@ -980,7 +1073,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     const dropdownItems = (
       <>
         {descriptor.query?.sql && <DropdownMenuItem onClick={handleShowQuery}>Show query</DropdownMenuItem>}
-        {!hasTitle && hasDrilldown() && (
+        {!hasTitle && hasMainDrilldown && (
           <DropdownMenuItem onClick={handleDrilldownClick}>View details</DropdownMenuItem>
         )}
       </>
@@ -989,11 +1082,9 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
     return (
       <DashboardPanelLayout
         componentRef={componentRef}
-        className=""
         style={{ height: `${cardHeight}px` }}
         isLoading={isLoadingValue}
         titleOption={descriptor.titleOption}
-        hasTitle={hasTitle}
         dropdownItems={dropdownItems}
         headerBackground={true}
       >
@@ -1009,12 +1100,12 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 ref={valueTextRef}
                 className={cn(
                   "leading-none whitespace-nowrap",
-                  hasDrilldown() && "cursor-pointer underline transition-all"
+                  hasMainDrilldown && "cursor-pointer underline transition-all"
                 )}
                 style={{
                   fontSize: `${fontSize}rem`,
                 }}
-                onClick={hasDrilldown() ? handleDrilldownClick : undefined}
+                onClick={hasMainDrilldown ? handleDrilldownClick : undefined}
               >
                 {shouldShowSkeleton ? (
                   <div className="transition-opacity duration-150" style={{ opacity: skeletonOpacity }}>
@@ -1065,7 +1156,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                         value={displayValue}
                         format={numberFlowFormat as Parameters<typeof NumberFlow>[0]["format"]}
                         locales="en-GB"
-                        className={cn(hasDrilldown() ? "underline" : "")}
+                        className={cn(hasMainDrilldown ? "underline" : "")}
                       />
                     );
                   })()
@@ -1094,6 +1185,7 @@ const RefreshableStatComponent = forwardRef<RefreshableComponent, RefreshableSta
                 data={minimapData}
                 isLoading={isLoadingMinimap}
                 minimap={descriptor.minimapOption!}
+                onBrushChange={hasMinimapDrilldown ? handleMinimapDrilldown : undefined}
               />
             )}
           </CardFooter>

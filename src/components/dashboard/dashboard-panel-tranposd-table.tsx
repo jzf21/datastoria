@@ -481,7 +481,6 @@ const RefreshableTransposedTableComponent = forwardRef<RefreshableComponent, Ref
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
         titleOption={descriptor.titleOption}
-        hasTitle={hasTitle}
         dropdownItems={dropdownItems}
       >
         <CardContent className="px-0 pb-0 overflow-auto">
