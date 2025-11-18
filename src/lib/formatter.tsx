@@ -1,3 +1,4 @@
+import { showQueryDialog } from "@/components/dashboard/dashboard-dialog-utils";
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Dialog } from "@/components/use-dialog";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
@@ -405,18 +406,7 @@ export class Formatter {
           className="cursor-pointer hover:text-primary underline decoration-dotted"
           onClick={(e) => {
             e.stopPropagation();
-            Dialog.showDialog({
-              title: "SQL Query",
-              description: "Full SQL query text",
-              mainContent: (
-                <div className="overflow-auto">
-                  <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "14px", margin: 0 }}>
-                    {StringUtils.prettyFormatQuery(stringValue)}
-                  </ThemedSyntaxHighlighter>
-                </div>
-              ),
-              className: "max-w-4xl max-h-[80vh]",
-            });
+            showQueryDialog({ sql: StringUtils.prettyFormatQuery(stringValue) });
           }}
           title="Click to view full SQL"
         >

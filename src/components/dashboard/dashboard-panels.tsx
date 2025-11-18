@@ -259,7 +259,7 @@ const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
   }
 
   return (
-    <div style={gridStyle} className="w-full">
+    <div style={gridStyle} className="w-full h-full">
       <DashboardPanel
         descriptor={chart}
         selectedTimeSpan={selectedTimeSpan}

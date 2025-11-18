@@ -134,17 +134,17 @@ export function DashboardPanelLayout({
   };
 
   return (
-    <Card ref={componentRef} className={cn("@container/card rounded-sm relative overflow-hidden", className)} style={style}>
+    <Card ref={componentRef} className={cn("@container/card rounded-sm relative overflow-hidden h-full flex flex-col", className)} style={style}>
       <FloatingProgressBar show={isLoading} />
       {isCollapsible ? (
-        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed?.(!open)}>
+        <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed?.(!open)} className="flex flex-col h-full">
           {renderHeaderWithTitle(true)}
-          <CollapsibleContent>{children}</CollapsibleContent>
+          <CollapsibleContent className="flex-1 overflow-hidden">{children}</CollapsibleContent>
         </Collapsible>
       ) : (
         <>
           {renderHeaderWithTitle(false)}
-          {children}
+          <div className="flex-1 overflow-hidden">{children}</div>
         </>
       )}
     </Card>

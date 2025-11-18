@@ -418,9 +418,6 @@ LEFT JOIN
 ) AS B
 ON A.name = B.name
 ORDER BY 1, 2, 3`,
-              headers: {
-                "Content-Type": "text/plain",
-              },
             },
             sortOption: {
               initialSort: {
@@ -454,6 +451,9 @@ ORDER BY 1, 2, 3`,
                 sortable: true,
                 align: "left",
                 format: "percentage_bar",
+              },
+              query: {
+                format: "sql",
               },
             },
           } as TableDescriptor,

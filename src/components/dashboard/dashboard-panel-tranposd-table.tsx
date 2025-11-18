@@ -478,7 +478,7 @@ const DashboardPanelTransposedTable = forwardRef<DashboardPanelComponent, Dashbo
         titleOption={descriptor.titleOption}
         dropdownItems={dropdownItems}
       >
-        <CardContent className="px-0 pb-0 overflow-auto">
+        <CardContent className="px-0 pb-0 h-full overflow-auto">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-muted/50 select-none h-10">

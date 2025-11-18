@@ -1100,7 +1100,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
       >
         <CardContent
           ref={scrollContainerRef}
-          className={cn("px-0 p-0", !isStickyHeader && "overflow-auto", isStickyHeader && "overflow-auto")}
+          className={cn("px-0 p-0 h-full overflow-auto")}
           style={descriptor.height ? ({ maxHeight: `${descriptor.height}vh` } as React.CSSProperties) : undefined}
         >
           {isStickyHeader ? (
