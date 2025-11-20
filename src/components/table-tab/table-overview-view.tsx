@@ -198,7 +198,8 @@ WHERE database = '${database}' AND table = '${table}' AND active = 1
               {
                 type: "table",
                 titleOption: {
-                  title: "Cluster Size by Host",
+                  title: "Table Size On Cluster",
+                  align: "center",
                 },
                 query: {
                   sql: `

@@ -455,12 +455,12 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
           },
           brush: hasDrilldown()
             ? {
-                xAxisIndex: "all",
-                brushLink: "all",
-                outOfBrush: {
-                  colorAlpha: 0.1,
-                },
-              }
+              xAxisIndex: "all",
+              brushLink: "all",
+              outOfBrush: {
+                colorAlpha: 0.1,
+              },
+            }
             : undefined,
           tooltip: {
             trigger: "axis",
@@ -619,11 +619,11 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
         // Use multiple resize calls to handle cases where container size changes
         requestAnimationFrame(() => {
           if (chartInstanceRef.current) {
-            chartInstanceRef.current.resize();
+            chartInstanceRef.current.resize({ width: "auto", height: "auto" });
             // Second resize after a short delay to catch any layout changes
             setTimeout(() => {
               if (chartInstanceRef.current) {
-                chartInstanceRef.current.resize();
+                chartInstanceRef.current.resize({ width: "auto", height: "auto" });
               }
             }, 100);
           }
@@ -871,7 +871,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
       // Handle window resize
       const handleResize = () => {
         if (chartInstanceRef.current) {
-          chartInstanceRef.current.resize();
+          chartInstanceRef.current.resize({ width: "auto", height: "auto" });
         }
       };
       window.addEventListener("resize", handleResize);
@@ -882,7 +882,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
           // Use requestAnimationFrame to ensure DOM has updated
           requestAnimationFrame(() => {
             if (chartInstanceRef.current) {
-              chartInstanceRef.current.resize();
+              chartInstanceRef.current.resize({ width: "auto", height: "auto" });
             }
           });
         }
@@ -895,7 +895,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
       // Initial resize after a short delay to ensure container has final dimensions
       const initialResizeTimeout = setTimeout(() => {
         if (chartInstanceRef.current) {
-          chartInstanceRef.current.resize();
+          chartInstanceRef.current.resize({ width: "auto", height: "auto" });
         }
       }, 100);
 
@@ -924,11 +924,11 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
       const frameId1 = requestAnimationFrame(() => {
         frameId2 = requestAnimationFrame(() => {
           if (chartInstanceRef.current) {
-            chartInstanceRef.current.resize();
+            chartInstanceRef.current.resize({ width: "auto", height: "auto" });
             // Additional resize after a delay to catch any delayed layout changes
             timeoutId = setTimeout(() => {
               if (chartInstanceRef.current) {
-                chartInstanceRef.current.resize();
+                chartInstanceRef.current.resize({ width: "auto", height: "auto" });
               }
             }, 150);
           }
@@ -983,10 +983,10 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
         ...drilldownDescriptor,
         titleOption: drilldownDescriptor.titleOption
           ? {
-              ...drilldownDescriptor.titleOption,
-              showTitle: false, // Explicitly set to false to hide title
-              // Keep title and description for potential future use, but hide it
-            }
+            ...drilldownDescriptor.titleOption,
+            showTitle: false, // Explicitly set to false to hide title
+            // Keep title and description for potential future use, but hide it
+          }
           : undefined, // If no titleOption, keep it undefined
       };
 

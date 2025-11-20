@@ -323,9 +323,9 @@ ORDER BY shard, replica`,
       <PopoverTrigger asChild>
         <span
           className="cursor-pointer hover:underline"
-          onClick={() => {
-            // We don't stop propagation so the tree node gets selected,
-            // but we handle the popover opening.
+          onClick={(e) => {
+            // Stop propagation to prevent tree node click when opening popover
+            e.stopPropagation();
             setIsOpen(true);
           }}
         >
@@ -648,7 +648,7 @@ export function SchemaTreeView({ tabId }: SchemaTreeViewProps) {
   const [contextMenuNode, setContextMenuNode] = useState<TreeDataItem | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
-  const handleContextMenu = useCallback((node: TreeDataItem, event: React.MouseEvent) => {
+  const onTreeNodeContextMenu = useCallback((node: TreeDataItem, event: React.MouseEvent) => {
     const nodeData = node.data as SchemaNodeData | undefined;
     if (!nodeData) return;
 
@@ -992,7 +992,7 @@ ORDER BY lower(database), database, table, columnName`,
     };
   };
 
-  const handleNodeExpand = useCallback(
+  const onTreeNodeSelected = useCallback(
     (item: TreeDataItem | undefined) => {
       if (!item?.data) return;
 
@@ -1005,11 +1005,8 @@ ORDER BY lower(database), database, table, columnName`,
       // Tab changes from external sources won't sync to tree in search mode (handled by the active tab change listener)
       // If a host node is clicked, open the dashboard tab
       if (data.type === "host") {
-        // In cluster mode, we show the popover (handled by the component), so don't open the tab
-        if (!selectedConnection?.cluster) {
-          const hostData = data as HostNodeData;
-          TabManager.sendOpenServerTabRequest(hostData.host, tabId);
-        }
+        const hostData = data as HostNodeData;
+        TabManager.sendOpenServerTabRequest(hostData.host, tabId);
       }
       // If a database node is clicked, open the database tab
       else if (data.type === "database") {
@@ -1040,7 +1037,7 @@ ORDER BY lower(database), database, table, columnName`,
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
         <Input
           ref={searchInputRef}
-          placeholder="Filter database or table"
+          placeholder="Search databases/tables/columns"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-8 pr-20 rounded-none border-none flex-1 h-9"
@@ -1091,8 +1088,8 @@ ORDER BY lower(database), database, table, columnName`,
               data={treeData}
               search={search}
               selectedItemId={selectedNodeId}
-              onSelectChange={handleNodeExpand}
-              onNodeContextMenu={handleContextMenu}
+              onSelectChange={onTreeNodeSelected}
+              onNodeContextMenu={onTreeNodeContextMenu}
               folderIcon={Database}
               itemIcon={TableIcon}
               className="h-full"
