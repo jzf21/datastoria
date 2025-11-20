@@ -1,197 +1,146 @@
-import type { FieldOption, TableDescriptor, TransposeTableDescriptor } from "@/components/dashboard/dashboard-model";
-import type { DashboardPanelComponent } from "@/components/dashboard/dashboard-panel-layout";
-import DashboardPanelTable from "@/components/dashboard/dashboard-panel-table";
-import DashboardPanelTransposedTable from "@/components/dashboard/dashboard-panel-tranposd-table";
-import type { TimeSpan } from "@/components/dashboard/timespan-selector";
-import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
-import { StringUtils } from "@/lib/string-utils";
-import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import type { Dashboard, TableDescriptor, TransposeTableDescriptor } from "@/components/dashboard/dashboard-model";
+import DashboardPanels, { type DashboardPanelsRef } from "@/components/dashboard/dashboard-panels";
+import { BUILT_IN_TIME_SPAN_LIST, type TimeSpan } from "@/components/dashboard/timespan-selector";
+import { useConnection } from "@/lib/connection/ConnectionContext";
+import { forwardRef, memo, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
 
 export interface TableMetadataViewProps {
   database: string;
   table: string;
-  autoLoad?: boolean;
 }
 
-const TableDDLView = memo(function TableDDLView({
-  database,
-  table,
-  refreshTrigger,
-  autoLoad = false,
-}: TableMetadataViewProps & { refreshTrigger?: number; autoLoad?: boolean }) {
-  const tableComponentRef = useRef<DashboardPanelComponent>(null);
-  const isMountedRef = useRef(true);
-
-  // Create transposed table descriptor
-  const tableDescriptor = useMemo<TransposeTableDescriptor>(() => {
-    // Custom SQL renderer that renders SQL inline instead of using dialog
-    const sqlInlineRenderer: FieldOption["format"] = (value: unknown) => {
-      if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
-        return <span className="text-muted-foreground">-</span>;
-      }
-
-      const sqlString = String(value);
-      const formattedSql = StringUtils.prettyFormatQuery(sqlString);
-
-      return (
-        <div className="overflow-auto">
-          <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "12px", margin: 0, padding: 8 }}>
-            {formattedSql}
-          </ThemedSyntaxHighlighter>
-        </div>
-      );
-    };
-
-    const sql = `SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'`;
-
-    return {
-      type: "transpose-table",
-      id: `table-ddl-${database}-${table}`,
-      titleOption: {
-        title: "Table Metadata",
-        align: "left",
-      },
-      collapsed: false,
-      width: 100,
-      query: {
-        sql: sql,
-        headers: {
-          "Content-Type": "text/plain",
-        },
-        params: {
-          default_format: "JSON",
-        },
-      },
-      fieldOptions: {
-        create_table_query: { name: "create_table_query", format: sqlInlineRenderer },
-        as_select: { name: "as_select", format: sqlInlineRenderer },
-      },
-    };
-  }, [database, table]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    if (autoLoad || (refreshTrigger !== undefined && refreshTrigger > 0)) {
-      // Force refresh by passing a unique timestamp to bypass the parameter change check
-      const refreshParam = { inputFilter: `refresh_${Date.now()}_${refreshTrigger}` };
-      tableComponentRef.current?.refresh(refreshParam);
-    }
-
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [autoLoad, refreshTrigger]);
-
-  return <DashboardPanelTransposedTable ref={tableComponentRef} descriptor={tableDescriptor} />;
-});
-
-const TableStructureView = memo(function TableStructureView({
-  database,
-  table,
-  refreshTrigger,
-  autoLoad = false,
-}: TableMetadataViewProps & { refreshTrigger?: number; autoLoad?: boolean }) {
-  const tableComponentRef = useRef<DashboardPanelComponent>(null);
-  const isMountedRef = useRef(true);
-
-  // Create table descriptor
-  const tableDescriptor = useMemo<TableDescriptor>(() => {
-    const fullTableName = `${database}.${table}`;
-    const fieldOptions: Record<string, FieldOption> = {
-      name: {
-        title: "Name",
-        sortable: true,
-        align: "left",
-      },
-      type: {
-        title: "Type",
-        sortable: true,
-        align: "left",
-      },
-      default_type: {
-        title: "Default Type",
-        sortable: true,
-        align: "center",
-      },
-      default_expression: {
-        title: "Default Expression",
-        sortable: true,
-        align: "center",
-      },
-      comment: {
-        title: "Comment",
-        align: "left",
-      },
-      codec_expression: {
-        title: "Codec Expression",
-        sortable: true,
-        align: "center",
-      },
-      ttl_expression: {
-        title: "TTL Expression",
-        sortable: true,
-        align: "center",
-      },
-    };
-
-    const sql = `DESCRIBE TABLE ${fullTableName}`;
-
-    return {
-      type: "table",
-      id: `table-structure-${database}-${table}`,
-      titleOption: {
-        title: "Table Structure",
-        align: "left",
-      },
-      collapsed: false,
-      width: 100,
-      query: {
-        sql: sql,
-        headers: {
-          "Content-Type": "text/plain",
-        },
-        params: {
-          default_format: "JSON",
-        },
-      },
-      fieldOptions: fieldOptions,
-    };
-  }, [database, table]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    if (autoLoad || (refreshTrigger !== undefined && refreshTrigger > 0)) {
-      // Force refresh by passing a unique timestamp to bypass the parameter change check
-      const refreshParam = { inputFilter: `refresh_${Date.now()}_${refreshTrigger}` };
-      tableComponentRef.current?.refresh(refreshParam);
-    }
-
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [autoLoad, refreshTrigger]);
-
-  return <DashboardPanelTable ref={tableComponentRef} descriptor={tableDescriptor} />;
-});
-
 const TableMetadataViewComponent = forwardRef<RefreshableTabViewRef, TableMetadataViewProps>(
-  ({ database, table, autoLoad = false }, ref) => {
-    const [refreshTrigger, setRefreshTrigger] = useState(0);
+  ({ database, table }, ref) => {
+    const dashboardPanelsRef = useRef<DashboardPanelsRef>(null);
+    // Metadata doesn't really depend on time, but DashboardPanels requires a time span.
+    // We use a default one.
+    const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan>(() => BUILT_IN_TIME_SPAN_LIST[3].getTimeSpan());
+
+    const { selectedConnection } = useConnection();
 
     useImperativeHandle(ref, () => ({
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      refresh: (_timeSpan?: TimeSpan) => {
-        setRefreshTrigger((prev) => prev + 1);
+      refresh: (timeSpan?: TimeSpan) => {
+        if (timeSpan) {
+          setSelectedTimeSpan(timeSpan);
+        } else {
+          // Force refresh
+          dashboardPanelsRef.current?.refresh(selectedTimeSpan);
+        }
       },
     }));
 
-    return (
-      <div className="space-y-2">
-        <TableDDLView database={database} table={table} refreshTrigger={refreshTrigger} autoLoad={autoLoad} />
-        <TableStructureView database={database} table={table} refreshTrigger={refreshTrigger} autoLoad={autoLoad} />
-      </div>
-    );
+    const dashboard = useMemo<Dashboard>(() => {
+
+      const d: Dashboard = {
+        version: 2,
+        filter: {
+          showTimeSpanSelector: false,
+          showRefresh: false,
+          showAutoRefresh: false,
+        },
+        charts: [
+          {
+            type: "transpose-table",
+            id: `table-ddl-${database}-${table}`,
+            titleOption: {
+              title: "Table Metadata",
+              align: "center",
+            },
+            collapsed: false,
+            gridPos: {
+              w: 24,
+              h: 24
+            },
+            query: {
+              sql: `
+SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'
+`,
+              headers: {
+                "Content-Type": "text/plain",
+              },
+              params: {
+                default_format: "JSON",
+              },
+            },
+            fieldOptions: {
+              create_table_query: { name: "create_table_query", format: "inline_sql" },
+              as_select: { name: "as_select", format: "inline_sql" },
+            },
+          } as TransposeTableDescriptor,
+          {
+            type: "table",
+            titleOption: {
+              title: "Table Columns",
+              align: "center",
+            },
+            collapsed: true,
+            showIndexColumn: true,
+            gridPos: {
+              w: 24,
+              h: 12
+            },
+            query: {
+              sql: `DESCRIBE TABLE ${database}.${table}`,
+            },
+            fieldOptions: {
+              name: { title: "Name", sortable: true, align: "left" },
+              type: { title: "Type", sortable: true, align: "left" },
+              default_type: { title: "Default Type", sortable: true, align: "center" },
+              default_expression: { title: "Default Expression", sortable: true, align: "center" },
+              comment: { title: "Comment", align: "left" },
+              codec_expression: { title: "Codec Expression", sortable: true, align: "center" },
+              ttl_expression: { title: "TTL Expression", sortable: true, align: "center" },
+            },
+          } as TableDescriptor,
+        ],
+      } as Dashboard;
+
+      if (selectedConnection!.cluster.length > 0) {
+        d.charts.push({
+          type: "table",
+          titleOption: {
+            title: "Table Metadata On Cluster",
+            align: "center",
+          },
+          collapsed: true,
+          showIndexColumn: true,
+          gridPos: {
+            w: 24,
+            h: 12
+          },
+          sortOption: {
+            initialSort: {
+              column: "host",
+              direction: "asc",
+            },
+          },
+          fieldOptions: {
+            create_table_query: {
+              format: 'sql'
+            },
+            table_query_hash: {
+              format: (val) => val
+            },
+          },
+          query: {
+            sql: `
+SELECT
+  FQDN() as host, 
+  create_table_query, 
+  sipHash64(create_table_query) as table_query_hash,
+  metadata_modification_time
+FROM clusterAllReplicas('${selectedConnection!.cluster}', system.tables) WHERE database = '${database}' AND name = '${table}'
+ORDER BY host
+`,
+          },
+        } as TableDescriptor);
+      }
+
+      return d;
+    }, [database, table]);
+
+    return <DashboardPanels ref={dashboardPanelsRef} dashboard={dashboard} selectedTimeSpan={selectedTimeSpan} />;
   }
 );
 

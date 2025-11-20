@@ -9,11 +9,10 @@ import { Separator } from "@/components/ui/separator";
 import type { QueryContext } from "@/lib/query-context/QueryContext";
 import { QueryContextManager } from "@/lib/query-context/QueryContextManager";
 import { toastManager } from "@/lib/toast";
-import { ChevronDown, MoreVertical, Play } from "lucide-react";
+import { ChevronDown, Play } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { QueryExecutor } from "../query-execution/query-executor";
 import { getSelectedOrAllText } from "../query-input/query-input-view";
-import { showQueryContextEditDialog } from "./query-context-edit-dialog";
 
 export interface QueryControlProps {
   isExecuting?: boolean;
@@ -42,14 +41,6 @@ export function QueryControl({
     // Check for updates periodically (since QueryContextManager doesn't have events)
     const interval = setInterval(updateContext, 500);
     return () => clearInterval(interval);
-  }, []);
-
-  const handleOpenQueryContextDialog = useCallback(() => {
-    showQueryContextEditDialog({
-      onCancel: () => {
-        // Context will be updated via the useEffect listener
-      },
-    });
   }, []);
 
   const handleQuery = useCallback(() => {
@@ -134,7 +125,7 @@ export function QueryControl({
 
 
   return (
-    <div className="flex items-center gap-2 border-b bg-background px-4 py-2">
+    <div className="flex items-center gap-2 border-b bg-background px-2 py-2">
       <Button
         disabled={isExecuting}
         onClick={handleQuery}
@@ -145,16 +136,6 @@ export function QueryControl({
         <Play className="h-4 w-4" />
         {hasSelectedText ? "Query Selected (Cmd+Enter)" : "Query (Cmd+Enter)"}
       </Button>
-
-          <Button
-            disabled={isExecuting}
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 p-0"
-        onClick={handleOpenQueryContextDialog}
-          >
-            <MoreVertical className="h-4 w-4" />
-          </Button>
 
       <Separator orientation="vertical" className="h-6" />
 

@@ -159,7 +159,9 @@ export type FormatName =
   | "sql" // For SQL queries - shows truncated text with click-to-expand dialog
   | "map" // For Map types - shows Map(N entries) with click-to-expand table dialog
   | "complexType" // For complex types (Array, Tuple, JSON) - shows truncated JSON with click-to-expand dialog
-  | "truncatedText"; // For long text - shows truncated text with click-to-expand dialog, accepts truncation length via formatArgs
+  | "truncatedText"
+  | "inline_sql" // render the SQL in place
+  ; // For long text - shows truncated text with click-to-expand dialog, accepts truncation length via formatArgs
 
 // Formatter function interface - matches the signature used by Formatter class
 // Third parameter (context) is optional. For the formatter in a table, the context is the row object of a cell
@@ -415,6 +417,8 @@ export class Formatter {
       );
     };
 
+    this._formatters["inline_sql"] = (v) => this.inlineSqlFormat(v);
+
     // deprecated
     this._formatters["nanoFormatter"] = (v) => this.nanoFormat(v, 2);
   }
@@ -503,5 +507,22 @@ export class Formatter {
     }
 
     return val.formatWithNoTrailingZeros(fractionDigits) + units[index];
+  }
+
+  inlineSqlFormat(sql: string): React.ReactNode {
+    if (sql === null || sql === undefined || (typeof sql === "string" && sql.trim() === "")) {
+      return <span className="text-muted-foreground">-</span>;
+    }
+
+    const sqlString = String(sql);
+    const formattedSql = StringUtils.prettyFormatQuery(sqlString);
+
+    return (
+      <div className="overflow-auto">
+        <ThemedSyntaxHighlighter language="sql" customStyle={{ fontSize: "12px", margin: 0, padding: 8 }}>
+          {formattedSql}
+        </ThemedSyntaxHighlighter>
+      </div>
+    );
   }
 }
