@@ -132,7 +132,19 @@ const renderTooltip = (
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardContent side={side} align={align} className={className} onClick={onClick}>
+      <HoverCardContent 
+        side={side} 
+        align={align} 
+        className={className} 
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick?.(e);
+        }}
+        onMouseDown={(e) => {
+          // Prevent mousedown from bubbling to prevent selection
+          e.stopPropagation();
+        }}
+      >
         {tooltipContent}
       </HoverCardContent>
     </HoverCard>
@@ -680,9 +692,7 @@ const Tree = React.forwardRef<TreeRef, TreeProps>(
             if (node.nodeTooltip) {
               return (
                 <React.Fragment key={node.id}>
-                  {renderTooltip(rowContent, node.nodeTooltip, {
-                    onClick: (e) => e.stopPropagation(),
-                  })}
+                  {renderTooltip(rowContent, node.nodeTooltip)}
                 </React.Fragment>
               );
             }
