@@ -74,6 +74,8 @@ export function SchemaTreeView({
         setCompleteTree(result.completeTree);
         setError(null);
         onStatusChange?.("ready");
+
+        TabManager.activateQueryTab();
         
         // Auto-open Server Dashboard if we have a host node
         if (!hasOpenedServerTabRef.current && result.treeData.length > 0) {
