@@ -69,7 +69,7 @@ export function transformQueryLogsToTree(queryLogs: any[]): {
 
     queryLogs.forEach((log) => {
         console.log(log);
-        const startTime = log.query_start_time || 0;
+        const startTime = log.start_time_microseconds || 0;
         const duration = (log.query_duration_ms || 0) * 1000; // Convert ms to microseconds
 
         // Update min/max timestamps

@@ -194,7 +194,7 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
     }
 
     // Start Time from query_start_time_microseconds
-    const startTime = selectedQueryLog.query_start_time_microseconds;
+    const startTime = selectedQueryLog.start_time_microseconds;
     if (startTime !== undefined && startTime !== null) {
       data.push(["Start Time", String(startTime)]);
     }

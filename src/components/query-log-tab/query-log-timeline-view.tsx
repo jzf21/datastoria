@@ -9,6 +9,7 @@ import { QueryLogDetailPane } from "./query-log-detail-pane";
 import QueryLogTimelineRow from "./query-log-timeline-row";
 import { calculateTooltipPosition, QueryLogTimelineTooltip } from "./query-log-timeline-tooltip";
 import type { QueryLogTreeNode, TimelineStats } from "./query-log-timeline-types";
+import { cn } from "@/lib/utils";
 
 interface QueryLogTimelineViewProps {
     inputNodeTree: QueryLogTreeNode[];
@@ -562,7 +563,9 @@ const QueryLogTimelineView = React.memo(
                     <Panel defaultSize={selectedQueryLog ? 70 : 100} minSize={30}>
                         <div
                             ref={containerRef}
-                            className="w-full h-full overflow-auto rounded-sm border-t border-l border-r"
+                            className={cn("w-full h-full overflow-auto rounded-sm border-t border-l",
+                                selectedQueryLog ? "rounded-r-none" : "border-r"
+                            )}
                             onMouseEnter={handleViewMouseEnter}
                             onMouseLeave={handleViewMouseLeave}
                         >
@@ -662,7 +665,7 @@ const QueryLogTimelineView = React.memo(
                     </Panel>
                     {selectedQueryLog && (
                         <>
-                            <PanelResizeHandle className="w-0.5 h-full cursor-col-resize bg-border hover:bg-border/80 transition-colors" />
+                            <PanelResizeHandle className="w-[1px] h-full cursor-col-resize bg-border hover:bg-border/80 transition-colors" />
                             <Panel defaultSize={30} minSize={20} className="border-t border-r rounded-r-sm">
                                 <QueryLogDetailPane
                                     selectedQueryLog={selectedQueryLog}

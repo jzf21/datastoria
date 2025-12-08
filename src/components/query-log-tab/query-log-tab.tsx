@@ -266,7 +266,8 @@ export function QueryLogTab({
 
       const response = await api.executeAsync({
         // Sort the result properly so that the finish event will overwrite the start event in the later event processing
-        sql: `SELECT FQDN() as host, toUnixTimestamp64Micro(query_start_time_microseconds) as query_start_time, * 
+        sql: `SELECT FQDN() as host, toUnixTimestamp64Micro(query_start_time_microseconds) as start_time_microseconds, 
+          * 
           FROM ${queryTable} 
           WHERE ${whereClause}`,
         params: {

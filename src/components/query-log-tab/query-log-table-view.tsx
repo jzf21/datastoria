@@ -15,7 +15,7 @@ export function QueryLogTableView({ queryLogs, meta }: QueryLogTableViewProps) {
         return [
             // Event Time, internal column
             {
-                name: "query_start_time",
+                name: "start_time_microseconds",
                 position: -1
             },
             // is
@@ -119,7 +119,7 @@ export function QueryLogTableView({ queryLogs, meta }: QueryLogTableViewProps) {
     const detailedFieldOptions: FieldOption[] = useMemo(() => {
         const options: FieldOption[] = [
             { name: "host" },
-            { name: "query_start_time_microseconds", align: "center" },
+            { name: "start_time_microseconds", align: "center" },
             { name: "written_rows", align: "center", format: "comma_number" },
             { name: "written_bytes", align: "center", format: "binary_size" },
             { name: "read_rows", align: "center", format: "comma_number" },
@@ -167,7 +167,7 @@ export function QueryLogTableView({ queryLogs, meta }: QueryLogTableViewProps) {
                     data={detailedTableData}
                     meta={detailedMeta}
                     fieldOptions={detailedFieldOptions}
-                    defaultSort={{ column: "query_start_time_microseconds", direction: "desc" }}
+                    defaultSort={{ column: "start_time_microseconds", direction: "desc" }}
                 />
             </CollapsibleSection>
 
