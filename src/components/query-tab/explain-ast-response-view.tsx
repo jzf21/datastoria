@@ -214,7 +214,7 @@ const ExplainASTResponseViewComponent = ({ queryRequest: _queryRequest, queryRes
       )}
       {textModeResult && (
         <TabsContent value="text" className="overflow-auto">
-          <pre className="whitespace-pre-wrap">{textModeResult}</pre>
+          <pre className="whitespace-pre-wrap text-xs">{textModeResult}</pre>
         </TabsContent>
       )}
     </Tabs>

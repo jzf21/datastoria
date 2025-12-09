@@ -95,7 +95,7 @@ export function QueryListView({ tabId, onExecutionStateChange }: QueryListViewPr
         // For explain queries, hide the request by default
         // For regular queries, hide if formatter is provided (for formatted queries)
         const showRequest = isExplainQuery
-          ? "hide"
+          ? "show"
           : options?.formatter
             ? "hide"
             : "show";

@@ -388,14 +388,14 @@ function ExplainPipeLineTextView({ sql, isActive }: ExplainPipeLineTextViewProps
   if (loadError) {
     return (
       <div className="text-sm text-destructive p-4">
-        <pre className="whitespace-pre-wrap">{loadError.errorMessage}</pre>
+        <pre className="whitespace-pre-wrap text-xs">{loadError.errorMessage}</pre>
       </div>
     );
   }
 
   if (result) {
     return (
-      <pre className="overflow-x-auto whitespace-pre-wrap" style={{ overflowX: "auto" }}>
+      <pre className="overflow-x-auto whitespace-pre-wrap text-xs" style={{ overflowX: "auto" }}>
         {result}
       </pre>
     );
@@ -455,7 +455,7 @@ const ExplainPipelineResponseViewComponent = ({ queryRequest, queryResponse }: Q
   }
 
   return (
-    <Tabs value={selectedSubView} onValueChange={setSelectedSubView} className="mt-2">
+    <Tabs value={selectedSubView} onValueChange={setSelectedSubView} className="my-2">
       <TabsList>
         {graphModeResult && <TabsTrigger value="compactGraph">Compact Graph</TabsTrigger>}
         <TabsTrigger value="completeGraph">Complete Graph</TabsTrigger>

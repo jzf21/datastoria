@@ -1,5 +1,6 @@
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AnsiText, containsAnsiCodes } from "@/lib/ansi-parser";
 import { parseErrorLocation, type ErrorLocation } from "@/lib/clickhouse-error-parser";
 import { AlertCircleIcon } from "lucide-react";
 import { memo, useMemo, useState } from "react";
@@ -139,10 +140,10 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
       queryResponse.errorMessage === null
         ? undefined
         : {
-          errorMessage: queryResponse.errorMessage as string,
-          data: queryResponse.data,
-          httpHeaders: queryResponse.httpHeaders,
-        },
+            errorMessage: queryResponse.errorMessage as string,
+            data: queryResponse.data,
+            httpHeaders: queryResponse.httpHeaders,
+          },
     [queryResponse.errorMessage, queryResponse.data, queryResponse.httpHeaders]
   );
 
@@ -159,6 +160,9 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
     [queryResponse.formatter, responseText]
   );
 
+  // Check if response contains ANSI color codes
+  const hasAnsiCodes = useMemo(() => containsAnsiCodes(rawQueryResponse), [rawQueryResponse]);
+
   // Memoize response rendering
   const renderResponse = useMemo(() => {
     if (rawQueryResponse.length === 0) {
@@ -167,6 +171,11 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
           Query was executed successfully. No data is returned to show.
         </div>
       );
+    }
+
+    // If response contains ANSI codes, render with ANSI parser
+    if (hasAnsiCodes) {
+      return <AnsiText>{rawQueryResponse}</AnsiText>;
     }
 
     if (queryResponse.displayFormat === "sql") {
@@ -179,10 +188,9 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
           {rawQueryResponse}
         </ThemedSyntaxHighlighter>
       );
-    } else {
-      return <pre className="text-xs">{rawQueryResponse}</pre>;
     }
-  }, [rawQueryResponse, queryResponse.displayFormat]);
+    return <pre className="text-xs">{rawQueryResponse}</pre>;
+  }, [rawQueryResponse, queryResponse.displayFormat, hasAnsiCodes]);
 
   if (isLoading) {
     return (

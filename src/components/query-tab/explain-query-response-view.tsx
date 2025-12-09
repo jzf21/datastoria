@@ -7,8 +7,8 @@ const ExplainQueryResponseViewComponent = ({ queryRequest: _queryRequest, queryR
     typeof queryResponse.data === "string" ? queryResponse.data : JSON.stringify(queryResponse.data, null, 4);
 
   return (
-    <div className="mt-2 overflow-x-scroll w-full h-full whitespace-nowrap">
-      <pre className="overflow-x-auto">{text}</pre>
+    <div className="my-2 overflow-x-scroll w-full h-full whitespace-nowrap">
+      <pre className="overflow-x-auto text-xs">{text}</pre>
     </div>
   );
 };

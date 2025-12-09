@@ -58,8 +58,7 @@ export function QueryControl({
     // Build params from query context
     const params: Record<string, unknown> = {
       default_format: "PrettyCompactMonoBlock",
-      output_format_pretty_color: 0,
-      output_format_pretty_max_value_width: 50000,
+      //output_format_pretty_max_value_width: 50000,
       output_format_pretty_max_rows: queryContext.output_format_pretty_max_rows || 500,
       output_format_pretty_row_numbers: queryContext.output_format_pretty_row_numbers !== false,
     };
@@ -112,7 +111,6 @@ export function QueryControl({
 
       const params: Record<string, unknown> = {
         default_format: type === "estimate" ? "PrettyCompactMonoBlock" : "TabSeparatedRaw",
-        output_format_pretty_color: 0,
       };
 
       QueryExecutor.sendQueryRequest(sql, {
