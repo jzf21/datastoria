@@ -25,7 +25,47 @@ type ExtendedEditor = {
 
 let globalEditor: ExtendedEditor | undefined;
 
-export function QueryInputView() {
+interface QueryInputViewProps {
+  initialQuery?: string;
+  initialMode?: "replace" | "insert";
+}
+
+// Logic to apply query to editor
+const applyQueryToEditor = (editor: Ace.Editor, query: string, mode: "replace" | "insert") => {
+  const session = editor.getSession();
+
+  if (mode === "replace") {
+    // Replace all text
+    editor.setValue(query);
+    // Clear selection and move cursor to end
+    editor.clearSelection();
+    const lines = session.getLength();
+    if (lines > 0) {
+      const lastLine = session.getLine(lines - 1);
+      editor.moveCursorTo(lines - 1, lastLine.length);
+    }
+  } else if (mode === "insert") {
+    // Insert at the beginning (index 0)
+    const currentValue = editor.getValue();
+    const newValue = currentValue ? `${query}\n\n${currentValue}` : query;
+    editor.setValue(newValue);
+
+    // Select the inserted text
+    // Calculate how many lines the query has
+    const queryLines = query.split('\n').length;
+    editor.selection.setRange({
+      start: { row: 0, column: 0 },
+      end: { row: queryLines - 1, column: query.split('\n')[queryLines - 1].length }
+    });
+
+    // Focus the editor
+    editor.focus();
+  }
+  // Save to localStorage
+  QueryInputLocalStorage.saveInput(editor.getValue());
+};
+
+export function QueryInputView({ initialQuery, initialMode = "replace" }: QueryInputViewProps) {
   const { selectedConnection } = useConnection();
 
   // Listen for query tab activation events with query data
@@ -35,37 +75,7 @@ export function QueryInputView() {
         const { query, mode = "replace" } = event.detail;
 
         if (globalEditor) {
-          const session = globalEditor.getSession();
-
-          if (mode === "replace") {
-            // Replace all text
-            globalEditor.setValue(query);
-            // Clear selection and move cursor to end
-            globalEditor.clearSelection();
-            const lines = session.getLength();
-            if (lines > 0) {
-              const lastLine = session.getLine(lines - 1);
-              globalEditor.moveCursorTo(lines - 1, lastLine.length);
-            }
-          } else if (mode === "insert") {
-            // Insert at the beginning (index 0)
-            const currentValue = globalEditor.getValue();
-            const newValue = currentValue ? `${query}\n\n${currentValue}` : query;
-            globalEditor.setValue(newValue);
-
-            // Select the inserted text
-            // Calculate how many lines the query has
-            const queryLines = query.split('\n').length;
-            globalEditor.selection.setRange({
-              start: { row: 0, column: 0 },
-              end: { row: queryLines - 1, column: query.split('\n')[queryLines - 1].length }
-            });
-
-            // Focus the editor
-            globalEditor.focus();
-          }
-          // Save to localStorage
-          QueryInputLocalStorage.saveInput(globalEditor.getValue());
+          applyQueryToEditor(globalEditor, query, mode);
         }
       }
     };
@@ -189,6 +199,11 @@ export function QueryInputView() {
       editor.moveCursorTo(0, 0);
     }
 
+    // Apply initial query if present
+    if (initialQuery) {
+      applyQueryToEditor(editor, initialQuery, initialMode);
+    }
+
     // Update command
     editor.commands.addCommand({
       name: "run",
@@ -211,7 +226,7 @@ export function QueryInputView() {
 
     globalEditor = extendedEditor;
     editorRef.current = extendedEditor;
-  }, []);
+  }, [initialQuery, initialMode]);
 
   // Update editor theme when it changes
   useEffect(() => {

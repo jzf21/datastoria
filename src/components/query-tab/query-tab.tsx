@@ -8,9 +8,12 @@ import { QueryInputView } from "./query-input/query-input-view";
 
 export interface QueryTabProps {
   tabId?: string;
+  initialQuery?: string;
+  initialMode?: "replace" | "insert";
 }
 
-const QueryTabComponent = ({ tabId }: QueryTabProps) => {
+
+const QueryTabComponent = ({ tabId, initialQuery, initialMode }: QueryTabProps) => {
   const hasSelectedText = useHasSelectedText();
   const [isExecuting, setIsExecuting] = useState(false);
   const resultPanelRef = useRef<ImperativePanelHandle>(null);
@@ -56,7 +59,10 @@ const QueryTabComponent = ({ tabId }: QueryTabProps) => {
       <Panel defaultSize={100} minSize={20} className="bg-background flex flex-col">
         <QueryControl isExecuting={isExecuting} hasSelectedText={hasSelectedText} />
         <div className="flex-1 overflow-hidden">
-          <QueryInputView />
+          <QueryInputView
+            initialQuery={initialQuery}
+            initialMode={initialMode}
+          />
         </div>
       </Panel>
     </PanelGroup>

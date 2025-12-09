@@ -31,11 +31,17 @@ export function showQueryDialog(query: SQLQuery | undefined, title?: string): vo
         default: false,
         variant: "outline",
         onClick: async () => {
+          let sql = query.sql.trim();
+          if (title) {
+            sql = `-- ${title}\n${sql}`;
+          }
+
           // Activate the query tab and set the SQL query
           TabManager.activateQueryTab({
-            query: query.sql,
+            query: sql,
             mode: "insert",
           });
+
           // Return true to close the dialog
           return true;
         },

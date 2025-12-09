@@ -11,6 +11,8 @@ export interface BaseTabInfo {
 
 export interface QueryTabInfo extends BaseTabInfo {
   type: "query";
+  initialQuery?: string;
+  initialMode?: "replace" | "insert";
 }
 
 export interface TableTabInfo extends BaseTabInfo {
@@ -139,7 +141,7 @@ export class TabManager {
    */
   static activateQueryTab(options?: { query?: string; mode?: "replace" | "insert" }): void {
     const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
-      detail: { 
+      detail: {
         type: "query",
         query: options?.query,
         mode: options?.mode,

@@ -22,7 +22,7 @@ export function MainPage() {
   const [pendingTabId, setPendingTabId] = useState<string | null>(null);
   const previousConnectionRef = useRef<string | null>(null);
   const previousConnectionKeyRef = useRef<string | null>(null);
-  
+
   // State for global initialization status (driven by SchemaTreeView)
   const [initStatus, setInitStatus] = useState<AppInitStatus>("initializing");
   const [initError, setInitError] = useState<string | null>(null);
@@ -52,7 +52,12 @@ export function MainPage() {
       switch (type) {
         case "query":
           tabId = "query";
-          newTab = { id: "query", type: "query" };
+          newTab = {
+            id: "query",
+            type: "query",
+            initialQuery: event.detail.query,
+            initialMode: event.detail.mode,
+          };
           break;
         case "table":
           if (!database || !table) return;
@@ -281,7 +286,10 @@ export function MainPage() {
             role="tabpanel"
             aria-hidden={activeTab !== tab.id}
           >
-            <QueryTab />
+            <QueryTab
+              initialQuery={tab.initialQuery}
+              initialMode={tab.initialMode}
+            />
           </div>
         );
       }
@@ -359,7 +367,7 @@ export function MainPage() {
       <PanelGroup direction="horizontal" className="h-full w-full min-w-0">
         {/* Left Panel: Schema Tree View */}
         <Panel defaultSize={20} minSize={10} className="border-r bg-background">
-          <SchemaTreeView 
+          <SchemaTreeView
             onStatusChange={handleStatusChange}
           />
         </Panel>
@@ -384,8 +392,8 @@ export function MainPage() {
             <div className="flex-1 overflow-hidden relative">
               {/* Show Smart Empty State when no tabs exist */}
               {tabs.length === 0 && (
-                <MainPageEmptyState 
-                  status={initStatus} 
+                <MainPageEmptyState
+                  status={initStatus}
                   error={initError}
                   onRetry={() => window.location.reload()}
                 />
