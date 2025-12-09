@@ -4,13 +4,13 @@ import type { ApiErrorResponse } from "@/lib/api";
 import { Api } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { format } from "date-fns";
-import { ChevronDown, ChevronUp, ExternalLink, Loader2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { TabManager } from "../tab-manager";
 import { ExplainASTResponseView } from "./explain-ast-response-view";
 import { ExplainPipelineResponseView } from "./explain-pipeline-response-view";
 import { ExplainQueryResponseView } from "./explain-query-response-view";
 import { ExplainSyntaxResponseView } from "./explain-syntax-response-view";
+import { OpenQueryLogTabButton } from "./open-query-log-tab-button";
 import { QueryExecutionTimer } from "./query-execution-timer";
 import { QueryRequestView } from "./query-request-view";
 import { ApiErrorView, QueryResponseView, type ApiErrorResponse as QueryApiErrorResponse } from "./query-response-view";
@@ -308,17 +308,10 @@ export function QueryListItemView({
       {/* Query Status */}
       <div ref={scrollPlaceholderRef} className="flex flex-col mt-1">
         {queryResponse && (queryResponse.queryId || queryRequest.queryId) && (
-          <div className="text-xs text-muted-foreground">
-            Query Id:{" "}
-            <button
-              onClick={() => TabManager.openQueryLogTab(queryResponse.queryId || queryRequest.queryId)}
-              className="text-primary hover:underline cursor-pointer inline-flex items-center gap-1"
-            >
-              {queryResponse.queryId || queryRequest.queryId}
-              <ExternalLink className="h-3 w-3" />
-            </button>
-            {queryRequest.traceId && `, Trace Id: ${queryRequest.traceId}`}
-          </div>
+          <OpenQueryLogTabButton
+            queryId={queryResponse.queryId || queryRequest.queryId}
+            traceId={queryRequest.traceId}
+          />
         )}
         {/* <div className="text-xs text-muted-foreground">Request Server: {queryRequest.requestServer}</div> */}
         {queryResponse?.httpHeaders?.["x-clickhouse-server-display-name"] && (

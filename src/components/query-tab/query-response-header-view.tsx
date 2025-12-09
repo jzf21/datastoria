@@ -1,3 +1,5 @@
+import { OpenQueryLogTabButton } from "./open-query-log-tab-button";
+
 interface QueryResponseHeaderViewProps {
   headers: Record<string, string>;
 }
@@ -19,7 +21,13 @@ export function QueryResponseHeaderView({ headers }: QueryResponseHeaderViewProp
         {Object.entries(headers).map(([key, value], index) => (
           <tr key={index} className="border-b">
             <td className="p-2 whitespace-nowrap">{key}</td>
-            <td className="p-2">{String(value)}</td>
+            <td className="p-2">
+              {key === "x-clickhouse-query-id" ? (
+                <OpenQueryLogTabButton queryId={String(value)} showLabel={false} />
+              ) : (
+                String(value)
+              )}
+            </td>
           </tr>
         ))}
       </tbody>

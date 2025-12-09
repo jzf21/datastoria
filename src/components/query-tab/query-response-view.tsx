@@ -139,10 +139,10 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
       queryResponse.errorMessage === null
         ? undefined
         : {
-            errorMessage: queryResponse.errorMessage as string,
-            data: queryResponse.data,
-            httpHeaders: queryResponse.httpHeaders,
-          },
+          errorMessage: queryResponse.errorMessage as string,
+          data: queryResponse.data,
+          httpHeaders: queryResponse.httpHeaders,
+        },
     [queryResponse.errorMessage, queryResponse.data, queryResponse.httpHeaders]
   );
 
@@ -180,7 +180,7 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
         </ThemedSyntaxHighlighter>
       );
     } else {
-      return <pre className="text-sm">{rawQueryResponse}</pre>;
+      return <pre className="text-xs">{rawQueryResponse}</pre>;
     }
   }, [rawQueryResponse, queryResponse.displayFormat]);
 
@@ -198,14 +198,14 @@ export function QueryResponseView({ queryResponse, isLoading = false, sql }: Que
         <TabsList className="inline-flex min-w-full justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
           <TabsTrigger
             value="result"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            className="rounded-none text-xs border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
             Result
           </TabsTrigger>
           {queryResponse.httpHeaders && (
             <TabsTrigger
               value="headers"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              className="rounded-none text-xs border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
             >
               Response Headers
             </TabsTrigger>

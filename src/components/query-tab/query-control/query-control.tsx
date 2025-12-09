@@ -125,19 +125,19 @@ export function QueryControl({
 
 
   return (
-    <div className="flex items-center gap-2 border-b bg-background px-2 py-2">
+    <div className="flex h-8 w-full gap-2 rounded-sm items-center border-b px-2 text-xs transition-colors">
       <Button
         disabled={isExecuting}
         onClick={handleQuery}
         size="sm"
         variant="ghost"
-        className="gap-2"
+        className="h-6 gap-1 px-2 text-xs"
       >
-        <Play className="h-4 w-4" />
-        {hasSelectedText ? "Query Selected (Cmd+Enter)" : "Query (Cmd+Enter)"}
+        <Play className="h-3 w-3" />
+        {hasSelectedText ? "Run Selected (Cmd+Enter)" : "Run (Cmd+Enter)"}
       </Button>
 
-      <Separator orientation="vertical" className="h-6" />
+      <Separator orientation="vertical" className="h-4" />
 
       <DropdownMenu open={isExplainOpen} onOpenChange={setIsExplainOpen}>
         <DropdownMenuTrigger asChild>
@@ -145,10 +145,10 @@ export function QueryControl({
             disabled={isExecuting}
             size="sm"
             variant="ghost"
-            className="gap-2"
+            className="h-6 gap-1 px-2 text-xs"
           >
             {hasSelectedText ? "Explain Selected" : "Explain"}
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-3 w-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
