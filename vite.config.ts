@@ -42,10 +42,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Force all packages to use the same React instance
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
     },
+    dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    include: ['@mui/material', '@emotion/react', '@emotion/styled', 'sql-formatter', 'number-flow'],
+    include: ['@mui/material', '@emotion/react', '@emotion/styled', 'sql-formatter'],
+    exclude: ['cmdk', 'number-flow'], // Exclude local packages to always use fresh builds
   },
   build: {
     commonjsOptions: {

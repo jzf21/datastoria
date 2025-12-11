@@ -1,365 +1,149 @@
 import { ConnectionWizard } from "@/components/connection/connection-wizard";
-import { DatabaseTab } from "@/components/database-tab/database-tab";
-import { DependencyView } from "@/components/dependency-view/dependency-view";
-import type { AppInitStatus } from "@/components/main-page-empty-state";
-import { MainPageEmptyState } from "@/components/main-page-empty-state";
-import { NodeTab } from "@/components/node-tab/node-tab";
-import { QueryLogTab } from "@/components/query-log-tab/query-log-tab";
-import { QueryTab } from "@/components/query-tab/query-tab";
+import { SchemaTreeLoader, type SchemaLoadResult } from "@/components/schema/schema-tree-loader";
 import { SchemaTreeView } from "@/components/schema/schema-tree-view";
-import { TabManager, type TabInfo } from "@/components/tab-manager";
-import { TableTab } from "@/components/table-tab/table-tab";
-import { Tabs } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Api } from "@/lib/api";
+import type { Connection } from "@/lib/connection/Connection";
 import { useConnection } from "@/lib/connection/ConnectionContext";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Loader2, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { MainPageTabList } from "./main-page-tab-list";
 
+export type AppInitStatus = "initializing" | "ready" | "error";
+
+interface MainPageLoadStatusComponentProps {
+  status: AppInitStatus;
+  error?: string | null;
+  onRetry?: () => void;
+}
+
+// Component for Initializing or Error states (covers the whole page)
+function MainPageLoadStatusComponent({ status, error, onRetry }: MainPageLoadStatusComponentProps) {
+  if (status === "initializing") {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in fade-in duration-500">
+        <div className="bg-background p-4 rounded-full shadow-sm border mb-6">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        </div>
+        <h3 className="text-lg font-medium mb-2">Connecting to Database...</h3>
+        <p className="text-muted-foreground text-sm">Loading schema and verifying connection</p>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in slide-in-from-bottom-4 duration-300">
+        <div className="bg-destructive/10 p-4 rounded-full mb-6">
+          <AlertCircle className="h-10 w-10 text-destructive" />
+        </div>
+        <h3 className="text-lg font-medium mb-2">Connection Failed</h3>
+        <p className="text-muted-foreground max-w-md mb-8 text-sm whitespace-pre-wrap">
+          {error || "Unable to establish a connection to the server."}
+        </p>
+        <div className="flex gap-3 mt-4">
+          {onRetry && (
+            <Button onClick={onRetry} variant="outline" className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Retry Connection
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+async function initializeClusterInfo(conn: Connection) {
+  if (conn.cluster.length > 0 && conn.runtime?.targetNode === undefined) {
+    // for cluster mode, pick a node as target node for further SQL execution
+    const api = Api.create(conn!);
+    const { response } = api.executeAsync("SELECT currentUser()", { default_format: "JSONCompact" });
+    const apiResponse = await response;
+    if (apiResponse.httpStatus === 200) {
+      const returnServer = apiResponse.httpHeaders["x-clickhouse-server-display-name"];
+      conn.runtime!.targetNode = returnServer;
+
+      conn.runtime!.internalUser = apiResponse.data.data[0][0];
+    }
+  }
+
+  return conn;
+}
+
 export function MainPage() {
   const { selectedConnection, hasAnyConnections } = useConnection();
-  const [activeTab, setActiveTab] = useState<string>("");
-  const [tabs, setTabs] = useState<TabInfo[]>([]);
-  const [pendingTabId, setPendingTabId] = useState<string | null>(null);
-  const previousConnectionRef = useRef<string | null>(null);
-  const previousConnectionKeyRef = useRef<string | null>(null);
 
   // State for global initialization status (driven by SchemaTreeView)
   const [initStatus, setInitStatus] = useState<AppInitStatus>("initializing");
   const [initError, setInitError] = useState<string | null>(null);
+  const [loadedSchemaData, setLoadedSchemaData] = useState<SchemaLoadResult | null>(null);
+  const [schemaLoaded, setSchemaLoaded] = useState(false);
 
-  // Memoize the status change callback to prevent unnecessary re-renders
-  const handleStatusChange = useCallback((status: AppInitStatus, error?: string) => {
-    setInitStatus(status);
-    setInitError(error || null);
-  }, []);
-
-  // Reset when connection is removed
+  // Main Loading Effect
   useEffect(() => {
     if (!selectedConnection) {
       setInitStatus("ready");
-      setTabs([]);
-      setActiveTab("");
+      setLoadedSchemaData(null);
+      return;
     }
-  }, [selectedConnection]);
 
-  // Handle open tab events (unified handler)
-  useEffect(() => {
-    const handler = (event: CustomEvent<import("@/components/tab-manager").OpenTabEventDetail>) => {
-      const { type, database, table, engine, host } = event.detail;
-      let tabId: string;
-      let newTab: TabInfo | null = null;
+    let isMounted = true;
+    const schemaLoader = new SchemaTreeLoader();
 
-      switch (type) {
-        case "query":
-          tabId = "query";
-          newTab = {
-            id: "query",
-            type: "query",
-            initialQuery: event.detail.query,
-            initialMode: event.detail.mode,
-          };
-          break;
-        case "table":
-          if (!database || !table) return;
-          tabId = `table:${database}.${table}`;
-          newTab = { id: tabId, type: "table", database, table, engine };
-          break;
-        case "dependency":
-          if (!database) return;
-          tabId = `dependency:${database}`;
-          newTab = { id: tabId, type: "dependency", database };
-          break;
-        case "database":
-          if (!database) return;
-          tabId = `database:${database}`;
-          newTab = { id: tabId, type: "database", database };
-          break;
-        case "node":
-          if (!host) return;
-          tabId = `dashboard:${host}`;
-          newTab = { id: tabId, type: "dashboard", host };
-          break;
-        case "query-log":
-          tabId = event.detail.queryId ? `Query Log: ${event.detail.queryId}` : "query-log";
-          newTab = { id: tabId, type: "query-log", queryId: event.detail.queryId, eventDate: event.detail.eventDate };
-          break;
-        default:
-          return;
-      }
+    const load = async () => {
+      setInitStatus("initializing");
+      setInitError(null);
 
-      if (!newTab) return;
+      try {
+        // 1. Ensure runtime is initialized
+        await initializeClusterInfo(selectedConnection);
 
-      // Update tabs and active tab in a single batch
-      setTabs((prevTabs) => {
-        const exists = prevTabs.some((t) => t.id === tabId);
+        // 2. Load Schema data
+        const result = await schemaLoader.load(selectedConnection);
 
-        if (!exists) {
-          // Set pending tab ID to activate after state update
-          setPendingTabId(tabId);
-          return [...prevTabs, newTab!];
+        if (isMounted) {
+          setLoadedSchemaData(result);
+          setInitStatus("ready");
+          setSchemaLoaded(true);
         }
-        // Tab already exists, activate it immediately
-        setActiveTab(tabId);
-        return prevTabs;
-      });
+      } catch (err) {
+        if (isMounted) {
+          setInitStatus("error");
+          setInitError(err instanceof Error ? err.message : String(err));
+        }
+      }
     };
 
-    const unsubscribe = TabManager.onOpenTab(handler);
-    return unsubscribe;
-  }, []);
+    load();
 
-  // Activate pending tab after it's added to the list
-  useEffect(() => {
-    if (pendingTabId && tabs.some((t) => t.id === pendingTabId)) {
-      setActiveTab(pendingTabId);
-      setPendingTabId(null);
-    }
-  }, [pendingTabId, tabs]);
-
-  // Emit active tab change events
-  useEffect(() => {
-    if (activeTab) {
-      const tabInfo = tabs.find((t) => t.id === activeTab) || null;
-      TabManager.sendActiveTabChange(activeTab, tabInfo);
-    }
-  }, [activeTab, tabs]);
-
-  // Helper function to get the next tab ID, or previous if no next exists
-  const getNextOrPreviousTabId = useCallback((tabId: string, tabsList: TabInfo[]) => {
-    // Tabs are in insertion order, so we just use them as-is
-    const allTabIds = tabsList.map((t) => t.id);
-
-    const currentIndex = allTabIds.findIndex((id) => id === tabId);
-    if (currentIndex === -1) {
-      // If tab not found, return first tab if available, or empty string
-      return allTabIds.length > 0 ? allTabIds[0] : "";
-    }
-
-    // Try to get the next tab
-    if (currentIndex < allTabIds.length - 1) {
-      return allTabIds[currentIndex + 1];
-    }
-
-    // If no next tab, get the previous tab
-    if (currentIndex > 0) {
-      return allTabIds[currentIndex - 1];
-    }
-
-    // No other tabs available
-    return "";
-  }, []);
-
-  // Helper function to get the previous tab ID (kept for backward compatibility with other handlers)
-  const getPreviousTabId = useCallback((tabId: string, tabsList: TabInfo[]) => {
-    // Tabs are in insertion order, so we just use them as-is
-    const currentIndex = tabsList.findIndex((t) => t.id === tabId);
-    if (currentIndex === -1) {
-      return "";
-    }
-
-    if (currentIndex === 0) {
-      return "";
-    }
-
-    return tabsList[currentIndex - 1].id;
-  }, []);
-
-  // Unified handler for closing any tab
-  const handleCloseTab = useCallback(
-    (tabId: string, event?: React.MouseEvent) => {
-      event?.stopPropagation();
-      // If the closed tab was active, find the next tab (or previous if no next)
-      if (activeTab === tabId) {
-        setTabs((prevTabs) => {
-          // Find the next/previous tab before removing the closed tab
-          const nextTabId = getNextOrPreviousTabId(tabId, prevTabs);
-          // Emit event for tab closure (tabInfo: null) - SchemaTreeView will ignore this
-          TabManager.sendActiveTabChange(tabId, null);
-          if (nextTabId) {
-            setActiveTab(nextTabId);
-          } else {
-            // No other tabs available, set to empty string
-            setActiveTab("");
-          }
-          return prevTabs.filter((t) => t.id !== tabId);
-        });
-      } else {
-        // Non-active tab closed - no need to emit event, SchemaTreeView only cares about active tab
-        setTabs((prevTabs) => prevTabs.filter((t) => t.id !== tabId));
-      }
-    },
-    [activeTab, getNextOrPreviousTabId]
-  );
-
-  // Handle closing tabs to the right of a given tab
-  const handleCloseTabsToRight = useCallback(
-    (tabId: string) => {
-      setTabs((prevTabs) => {
-        // Tabs are in insertion order, so we just use them as-is
-        const currentIndex = prevTabs.findIndex((t) => t.id === tabId);
-        if (currentIndex === -1) {
-          return prevTabs;
-        }
-
-        // Keep tabs up to and including the current tab
-        const tabsToKeep = prevTabs.slice(0, currentIndex + 1);
-        const closedTabIds = prevTabs.slice(currentIndex + 1).map((t) => t.id);
-
-        // If the active tab is in the closed tabs, switch to the clicked tab
-        if (closedTabIds.includes(activeTab)) {
-          setActiveTab(tabId);
-        }
-
-        return tabsToKeep;
-      });
-    },
-    [activeTab]
-  );
-
-  // Handle closing all tabs except the clicked one
-  const handleCloseOthers = useCallback(
-    (tabId: string) => {
-      setTabs((prevTabs) => {
-        const newTabs = prevTabs.filter((t) => t.id === tabId);
-
-        // If the active tab was closed, switch to the clicked tab
-        if (activeTab !== tabId && !newTabs.some((t) => t.id === activeTab)) {
-          setActiveTab(tabId);
-        }
-
-        return newTabs;
-      });
-    },
-    [activeTab]
-  );
-
-  // Handle closing all tabs
-  const handleCloseAll = useCallback(() => {
-    // Close all tabs including the query tab
-    setTabs([]);
-    setActiveTab("");
-    // Emit event for tab closure (tabInfo: null) - SchemaTreeView will ignore this
-    TabManager.sendActiveTabChange("", null);
-  }, []);
-
-  // Close all tabs when connection changes or is updated
-  useEffect(() => {
-    const currentConnectionName = selectedConnection?.name ?? null;
-    const previousConnectionName = previousConnectionRef.current;
-
-    // Create a key that includes connection details that might change (name, url, user)
-    // This ensures tabs close when connection is saved/updated, even if name stays the same
-    const currentConnectionKey = selectedConnection
-      ? `${selectedConnection.name}-${selectedConnection.url}-${selectedConnection.user}`
-      : null;
-    const previousConnectionKey = previousConnectionKeyRef.current;
-
-    // Close tabs if:
-    // 1. Connection name changed (switching between different connections), OR
-    // 2. Connection key changed (connection was updated/saved, even if name is the same)
-    if (
-      previousConnectionName !== null &&
-      (previousConnectionName !== currentConnectionName || previousConnectionKey !== currentConnectionKey)
-    ) {
-      setTabs([]);
-      setActiveTab("");
-    }
-
-    // Update the refs to track the current connection
-    previousConnectionRef.current = currentConnectionName;
-    previousConnectionKeyRef.current = currentConnectionKey;
+    return () => {
+      isMounted = false;
+      schemaLoader.cancel();
+    };
   }, [selectedConnection]);
 
-  // Tabs are kept in insertion order (no sorting) so new tabs appear at the end
-  const sortedTabs = useMemo(() => {
-    return tabs; // Return tabs in insertion order (new tabs are appended)
-  }, [tabs]);
-
-  // Memoize tab content to prevent unnecessary re-renders
-  const tabContent = useMemo(() => {
-    return sortedTabs.map((tab) => {
-      if (tab.type === "query") {
-        return (
-          <div
-            key={tab.id}
-            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
-            role="tabpanel"
-            aria-hidden={activeTab !== tab.id}
-          >
-            <QueryTab
-              initialQuery={tab.initialQuery}
-              initialMode={tab.initialMode}
-            />
-          </div>
-        );
-      }
-      if (tab.type === "dashboard") {
-        return (
-          <div
-            key={tab.id}
-            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
-            role="tabpanel"
-            aria-hidden={activeTab !== tab.id}
-          >
-            <NodeTab host={tab.host} />
-          </div>
-        );
-      }
-      if (tab.type === "database") {
-        return (
-          <div
-            key={tab.id}
-            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
-            role="tabpanel"
-            aria-hidden={activeTab !== tab.id}
-          >
-            <DatabaseTab database={tab.database} />
-          </div>
-        );
-      }
-      if (tab.type === "dependency") {
-        return (
-          <div
-            key={tab.id}
-            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
-            role="tabpanel"
-            aria-hidden={activeTab !== tab.id}
-          >
-            <DependencyView database={tab.database} />
-          </div>
-        );
-      }
-      if (tab.type === "table") {
-        return (
-          <div
-            key={tab.id}
-            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
-            role="tabpanel"
-            aria-hidden={activeTab !== tab.id}
-          >
-            <TableTab database={tab.database} table={tab.table} engine={tab.engine} />
-          </div>
-        );
-      }
-      if (tab.type === "query-log") {
-        return (
-          <div
-            key={tab.id}
-            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
-            role="tabpanel"
-            aria-hidden={activeTab !== tab.id}
-          >
-            <QueryLogTab initialQueryId={tab.queryId} initialEventDate={tab.eventDate} />
-          </div>
-        );
-      }
-      return null;
-    });
-  }, [sortedTabs, activeTab]);
+  // Reset when connection changes
+  useEffect(() => {
+    if (!selectedConnection) {
+      setInitStatus("ready");
+    }
+    setSchemaLoaded(false);
+  }, [selectedConnection]);
 
   // Show wizard if no connections exist
   if (!hasAnyConnections) {
     return <ConnectionWizard />;
+  }
+
+  // Show Full Page Status (Loading/Error)
+  if (initStatus === "initializing" || initStatus === "error") {
+    return (
+      <MainPageLoadStatusComponent status={initStatus} error={initError} onRetry={() => window.location.reload()} />
+    );
   }
 
   return (
@@ -367,42 +151,14 @@ export function MainPage() {
       <PanelGroup direction="horizontal" className="h-full w-full min-w-0">
         {/* Left Panel: Schema Tree View */}
         <Panel defaultSize={20} minSize={10} className="bg-background">
-          <SchemaTreeView
-            onStatusChange={handleStatusChange}
-          />
+          <SchemaTreeView initialSchemaData={loadedSchemaData} />
         </Panel>
 
-        <PanelResizeHandle className="w-1 bg-border hover:bg-border/80 transition-colors cursor-col-resize" />
+        <PanelResizeHandle className="w-0.5 bg-border hover:bg-border/80 transition-colors cursor-col-resize" />
 
         {/* Right Panel Group: Tabs for Query and Table Views */}
         <Panel defaultSize={80} minSize={50} className="bg-background">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full w-full flex flex-col">
-            {tabs.length > 0 && (
-              <MainPageTabList
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                tabs={tabs}
-                onCloseTab={handleCloseTab}
-                onCloseTabsToRight={handleCloseTabsToRight}
-                onCloseOthers={handleCloseOthers}
-                onCloseAll={handleCloseAll}
-                getPreviousTabId={getPreviousTabId}
-              />
-            )}
-            <div className="flex-1 overflow-hidden relative">
-              {/* Show Smart Empty State when no tabs exist */}
-              {tabs.length === 0 && (
-                <MainPageEmptyState
-                  status={initStatus}
-                  error={initError}
-                  onRetry={() => window.location.reload()}
-                />
-              )}
-
-              {/* All Tabs - Always mounted */}
-              {tabContent}
-            </div>
-          </Tabs>
+          <MainPageTabList selectedConnection={selectedConnection} schemaLoaded={schemaLoaded} />
         </Panel>
       </PanelGroup>
     </div>

@@ -2,3 +2,7 @@
 	path = external/number-flow
 	url = https://github.com/FrankChen021/number-flow.git
 	branch = local
+[submodule "external/cmdk"]
+	path = external/cmdk
+	url = https://github.com/FrankChen021/cmdk.git
+	branch = fix

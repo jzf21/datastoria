@@ -4,45 +4,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tree, type TreeDataItem, type TreeRef } from "@/components/ui/tree";
 import { useConnection } from "@/lib/connection/ConnectionContext";
-import type { AppInitStatus } from "@/components/main-page-empty-state";
-import {
-  AlertCircle,
-  Database,
-  RotateCw,
-  Search,
-  Table as TableIcon,
-  X,
-} from "lucide-react";
+import { AlertCircle, Database, RotateCw, Search, Table as TableIcon, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { TabManager, type TabInfo } from "../tab-manager";
 import { showDropTableConfirmationDialog } from "./drop-table-confirmation-dialog";
+import { buildSchemaTree } from "./schema-tree-builder";
 import {
   SchemaTreeLoader,
   type DatabaseNodeData,
   type HostNodeData,
+  type SchemaLoadResult,
   type SchemaNodeData,
-  type TableNodeData
+  type TableNodeData,
 } from "./schema-tree-loader";
 
 export interface SchemaTreeViewProps {
-  tabId?: string; // Optional tab ID for multi-tab support
-  onStatusChange?: (status: AppInitStatus, error?: string) => void;
+  initialSchemaData?: SchemaLoadResult | null;
 }
 
-export function SchemaTreeView({
-  tabId,
-  onStatusChange
-}: SchemaTreeViewProps) {
+export function SchemaTreeView({ initialSchemaData }: SchemaTreeViewProps) {
   const { selectedConnection } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [treeData, setTreeData] = useState<TreeDataItem[]>([]);
-  const [completeTree, setCompleteTree] = useState<TreeDataItem | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const hasOpenedNodeTabRef = useRef(false);
   const loaderRef = useRef(new SchemaTreeLoader());
   const treeRef = useRef<TreeRef>(null);
 
@@ -50,85 +38,85 @@ export function SchemaTreeView({
   const lastActiveTabInfoRef = useRef<TabInfo | null>(null);
   // Track if we were in search mode to detect when search is cleared
   const wasInSearchModeRef = useRef(false);
+  // Ref to store the latest handleHostChange to avoid circular dependency
+  const handleHostChangeRef = useRef<((hostName: string) => void) | undefined>(undefined);
 
-  // Load databases when connection changes
-  useEffect(() => {
-    if (!selectedConnection) {
-      setTreeData([]);
-      setCompleteTree(null);
-      setError(null);
-      setIsLoading(false);
-      hasOpenedNodeTabRef.current = false;
-      onStatusChange?.("ready");
-      return;
-    }
+  // Build tree from schema data
+  const buildTree = useCallback(
+    (schemaData: SchemaLoadResult) => {
+      if (!selectedConnection) return [];
 
-    const loadData = async () => {
-      setIsLoading(true);
-      setError(null);
-      onStatusChange?.("initializing");
+      const hostNode = buildSchemaTree(selectedConnection, schemaData.rows, handleHostChangeRef.current);
+      return [hostNode];
+    },
+    [selectedConnection]
+  );
 
-      try {
-        const result = await loaderRef.current.load(selectedConnection);
-        setTreeData(result.treeData);
-        setCompleteTree(result.completeTree);
-        setError(null);
-        onStatusChange?.("ready");
-
-        TabManager.activateQueryTab();
-
-        // Auto-open Node Dashboard if we have a host node
-        if (!hasOpenedNodeTabRef.current && result.treeData.length > 0) {
-          const firstNodeData = result.treeData[0]?.data as SchemaNodeData | undefined;
-          if (firstNodeData?.type === 'host') {
-            const hostData = firstNodeData as HostNodeData;
-            TabManager.openNodeTab(hostData.host, tabId);
-            hasOpenedNodeTabRef.current = true;
-          }
-        }
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        setError(errorMessage);
-        onStatusChange?.("error", errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    hasOpenedNodeTabRef.current = false;
-
-    loadData();
-
-    return () => {
-      loaderRef.current.cancel();
-    };
-  }, [selectedConnection, tabId, onStatusChange]);
-
+  // Shared load data function
   const loadDatabases = useCallback(() => {
     if (!selectedConnection) return;
 
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
-      onStatusChange?.("initializing");
 
       try {
         const result = await loaderRef.current.load(selectedConnection);
-        setTreeData(result.treeData);
-        setCompleteTree(result.completeTree);
+        const tree = buildTree(result);
+        setTreeData(tree);
         setError(null);
-        onStatusChange?.("ready");
+
+        // Open node tab every time tree is loaded
+        if (tree.length > 0) {
+          const firstNodeData = tree[0]?.data as { type?: string; host?: string };
+          if (firstNodeData?.type === "host" && firstNodeData.host) {
+            TabManager.openNodeTab(firstNodeData.host);
+          }
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         setError(errorMessage);
-        onStatusChange?.("error", errorMessage);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadData();
-  }, [selectedConnection, onStatusChange]);
+  }, [selectedConnection, buildTree]);
+
+  // Handle host change from the host selector
+  const handleHostChange = useCallback(
+    (hostName: string) => {
+      if (!selectedConnection) return;
+
+      selectedConnection.runtime!.targetNode = hostName;
+
+      // Refresh the tree to load data from the new host
+      loadDatabases();
+    },
+    [selectedConnection, loadDatabases]
+  );
+
+  // Update the ref whenever handleHostChange changes
+  useEffect(() => {
+    handleHostChangeRef.current = handleHostChange;
+  }, [handleHostChange]);
+
+  // Update tree when initial schema data changes
+  useEffect(() => {
+    if (initialSchemaData && selectedConnection) {
+      const tree = buildTree(initialSchemaData);
+      setTreeData(tree);
+
+      // Open node tab every time tree is loaded
+      if (tree.length > 0) {
+        const firstNodeData = tree[0]?.data as { type?: string; host?: string };
+        if (firstNodeData?.type === "host" && firstNodeData.host) {
+          TabManager.openNodeTab(firstNodeData.host);
+        }
+      }
+    }
+  }, [initialSchemaData, selectedConnection, buildTree]);
 
   // Helper function to sync tree selection to a tab info
   const scrollToNode = useCallback((tabInfo: TabInfo | null) => {
@@ -142,7 +130,7 @@ export function SchemaTreeView({
       targetNodeId = `db:${tabInfo.database}`;
     } else if (tabInfo.type === "table") {
       targetNodeId = `table:${tabInfo.database}.${tabInfo.table}`;
-    } else if (tabInfo.type === "dashboard") {
+    } else if (tabInfo.type === "node") {
       targetNodeId = "host";
     } else {
       // For other tab types (query, dependency, query-log), clear selection
@@ -262,35 +250,32 @@ export function SchemaTreeView({
     setContextMenuPosition(null);
   }, [contextMenuNode, selectedConnection, loadDatabases]);
 
-  const onTreeNodeSelected = useCallback(
-    (item: TreeDataItem | undefined) => {
-      if (!item?.data) return;
+  const onTreeNodeSelected = useCallback((item: TreeDataItem | undefined) => {
+    if (!item?.data) return;
 
-      const data = item.data as SchemaNodeData;
+    const data = item.data as SchemaNodeData;
 
-      // Always update the selected node ID for visual highlighting (works in both search and non-search modes)
-      setSelectedNodeId(item.id);
+    // Always update the selected node ID for visual highlighting (works in both search and non-search modes)
+    setSelectedNodeId(item.id);
 
-      // Always open tabs when nodes are clicked (user interaction)
-      // Tab changes from external sources won't sync to tree in search mode (handled by the active tab change listener)
-      // If a host node is clicked, open the dashboard tab
-      if (data.type === "host") {
-        const hostData = data as HostNodeData;
-        TabManager.openNodeTab(hostData.host, tabId);
-      }
-      // If a database node is clicked, open the database tab
-      else if (data.type === "database") {
-        const databaseData = data as DatabaseNodeData;
-        TabManager.openDatabaseTab(databaseData.name, tabId);
-      }
-      // If a table node is clicked, open the table tab
-      else if (data.type === "table") {
-        const tableData = data as TableNodeData;
-        TabManager.openTableTab(tableData.database, tableData.table, tableData.fullTableEngine, tabId);
-      }
-    },
-    [tabId]
-  );
+    // Always open tabs when nodes are clicked (user interaction)
+    // Tab changes from external sources won't sync to tree in search mode (handled by the active tab change listener)
+    // If a host node is clicked, open the dashboard tab
+    if (data.type === "host") {
+      const hostData = data as HostNodeData;
+      TabManager.openNodeTab(hostData.host);
+    }
+    // If a database node is clicked, open the database tab
+    else if (data.type === "database") {
+      const databaseData = data as DatabaseNodeData;
+      TabManager.openDatabaseTab(databaseData.name);
+    }
+    // If a table node is clicked, open the table tab
+    else if (data.type === "table") {
+      const tableData = data as TableNodeData;
+      TabManager.openTableTab(tableData.database, tableData.table, tableData.fullTableEngine);
+    }
+  }, []);
 
   if (!selectedConnection) {
     return (
@@ -311,7 +296,7 @@ export function SchemaTreeView({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-8 pr-20 rounded-none border-none flex-1 h-9"
-          disabled={!selectedConnection || (!completeTree && treeData.length === 0 && !isLoading)}
+          disabled={!selectedConnection || (treeData.length === 0 && !isLoading)}
         />
         {search && (
           <Button

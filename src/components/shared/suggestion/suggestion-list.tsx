@@ -4,7 +4,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import { TextHighlighter } from "@/lib/text-highlighter";
-import { useCommandState, useCommandStore } from "@frankchen029/cmdk";
+import { useCommandState, useCommandStore } from "cmdk";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as React from "react";
 import ReactMarkdown from "react-markdown";

@@ -1,5 +1,5 @@
 import type { Ace } from "ace-builds";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import AceEditor from "react-ace";
 // Import order is critical - ace-setup must be imported first
 // to make ace globally available before ext-language_tools
@@ -24,6 +24,10 @@ type ExtendedEditor = {
 } & Ace.Editor;
 
 let globalEditor: ExtendedEditor | undefined;
+
+export interface QueryInputViewRef {
+  focus: () => void;
+}
 
 interface QueryInputViewProps {
   initialQuery?: string;
@@ -65,8 +69,9 @@ const applyQueryToEditor = (editor: Ace.Editor, query: string, mode: "replace" |
   QueryInputLocalStorage.saveInput(editor.getValue());
 };
 
-export function QueryInputView({ initialQuery, initialMode = "replace" }: QueryInputViewProps) {
-  const { selectedConnection } = useConnection();
+export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>(
+  ({ initialQuery, initialMode = "replace" }, ref) => {
+    const { selectedConnection } = useConnection();
 
   // Listen for query tab activation events with query data
   useEffect(() => {
@@ -89,6 +94,15 @@ export function QueryInputView({ initialQuery, initialMode = "replace" }: QueryI
   const [editorHeight, setEditorHeight] = useState(200);
   const [editorWidth, setEditorWidth] = useState(800);
   const lastConnectionRef = useRef<string | null>(null);
+
+  // Expose focus method to parent
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (editorRef.current) {
+        editorRef.current.focus();
+      }
+    },
+  }));
 
   // Determine if dark mode is active
   const [isDark, setIsDark] = useState(() => {
@@ -278,11 +292,12 @@ Press Alt-Space(Windows) or Option-Space(Mac) to popup the auto suggestion dialo
       />
     </div>
   );
-}
+});
+
+QueryInputView.displayName = 'QueryInputView';
 
 // Static methods for accessing editor (exported for external use)
 // These are intentionally in the same file to maintain access to globalEditor
-/* eslint-disable react-refresh/only-export-components */
 export function getAllText(): string {
   return globalEditor?.getValue().trim() || "";
 }
@@ -297,4 +312,3 @@ export function getSelectedOrAllText(): string {
   const selected = globalEditor?.getSelectedText().trim() || "";
   return selected.length === 0 ? getAllText() : selected;
 }
-/* eslint-enable react-refresh/only-export-components */

@@ -1,5 +1,5 @@
 import { TextHighlighter } from "@/lib/text-highlighter";
-import { useCommandState } from "@frankchen029/cmdk";
+import { useCommandState } from "cmdk";
 import NumberFlow from '@number-flow/react';
 
 export const CommandItemCount: React.FC<React.PropsWithChildren> = ({ children }) => {

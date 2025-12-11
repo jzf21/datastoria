@@ -32,8 +32,8 @@ export interface DatabaseTabInfo extends BaseTabInfo {
   database: string;
 }
 
-export interface DashboardTabInfo extends BaseTabInfo {
-  type: "dashboard";
+export interface NodeTabInfo extends BaseTabInfo {
+  type: "node";
   host: string;
 }
 
@@ -43,7 +43,7 @@ export interface QueryLogTabInfo extends BaseTabInfo {
   eventDate?: string;
 }
 
-export type TabInfo = QueryTabInfo | TableTabInfo | DependencyTabInfo | DatabaseTabInfo | DashboardTabInfo | QueryLogTabInfo;
+export type TabInfo = QueryTabInfo | TableTabInfo | DependencyTabInfo | DatabaseTabInfo | NodeTabInfo | QueryLogTabInfo;
 
 export interface OpenTabEventDetail {
   type: TabType;
@@ -85,6 +85,23 @@ export type ActiveTabChangeEventHandler = (event: CustomEvent<ActiveTabChangeEve
  */
 export class TabManager {
   private static readonly OPEN_TAB_EVENT = "OPEN_TAB";
+  
+  // Queue to store events when no listener is active
+  private static eventQueue: CustomEvent<OpenTabEventDetail>[] = [];
+  private static hasListener = false;
+
+  /**
+   * Dispatch an event immediately or queue it if no listener is active
+   */
+  private static dispatchOrQueue(event: CustomEvent<OpenTabEventDetail>): void {
+    if (TabManager.hasListener) {
+      // Listener is active, dispatch immediately
+      window.dispatchEvent(event);
+    } else {
+      // No listener yet, queue the event
+      TabManager.eventQueue.push(event);
+    }
+  }
 
   /**
    * Emit an open table tab event
@@ -93,7 +110,7 @@ export class TabManager {
     const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
       detail: { type: "table", database, table, engine, tabId },
     });
-    window.dispatchEvent(event);
+    TabManager.dispatchOrQueue(event);
   }
 
   /**
@@ -103,7 +120,7 @@ export class TabManager {
     const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
       detail: { type: "dependency", database, tabId },
     });
-    window.dispatchEvent(event);
+    TabManager.dispatchOrQueue(event);
   }
 
   /**
@@ -113,7 +130,7 @@ export class TabManager {
     const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
       detail: { type: "database", database, tabId },
     });
-    window.dispatchEvent(event);
+    TabManager.dispatchOrQueue(event);
   }
 
   /**
@@ -123,7 +140,7 @@ export class TabManager {
     const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
       detail: { type: "node", host, tabId },
     });
-    window.dispatchEvent(event);
+    TabManager.dispatchOrQueue(event);
   }
 
   /**
@@ -133,7 +150,7 @@ export class TabManager {
     const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
       detail: { type: "query-log", queryId, eventDate, tabId },
     });
-    window.dispatchEvent(event);
+    TabManager.dispatchOrQueue(event);
   }
 
   /**
@@ -147,7 +164,7 @@ export class TabManager {
         mode: options?.mode,
       },
     });
-    window.dispatchEvent(event);
+    TabManager.dispatchOrQueue(event);
   }
 
   /**
@@ -157,8 +174,27 @@ export class TabManager {
     const wrappedHandler = (e: Event) => {
       handler(e as CustomEvent<OpenTabEventDetail>);
     };
+    
     window.addEventListener(TabManager.OPEN_TAB_EVENT, wrappedHandler);
-    return () => window.removeEventListener(TabManager.OPEN_TAB_EVENT, wrappedHandler);
+    TabManager.hasListener = true;
+    
+    // Replay any queued events
+    if (TabManager.eventQueue.length > 0) {
+      const queuedEvents = [...TabManager.eventQueue];
+      TabManager.eventQueue = []; // Clear the queue
+      
+      // Dispatch queued events asynchronously to avoid blocking
+      setTimeout(() => {
+        for (const event of queuedEvents) {
+          window.dispatchEvent(event);
+        }
+      }, 0);
+    }
+    
+    return () => {
+      window.removeEventListener(TabManager.OPEN_TAB_EVENT, wrappedHandler);
+      TabManager.hasListener = false;
+    };
   }
 
   private static readonly ACTIVE_TAB_CHANGE_EVENT = "ACTIVE_TAB_CHANGE";

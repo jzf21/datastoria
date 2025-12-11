@@ -20,12 +20,21 @@ interface HostInfo {
   replica: number;
 }
 
-export function HostSelector({ clusterName, displayName }: { clusterName: string; displayName: string }) {
-  const { selectedConnection, setSelectedConnection } = useConnection();
+interface SchemaTreeHostSelectorProps {
+  clusterName: string;
+  nodeName: string;
+  onHostChange: (hostName: string) => void;
+}
+
+export function SchemaTreeHostSelector({ clusterName, nodeName, onHostChange }: SchemaTreeHostSelectorProps) {
+  const { selectedConnection } = useConnection();
   const [isOpen, setIsOpen] = useState(false);
   const [data, setData] = useState<HostInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Strip the Kubernetes cluster suffix if present for shorter name
+  const displayName = nodeName.replace(/\.svc\.cluster\.local$/, "");
 
   // Reset data when connection changes so that the useEffect below will load data
   useEffect(() => {
@@ -35,7 +44,7 @@ export function HostSelector({ clusterName, displayName }: { clusterName: string
   }, [selectedConnection, clusterName]);
 
   useEffect(() => {
-    if (isOpen && data.length === 0 && !loading && selectedConnection) {
+    if (isOpen && data.length === 0 && !loading && selectedConnection && clusterName.length > 0) {
       setLoading(true);
       const api = Api.create(selectedConnection);
       api.executeSQL(
@@ -69,6 +78,11 @@ ORDER BY shard, replica`,
     }
   }, [isOpen, selectedConnection, clusterName, data.length, loading]);
 
+  // If no cluster name (empty string), just render the display name without popover
+  if (clusterName.length === 0) {
+    return <span>{displayName}</span>;
+  }
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger>
@@ -101,7 +115,7 @@ ORDER BY shard, replica`,
                   <CommandEmpty className="p-3 text-center">No hosts found.</CommandEmpty>
                   <CommandGroup className="!py-1 !px-1 !rounded-none">
                     {data.map((node, idx) => {
-                      const isSelected = node.name === displayName || node.address === displayName;
+                      const isSelected = node.name === nodeName || node.address === nodeName;
                       return (
                         <CommandItem
                           key={idx}
@@ -111,14 +125,11 @@ ORDER BY shard, replica`,
                             isSelected && "bg-muted/50"
                           )}
                           onSelect={() => {
-                            // Update connection with target node
-                            setSelectedConnection(
-                              Object.assign({}, selectedConnection, {
-                                runtime: Object.assign({}, selectedConnection!.runtime, {
-                                  targetNode: node.name,
-                                }),
-                              })
-                            );
+                            // Only fire onHostChange if the selected host is different from current
+                            if (node.name !== nodeName) {
+                              // Notify parent component of host change
+                              onHostChange(node.name);
+                            }
                             setIsOpen(false);
                           }}
                         >

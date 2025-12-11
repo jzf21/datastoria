@@ -4,19 +4,21 @@ import { type ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle } from
 import { QueryControl } from "./query-control/query-control";
 import { useHasSelectedText } from "./query-control/use-query-state";
 import { QueryExecutor, type QueryRequestEventDetail } from "./query-execution/query-executor";
-import { QueryInputView } from "./query-input/query-input-view";
+import { QueryInputView, type QueryInputViewRef } from "./query-input/query-input-view";
 
 export interface QueryTabProps {
   tabId?: string;
   initialQuery?: string;
   initialMode?: "replace" | "insert";
+  active?: boolean;
 }
 
 
-const QueryTabComponent = ({ tabId, initialQuery, initialMode }: QueryTabProps) => {
+const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTabProps) => {
   const hasSelectedText = useHasSelectedText();
   const [isExecuting, setIsExecuting] = useState(false);
   const resultPanelRef = useRef<ImperativePanelHandle>(null);
+  const queryInputRef = useRef<QueryInputViewRef>(null);
 
   const handleExecutionStateChange = useCallback((executing: boolean) => {
     setIsExecuting(executing);
@@ -46,6 +48,16 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode }: QueryTabProps) 
     return unsubscribe;
   }, [tabId]);
 
+  // Focus editor when tab becomes active
+  useEffect(() => {
+    if (active) {
+      // Use setTimeout to ensure focus happens after the tab is fully rendered
+      setTimeout(() => {
+        queryInputRef.current?.focus();
+      }, 0);
+    }
+  }, [active]);
+
   return (
     <PanelGroup direction="vertical" className="h-full">
       {/* Top Panel: Query Response View */}
@@ -60,6 +72,7 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode }: QueryTabProps) 
         <QueryControl isExecuting={isExecuting} hasSelectedText={hasSelectedText} />
         <div className="flex-1 overflow-hidden">
           <QueryInputView
+            ref={queryInputRef}
             initialQuery={initialQuery}
             initialMode={initialMode}
           />
