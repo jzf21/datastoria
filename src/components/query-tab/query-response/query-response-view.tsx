@@ -1,4 +1,5 @@
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnsiText, containsAnsiCodes } from "@/lib/ansi-parser";
 import { parseErrorLocation, type ErrorLocation } from "@/lib/clickhouse-error-parser";
@@ -213,7 +214,15 @@ export function QueryResponseView({ queryResponse, queryRequest, isLoading = fal
         </ThemedSyntaxHighlighter>
       );
     }
-    return <pre className="text-xs">{rawQueryResponse}</pre>;
+    return (
+      <div className="relative group">
+        <CopyButton
+          value={rawQueryResponse}
+          className="left-0 top-0 right-auto opacity-0 group-hover:opacity-100 transition-opacity"
+        />
+        <pre className="text-xs">{rawQueryResponse}</pre>
+      </div>
+    );
   }, [view, queryRequest, queryResponse, rawQueryResponse, hasAnsiCodes]);
 
   if (isLoading) {
