@@ -2,17 +2,26 @@
 
 import { CardContent } from "@/components/ui/card";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog } from "@/components/use-dialog";
 import { Api, type ApiCanceller, type ApiErrorResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import { Formatter, type FormatName } from "@/lib/formatter";
+import { Formatter, type FormatName, type ObjectFormatter } from "@/lib/formatter";
+import { cn } from "@/lib/utils";
 import * as echarts from "echarts";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { isTimestampColumn as isTimestampColumnUtil, transformRowsToChartData } from "./dashboard-data-utils";
 import { showQueryDialog } from "./dashboard-dialog-utils";
-import type { FieldOption, PanelDescriptor, SQLQuery, TimeseriesDescriptor } from "./dashboard-model";
+import {
+  applyReducer,
+  type FieldOption,
+  type PanelDescriptor,
+  type Reducer,
+  type SQLQuery,
+  type TimeseriesDescriptor,
+} from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
 import type { DashboardPanelComponent, RefreshOptions } from "./dashboard-panel-layout";
 import { DashboardPanelLayout } from "./dashboard-panel-layout";
@@ -20,6 +29,244 @@ import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
 import { useRefreshable } from "./use-refreshable";
+
+// Chart legend interface
+interface Legend {
+  color: string;
+  // series name
+  series: string;
+
+  valueFormatter: ObjectFormatter;
+
+  // Dimension values for this legend entry (e.g., {hostname: "server1", metric: "cpu"})
+  // Keys are dimension names from dimensionNames array
+  dimensionValues: Record<string, string>;
+
+  // Aggregated statistics for the series data (min, max, avg, sum, count, first, last)
+  // Keys are Reducer types that specify which aggregations to compute
+  values: Map<Reducer, number>;
+}
+
+interface LegendData {
+  // The names of the dimensions
+  dimensionNames: string[];
+  legends: Legend[];
+}
+
+// Legend table props
+interface LegendTableProps {
+  chartInstance?: echarts.ECharts;
+  legendOption: TimeseriesDescriptor["legendOption"];
+  legendData?: LegendData;
+}
+
+// Legend table component
+const LegendTable: React.FC<LegendTableProps> = ({ chartInstance, legendOption, legendData }) => {
+  const [legendToggleState] = useState<Map<string, number>>(new Map());
+  const [unselectedSeries, setUnselectedSeries] = useState<Map<string, boolean>>(new Map());
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "ascending" | "descending" | null }>({
+    key: "name",
+    direction: null,
+  });
+
+  // Make sure internal states are cleared after legends to be displayed are changed
+  useEffect(() => {
+    setUnselectedSeries(new Map());
+    legendToggleState.clear();
+  }, [legendData, legendToggleState]);
+
+  const onLegendClicked = useCallback(
+    (e: React.MouseEvent<HTMLTableRowElement, globalThis.MouseEvent>, series: string) => {
+      if (!legendData) return;
+
+      if (e.ctrlKey || e.metaKey) {
+        const isSelected = !unselectedSeries.has(series);
+        if (isSelected) {
+          // Current state is selected, we need to toggle it
+          unselectedSeries.set(series, true);
+        } else {
+          unselectedSeries.delete(series);
+        }
+        // If Ctrl/Cmd is pressed, toggle the selected state of current row
+        chartInstance?.dispatchAction({
+          type: "legendToggleSelect",
+          name: series,
+        });
+
+        setUnselectedSeries(new Map(unselectedSeries));
+        return;
+      }
+
+      unselectedSeries.clear();
+
+      // Get current selection state for this legend
+      let state = legendToggleState.get(series);
+      if (state === undefined) {
+        state = 0;
+      }
+      legendToggleState.set(series, state + 1);
+
+      if (state % 2 === 0) {
+        // deselect all first
+        legendData.legends.forEach((legend) => {
+          chartInstance?.dispatchAction({
+            type: "legendUnSelect",
+            name: legend.series,
+          });
+
+          unselectedSeries.set(legend.series, true);
+        });
+
+        // select current
+        chartInstance?.dispatchAction({
+          type: "legendSelect",
+          name: series,
+        });
+        unselectedSeries.delete(series);
+      } else {
+        unselectedSeries.clear();
+
+        // select others
+        chartInstance?.dispatchAction({
+          type: "legendAllSelect",
+        });
+      }
+
+      setUnselectedSeries(new Map(unselectedSeries));
+    },
+    [chartInstance, legendData, unselectedSeries, legendToggleState]
+  );
+
+  // New function to handle header click sorting
+  const sort = useCallback((key: string) => {
+    setSortConfig((prevConfig) => {
+      if (prevConfig.key === key) {
+        // Change sort direction
+        return {
+          key,
+          direction:
+            prevConfig.direction === "ascending"
+              ? "descending"
+              : prevConfig.direction === "descending"
+                ? null
+                : "ascending",
+        };
+      }
+      return { key, direction: "ascending" };
+    });
+  }, []);
+
+  // Sort legends based on sort configuration
+  const sortedLegends = useMemo(() => {
+    if (!sortConfig.direction || !legendData) {
+      return legendData?.legends || [];
+    }
+
+    return [...legendData.legends].sort((a, b) => {
+      if (
+        sortConfig.key === "min" ||
+        sortConfig.key === "max" ||
+        sortConfig.key === "sum" ||
+        sortConfig.key === "avg" ||
+        sortConfig.key === "count" ||
+        sortConfig.key === "first" ||
+        sortConfig.key === "last"
+      ) {
+        // Sort by value columns
+        const aValue = a.values.get(sortConfig.key) ?? 0;
+        const bValue = b.values.get(sortConfig.key) ?? 0;
+
+        return sortConfig.direction === "ascending" ? aValue - bValue : bValue - aValue;
+      }
+      // Sort by legend name
+      const lhs = a.dimensionValues[sortConfig.key];
+      const rhs = b.dimensionValues[sortConfig.key];
+      if (!lhs || !rhs) return 0;
+      return sortConfig.direction === "ascending" ? lhs.localeCompare(rhs) : rhs.localeCompare(lhs);
+    });
+  }, [legendData, sortConfig]);
+
+  // Function to render sort indicator
+  const getSortDirectionIcon = useCallback(
+    (key: string) => {
+      if (sortConfig.key !== key || sortConfig.direction === null) {
+        return null;
+      }
+      return sortConfig.direction === "ascending" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
+    },
+    [sortConfig]
+  );
+
+  if (!legendData || !legendOption) {
+    return null;
+  }
+
+  return (
+    <div className="max-h-[150px] overflow-auto custom-scrollbar border-t">
+      <Table>
+        <TableHeader>
+          <TableRow className="cursor-pointer bg-muted">
+            {legendData.dimensionNames.map((title, index) => (
+              <TableHead
+                key={title}
+                className={cn("h-0 p-0 whitespace-nowrap", index === 0 ? "pl-2" : "px-2 text-center")}
+                onClick={() => sort(title)}
+              >
+                <div className={cn("flex items-center", index === 0 ? "" : "justify-center")}>
+                  {/* Reserve space for the color bar in the first column, without affecting title↔icon spacing */}
+                  {index === 0 && <div className="w-4 mr-2" />}
+                  <div className="flex items-center">
+                    <span>{title}</span>
+                    <span className="w-4 h-4 flex items-center justify-center">{getSortDirectionIcon(title)}</span>
+                  </div>
+                </div>
+              </TableHead>
+            ))}
+
+            {/* Show Aggregated Columns for each legend */}
+            {legendOption.values?.map((value) => (
+              <TableHead key={value} className="h-0 p-0 px-2 text-center whitespace-nowrap" onClick={() => sort(value)}>
+                <div className="flex items-center justify-center">
+                  <span>{value}</span>
+                  <span className="w-4 h-4 flex items-center justify-center">{getSortDirectionIcon(value)}</span>
+                </div>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedLegends.map((legend) => (
+            <TableRow
+              key={legend.series}
+              className="cursor-pointer h-[20px]"
+              onClick={(e) => onLegendClicked(e, legend.series)}
+            >
+              {legendData.dimensionNames.map((title, index) => (
+                <TableCell key={title} className="h-[20px] p-0 text-xs whitespace-nowrap">
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 px-2",
+                      unselectedSeries.has(legend.series) ? "text-gray-400" : ""
+                    )}
+                  >
+                    {index === 0 && <div className="w-4 h-[6px] rounded-[1px]" style={{ backgroundColor: legend.color }} />}
+                    {legend.dimensionValues[title]}
+                  </div>
+                </TableCell>
+              ))}
+
+              {legendOption.values?.map((value) => (
+                <TableCell key={value} className="h-[20px] px-2 py-0 text-xs text-center whitespace-nowrap">
+                  {legend.valueFormatter(legend.values.get(value) ?? 0)}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
 
 // Wrapper component that uses imperative refresh instead of remounting
 // This prevents the drilldown component from losing its state when the time span changes
@@ -87,12 +334,14 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
     const [isLoading, setIsLoading] = useState(props.initialLoading ?? false);
     const [error, setError] = useState("");
     const [selectedTimeRange, setSelectedTimeRange] = useState<TimeSpan | null>(null);
+    const [legendData, setLegendData] = useState<LegendData | undefined>(undefined);
 
     // Refs
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartInstanceRef = useRef<echarts.ECharts | null>(null);
     const apiCancellerRef = useRef<ApiCanceller | null>(null);
     const timestampsRef = useRef<number[]>([]);
+    const hoveredSeriesRef = useRef<string | null>(null);
 
     // Check if drilldown is available (defined early for use in chart update)
     const hasDrilldown = useCallback((): boolean => {
@@ -446,6 +695,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
 
         // Build final echarts option
         const option: echarts.EChartsOption = {
+          animation: false, // Disable animation for instant legend toggle and data updates
           backgroundColor: "transparent",
           title: {
             show: false,
@@ -455,35 +705,86 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
           },
           brush: hasDrilldown()
             ? {
-              xAxisIndex: "all",
-              brushLink: "all",
-              outOfBrush: {
-                colorAlpha: 0.1,
-              },
-            }
+                xAxisIndex: "all",
+                brushLink: "all",
+                outOfBrush: {
+                  colorAlpha: 0.1,
+                },
+              }
             : undefined,
           tooltip: {
             trigger: "axis",
-            confine: true,
+            // Allow tooltip to overflow outside the chart container (e.g. dashboard panel)
+            confine: false,
             enterable: true,
+            // Keep tooltip inside the viewport even when `confine: false`.
+            // For `trigger: "axis"`, ECharts uses chart-local coordinates for `point`.
+            // We compute placement in viewport coords (so we can clamp), then convert back.
+            position: (point, _params, _dom, _rect, size) => {
+              const [x, y] = point;
+              const tooltipWidth = size.contentSize[0];
+              const tooltipHeight = size.contentSize[1];
+              const offset = 8; // keep a small gap from the mouse point (Grafana-like)
+
+              const containerRect = chartContainerRef.current?.getBoundingClientRect();
+              if (!containerRect) {
+                return [x + offset, y + offset];
+              }
+
+              // Cursor position in viewport coordinates
+              const cursorX = containerRect.left + x;
+              const cursorY = containerRect.top + y;
+
+              // Default: bottom-right of the mouse point (in viewport coords)
+              let leftV = cursorX + offset;
+              let topV = cursorY + offset;
+
+              // If it would overflow right edge, place to the left of the mouse point
+              if (leftV + tooltipWidth + offset > window.innerWidth) {
+                leftV = cursorX - tooltipWidth - offset;
+              }
+
+              // If it would overflow bottom edge, place above the mouse point
+              if (topV + tooltipHeight + offset > window.innerHeight) {
+                topV = cursorY - tooltipHeight - offset;
+              }
+
+              // Final clamp to stay within viewport margins
+              leftV = Math.min(Math.max(leftV, offset), window.innerWidth - tooltipWidth - offset);
+              topV = Math.min(Math.max(topV, offset), window.innerHeight - tooltipHeight - offset);
+
+              // Convert back to chart-local coords (what ECharts expects for positioning)
+              return [leftV - containerRect.left, topV - containerRect.top];
+            },
             axisPointer: {
               type: "line",
             },
             appendToBody: true,
-            extraCssText: "max-height: 80vh; overflow-y: auto;",
+            extraCssText: "max-height: 80vh; overflow-y: auto; font-size: 12px; line-height: 1.25;",
             formatter: (params: unknown) => {
               if (!Array.isArray(params)) {
                 return "";
               }
               const firstParam = params[0] as { axisValue: string };
               const timestamp = firstParam.axisValue;
-              let result = `<div style="margin-bottom: 4px;">${timestamp}</div>`;
+              let result = `<div style="margin-bottom: 6px; font-weight: 600;">${timestamp}</div>`;
 
               // Get tooltip sort option, default to 'none'
               const sortValue = descriptor.tooltipOption?.sortValue || "none";
 
               // Create a copy of params array for sorting
-              const sortedParams = [...params] as Array<{ value: number | null; seriesName: string; color: string }>;
+              const sortedParams = [...params] as Array<{
+                value: number | null;
+                seriesName: string;
+                color: string;
+                componentType?: string;
+                componentSubType?: string;
+              }>;
+
+              // Detect which series is being hovered.
+              // With `tooltip.trigger: "axis"`, ECharts does not tell the formatter which series
+              // is directly under the cursor. We track it via chart mouse events.
+              const hoveredSeries = hoveredSeriesRef.current;
 
               // Sort params based on tooltipOption.sortValue
               if (sortValue !== "none") {
@@ -517,10 +818,39 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
                   const formatter = FormatterInstance.getFormatter(format);
                   const formattedValue = formatter(value);
 
-                  result += `<div style="margin-top: 2px; white-space: nowrap;">
-                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:${param.color};margin-right:5px;"></span>
-                    ${param.seriesName}: <strong>${formattedValue}</strong>
-                  </div>`;
+                  // Highlight hovered series without changing font metrics (avoid tooltip width jitter)
+                  const isHovered = hoveredSeries !== null && hoveredSeries === param.seriesName;
+                  const rowBg = isHovered ? "rgba(255,255,255,0.08)" : "transparent";
+                  const rowBorder = isHovered ? param.color : "transparent";
+
+                  result += `
+                    <div style="
+                      display:flex;
+                      align-items:center;
+                      gap:8px;
+                      padding:2px 6px;
+                      margin-top:2px;
+                      border-left:3px solid ${rowBorder};
+                      background:${rowBg};
+                      border-radius:4px;
+                    ">
+                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:${param.color};flex:0 0 auto;"></span>
+                      <span style="
+                        flex:1 1 auto;
+                        min-width:0;
+                        overflow:hidden;
+                        text-overflow:ellipsis;
+                        white-space:nowrap;
+                      ">${param.seriesName}</span>
+                      <span style="
+                        flex:0 0 auto;
+                        text-align:right;
+                        min-width:72px;
+                        font-variant-numeric: tabular-nums;
+                        white-space:nowrap;
+                      ">${formattedValue}</span>
+                    </div>
+                  `;
                 }
               });
               return result;
@@ -528,7 +858,10 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
           },
           legend: {
             data: series.map((s) => s.name as string),
-            show: series.length > 0,
+            // Show ECharts legend only if:
+            // 1. There are series to display, AND
+            // 2. Either no legendOption is configured, OR legendOption.placement is "inside"
+            show: series.length > 0 && (!descriptor.legendOption || descriptor.legendOption.placement === "inside"),
             top: 0,
             type: "scroll",
             icon: "circle",
@@ -537,7 +870,11 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
             left: "3%",
             right: "4%",
             bottom: "10%",
-            top: series.length > 0 ? "15%" : "5%",
+            // Adjust top margin based on whether ECharts legend is shown
+            top:
+              series.length > 0 && (!descriptor.legendOption || descriptor.legendOption.placement === "inside")
+                ? "15%"
+                : "5%",
             containLabel: true,
           },
           xAxis: {
@@ -550,6 +887,79 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
         };
 
         chartInstanceRef.current.setOption(option, true);
+
+        // Update legends if legendOption is configured
+        const legendOption = descriptor.legendOption;
+        if (legendOption && legendOption.placement !== "none") {
+          const legendsData: Legend[] = [];
+          const FormatterInstance = Formatter.getInstance();
+
+          // Get series from chart instance
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const chartModel = (chartInstanceRef.current as any).getModel();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const seriesList = chartModel.getSeries() as any[];
+
+          seriesList.forEach((s) => {
+            const color = chartInstanceRef.current?.getVisual({ seriesIndex: s.seriesIndex }, "color") as string;
+            const seriesData = s.option.data as (number | null)[];
+
+            const values = new Map<Reducer, number>();
+
+            // Calculate aggregated values based on legendOption.values
+            const legendValues = legendOption.values || [];
+            for (const valueAggregator of legendValues) {
+              values.set(valueAggregator, applyReducer(seriesData, valueAggregator));
+            }
+
+            // Determine the formatter based on the metric column
+            let format: FormatName = "short_number";
+            if (metricColumns.length > 0) {
+              format = inferFormatFromMetricName(metricColumns[0]);
+            }
+            const formatter = FormatterInstance.getFormatter(format);
+
+            // Build dimension values object from series name
+            // If series has label columns, parse them from the series name
+            const dimensionValues: Record<string, string> = {};
+            if (labelColumns.length > 0) {
+              // Series name format: "label1 - label2 - ..." or "label1 - label2 - ... (metricCol)"
+              let seriesName = s.name as string;
+              // Remove metric name suffix if present
+              if (metricColumns.length > 1) {
+                const metricSuffix = seriesName.match(/\s+\([^)]+\)$/);
+                if (metricSuffix) {
+                  seriesName = seriesName.substring(0, seriesName.length - metricSuffix[0].length);
+                }
+              }
+              const labelValues = seriesName.split(" - ");
+              labelColumns.forEach((labelCol, idx) => {
+                dimensionValues[labelCol] = labelValues[idx] || "";
+              });
+            } else {
+              // No labels, use metric name as dimension
+              dimensionValues[metricColumns[0] || "value"] = s.name as string;
+            }
+
+            legendsData.push({
+              series: s.name as string,
+              dimensionValues: dimensionValues,
+              color: color || "",
+              values: values,
+              valueFormatter: formatter,
+            });
+          });
+
+          // Build dimension names from label columns
+          const dimensionNames = labelColumns.length > 0 ? labelColumns : metricColumns.slice(0, 1);
+
+          setLegendData({
+            dimensionNames: dimensionNames,
+            legends: legendsData,
+          });
+        } else {
+          setLegendData(undefined);
+        }
 
         // Add brush event handler if drilldown is enabled
         if (hasDrilldown() && chartInstanceRef.current) {
@@ -812,7 +1222,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
     const refreshInternal = useCallback(
       (param: RefreshOptions) => {
         if (!descriptor.query) {
-          console.error(`No query defined for chart [${descriptor.id}]`);
+          console.error(`No query defined for chart [${descriptor.titleOption?.title || descriptor.type}]`);
           setError("No query defined for this chart component.");
           return;
         }
@@ -854,6 +1264,24 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
       const chartTheme = isDark ? "dark" : undefined;
       const chartInstance = echarts.init(chartContainerRef.current, chartTheme);
       chartInstanceRef.current = chartInstance;
+
+      // Track hovered series for tooltip highlighting.
+      // With `tooltip.trigger: "axis"`, ECharts passes all series at that x-value to the formatter,
+      // and does not indicate which one is directly hovered. We capture it from mouse events instead.
+      chartInstance.off("mouseover");
+      chartInstance.off("mouseout");
+      chartInstance.off("globalout");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chartInstance.on("mouseover", { componentType: "series" } as any, (p: any) => {
+        hoveredSeriesRef.current = typeof p?.seriesName === "string" ? p.seriesName : null;
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chartInstance.on("mouseout", { componentType: "series" } as any, () => {
+        hoveredSeriesRef.current = null;
+      });
+      chartInstance.on("globalout", () => {
+        hoveredSeriesRef.current = null;
+      });
 
       // Handle window resize
       const handleResize = () => {
@@ -970,17 +1398,17 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
         ...drilldownDescriptor,
         titleOption: drilldownDescriptor.titleOption
           ? {
-            ...drilldownDescriptor.titleOption,
-            showTitle: false, // Explicitly set to false to hide title
-            // Keep title and description for potential future use, but hide it
-          }
+              ...drilldownDescriptor.titleOption,
+              showTitle: false, // Explicitly set to false to hide title
+              // Keep title and description for potential future use, but hide it
+            }
           : undefined, // If no titleOption, keep it undefined
       };
 
       // Use stable key (not including timeSpan) and wrapper that calls refresh imperatively
       return (
         <DrilldownChartRendererWithRefresh
-          key={`drilldown-${modifiedDescriptor.id || "default"}`}
+          key={`drilldown-${modifiedDescriptor.titleOption?.title || modifiedDescriptor.type || "default"}`}
           descriptor={modifiedDescriptor}
           selectedTimeSpan={timeSpan}
         />
@@ -1109,10 +1537,6 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
               <p className="font-semibold">Error loading chart data:</p>
               <p className="text-sm">{error}</p>
             </div>
-          ) : isLoading && data.length === 0 ? (
-            <div className="h-[300px] flex items-center justify-center">
-              <Skeleton className="h-full w-full" />
-            </div>
           ) : (
             <>
               <div
@@ -1124,6 +1548,16 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
                   minWidth: 0, // Ensure flex children can shrink
                 }}
               />
+              {descriptor.legendOption &&
+                descriptor.legendOption.placement !== "none" &&
+                descriptor.legendOption.placement === "bottom" &&
+                legendData && (
+                  <LegendTable
+                    chartInstance={chartInstanceRef.current || undefined}
+                    legendData={legendData}
+                    legendOption={descriptor.legendOption}
+                  />
+                )}
               {drilldownComponent && <div>{drilldownComponent}</div>}
             </>
           )}

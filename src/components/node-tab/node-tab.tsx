@@ -721,6 +721,10 @@ const clusterMetricsDashboard = [
     },
     width: 12,
     description: "Insert Queries Per Second",
+    legendOption: {
+      placement: "bottom",
+      values: ["min", "max", "last"],
+    },
     query: {
       sql: `
 SELECT
@@ -752,6 +756,10 @@ ORDER BY t WITH FILL STEP {rounding:UInt32} SETTINGS skip_unavailable_shards = 1
     tooltipOption: {
       sortValue: "desc",
     },
+    legendOption: {
+      placement: "bottom",
+      values: ["min", "max", "last"],
+    },
     query: {
       sql: `
 SELECT
@@ -777,6 +785,10 @@ ORDER BY t WITH FILL STEP {rounding:UInt32} SETTINGS skip_unavailable_shards = 1
     titleOption: {
       title: "Failed Queries Per Second",
       align: "center",
+    },
+    legendOption: {
+      placement: "bottom",
+      values: ["min", "max", "last"],
     },
     width: 12,
     description: "Failed Queries Per Second",
@@ -814,6 +826,10 @@ ORDER BY t WITH FILL STEP {rounding:UInt32} SETTINGS skip_unavailable_shards = 1
     tooltipOption: {
       sortValue: "none",
     },
+    legendOption: {
+      placement: "bottom",
+      values: ["min", "max", "last"],
+    },
     fieldOptions: {
       metric: {
         format: "binary_size",
@@ -844,6 +860,10 @@ ORDER BY t WITH FILL STEP {rounding:UInt32} SETTINGS skip_unavailable_shards = 1
     titleOption: {
       title: "Insert Rows Per Second",
       align: "center",
+    },
+    legendOption: {
+      placement: "bottom",
+      values: ["min", "max", "last"],
     },
     width: 12,
     description: "Insert Rows Per Second",
@@ -906,7 +926,7 @@ const NodeTabComponent = (_props: NodeTabProps) => {
 
     dashboard.charts.push({
       title: "Cluster Metrics",
-      collapsed: true,
+      collapsed: false,
       charts: clusterMetricsDashboard,
     } as DashboardGroup);
   }

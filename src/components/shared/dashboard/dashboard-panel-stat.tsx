@@ -1,30 +1,31 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { CardContent, CardFooter, CardTitle } from "@/components/ui/card";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog } from "@/components/use-dialog";
 import { Api, type ApiResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection/ConnectionContext";
 import { DateTimeExtension } from "@/lib/datetime-utils";
+import { Formatter } from "@/lib/formatter";
 import { cn } from "@/lib/utils";
 import NumberFlow from "@number-flow/react";
 import { format } from "date-fns";
 import * as echarts from "echarts";
 import { CircleAlert, TrendingDown, TrendingUpIcon } from "lucide-react";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Formatter } from "@/lib/formatter";
-import { Button } from "@/components/ui/button";
-import { CardContent, CardFooter, CardTitle } from "@/components/ui/card";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog } from "@/components/use-dialog";
 import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import { classifyColumns, transformRowsToChartData } from "./dashboard-data-utils";
 import { showQueryDialog } from "./dashboard-dialog-utils";
-import type {
-  MinimapOption,
-  PanelDescriptor,
-  Reducer,
-  SQLQuery,
-  StatDescriptor,
-  TableDescriptor,
+import {
+  applyReducer,
+  type MinimapOption,
+  type PanelDescriptor,
+  type Reducer,
+  type SQLQuery,
+  type StatDescriptor,
+  type TableDescriptor,
 } from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
 import type { DashboardPanelComponent, RefreshOptions } from "./dashboard-panel-layout";
@@ -502,33 +503,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
     }, []);
 
     const calculateReducedValue = useCallback((data: MinimapDataPoint[], reducer: Reducer): number => {
-      if (data.length === 0) {
-        return 0;
-      }
-
-      const values = data.map((d) => d.value).filter((v) => v !== null && v !== undefined);
-
-      if (values.length === 0) {
-        return 0;
-      }
-
-      switch (reducer) {
-        case "min":
-          return Math.min(...values);
-        case "max":
-          return Math.max(...values);
-        case "sum":
-          return values.reduce((acc, val) => acc + val, 0);
-        case "count":
-          return values.length;
-        case "first":
-          return values[0];
-        case "last":
-          return values[values.length - 1];
-        case "avg":
-        default:
-          return values.reduce((acc, val) => acc + val, 0) / values.length;
-      }
+      return applyReducer(data.map((d) => d.value), reducer);
     }, []);
 
     const loadData = useCallback(

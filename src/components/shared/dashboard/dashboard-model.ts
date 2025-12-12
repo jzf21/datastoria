@@ -205,6 +205,38 @@ export interface TransposeTableDescriptor extends PanelDescriptor {
 // Reducer type for stat charts
 export type Reducer = "min" | "max" | "avg" | "sum" | "count" | "first" | "last";
 
+/**
+ * Apply a reducer function to an array of numbers
+ * @param data - Array of numbers (may contain null/undefined values which will be filtered out)
+ * @param reducer - The reducer type to apply
+ * @returns The reduced value, or 0 if no valid data
+ */
+export function applyReducer(data: (number | null | undefined)[], reducer: Reducer): number {
+  // Filter out null and undefined values
+  const values = data.filter((v): v is number => v !== null && v !== undefined);
+
+  if (values.length === 0) {
+    return 0;
+  }
+
+  switch (reducer) {
+    case "min":
+      return Math.min(...values);
+    case "max":
+      return Math.max(...values);
+    case "sum":
+      return values.reduce((acc, val) => acc + val, 0);
+    case "count":
+      return values.length;
+    case "first":
+      return values[0];
+    case "last":
+      return values[values.length - 1];
+    case "avg":
+      return values.reduce((acc, val) => acc + val, 0) / values.length;
+  }
+}
+
 // Minimap Option type for stat charts
 export type MinimapOption = {
   type: "line" | "area" | "none";
@@ -254,10 +286,10 @@ export interface TimeseriesDescriptor extends PanelDescriptor {
   }[];
 
   // Legend configuration
-  legend?: {
+  legendOption?: {
     // If not given, it defaults to the 'inside'. Use 'none' to hide the legend.
-    placement: "bottom" | "right" | "inside" | "none";
-    values: ("min" | "max" | "sum" | "avg" | "count")[];
+    placement: "bottom" | "inside" | "none";
+    values: Reducer[];
   };
 
   tooltipOption?: {
