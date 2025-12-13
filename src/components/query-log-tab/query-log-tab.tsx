@@ -3,7 +3,7 @@ import TimeSpanSelector, { BUILT_IN_TIME_SPAN_LIST, DisplayTimeSpan } from "@/co
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type ApiErrorResponse } from "@/lib/connection/connection";
+import { type QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { toastManager } from "@/lib/toast";
@@ -175,7 +175,7 @@ export function QueryLogTab({
   const [isLoading, setLoading] = useState(false);
   const [queryLogs, setQueryLogs] = useState<any[]>([]);
   const [meta, setMeta] = useState<{ name: string; type?: string }[]>([]);
-  const [loadError, setQueryLogLoadError] = useState<ApiErrorResponse | null>(null);
+  const [loadError, setQueryLogLoadError] = useState<QueryError | null>(null);
   const graphControlsRef = useRef<GraphControlsRef | null>(null);
 
   // Tab state - default to Timeline
@@ -262,7 +262,7 @@ export function QueryLogTab({
         whereClause += ` AND event_date > yesterday() AND type <> 'QueryStart'`;
       }
 
-      const { response } = connection.executeAsync(
+      const { response } = connection.query(
         // Sort the result properly so that the finish event will overwrite the start event in the later event processing
         `SELECT FQDN() as host, toUnixTimestamp64Micro(query_start_time_microseconds) as start_time_microseconds, 
           * 
@@ -285,7 +285,7 @@ export function QueryLogTab({
       setQueryLogs([]);
       // Only set error if not cancelled
       if (!(error instanceof String && error.toString().includes("canceled"))) {
-        setQueryLogLoadError(error as ApiErrorResponse);
+        setQueryLogLoadError(error as QueryError);
       }
     } finally {
       setLoading(false);
@@ -309,7 +309,13 @@ export function QueryLogTab({
 
       {loadError ? (
         <div className="p-4">
-          <ApiErrorView error={loadError} />
+          <ApiErrorView
+            error={{
+              message: loadError.message,
+              data: loadError.data,
+              httpHeaders: loadError.httpHeaders,
+            }}
+          />
         </div>
       ) : !activeQueryId ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2">

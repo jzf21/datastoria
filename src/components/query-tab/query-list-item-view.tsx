@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { type ApiErrorResponse } from "@/lib/connection/connection";
+import { type QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { format } from "date-fns";
 import { ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
@@ -78,7 +78,7 @@ export function QueryListItemView({
     // Execute query asynchronously
     (async () => {
       try {
-        const { response, abortController: apiAbortController } = connection.executeAsync(
+        const { response, abortController: apiAbortController } = connection.query(
           queryRequest.sql,
           params
         );
@@ -106,7 +106,7 @@ export function QueryListItemView({
           displayFormat: viewArgs?.displayFormat || "text",
           queryId: queryRequest.queryId,
           traceId: queryRequest.traceId,
-          errorMessage: null,
+          message: null,
           httpStatus: apiResponse.httpStatus,
           httpHeaders: apiResponse.httpHeaders,
           data: responseData,
@@ -127,18 +127,18 @@ export function QueryListItemView({
         }
 
         // Only set error response if it's not a cancellation
-        const apiError = error as ApiErrorResponse;
+        const apiError = error as QueryError;
         if (
-          apiError.errorMessage &&
-          !apiError.errorMessage.toLowerCase().includes("cancel") &&
-          !apiError.errorMessage.toLowerCase().includes("abort")
+          apiError.message &&
+          !apiError.message.toLowerCase().includes("cancel") &&
+          !apiError.message.toLowerCase().includes("abort")
         ) {
           const queryResponse: QueryResponseViewModel = {
             formatter: viewArgs?.formatter,
             displayFormat: viewArgs?.displayFormat || "text",
             queryId: queryRequest.queryId,
             traceId: queryRequest.traceId,
-            errorMessage: apiError.errorMessage || "Unknown error occurred",
+            message: apiError.message || "Unknown error occurred",
             httpStatus: apiError.httpStatus,
             httpHeaders: apiError.httpHeaders,
             data: apiError.data,
@@ -246,7 +246,7 @@ export function QueryListItemView({
       {renderQueryRequest()}
 
       {/* Query Response */}
-      {queryResponse && (queryResponse.data !== undefined || queryResponse.errorMessage !== undefined) && (
+      {queryResponse && (queryResponse.data !== undefined || queryResponse.message !== undefined) && (
         <QueryResponseView
           queryResponse={queryResponse}
           queryRequest={queryRequest}

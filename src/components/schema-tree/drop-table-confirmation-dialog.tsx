@@ -1,6 +1,6 @@
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Dialog } from "@/components/use-dialog";
-import { Connection, type ApiCanceller, type ApiErrorResponse } from "@/lib/connection/connection";
+import { Connection, type QueryError } from "@/lib/connection/connection";
 import { StringUtils } from "@/lib/string-utils";
 import { toastManager } from "@/lib/toast";
 import { Loader2 } from "lucide-react";
@@ -53,7 +53,7 @@ export function showDropTableConfirmationDialog({
 }: DropTableConfirmationDialogProps) {
   // Use refs to track state that can be accessed by button handlers
   const isDroppingRef = { current: false };
-  const dropTableCancellerRef: { current: ApiCanceller | null } = { current: null };
+  const dropTableCancellerRef: { current: AbortController | null } = { current: null };
   const shouldCloseRef = { current: false };
 
   const handleDropTable = async (): Promise<boolean> => {
@@ -65,24 +65,25 @@ export function showDropTableConfirmationDialog({
 
     const sql = `DROP TABLE \`${table.database}\`.\`${table.table}\``;
 
-    const canceller = connection.executeSQL(
+    const { response, abortController } = connection.query(
+      sql,
       {
-        sql: sql,
-        headers: {
-          "Content-Type": "text/plain",
-        },
-        params: {
-          default_format: "JSON",
-        },
+        default_format: "JSON",
       },
-      () => {
+      {
+        "Content-Type": "text/plain",
+      }
+    );
+
+    response
+      .then(() => {
         isDroppingRef.current = false;
         toastManager.show(`Table ${table.database}.${table.table} dropped successfully`, "success");
         onSuccess();
         shouldCloseRef.current = true;
-      },
-      (error: ApiErrorResponse) => {
-        const errorMessage = error.errorMessage || "Unknown error occurred";
+      })
+      .catch((error: QueryError) => {
+        const errorMessage = error.message || "Unknown error occurred";
         const lowerErrorMessage = errorMessage.toLowerCase();
         if (lowerErrorMessage.includes("cancel") || lowerErrorMessage.includes("abort")) {
           isDroppingRef.current = false;
@@ -92,19 +93,18 @@ export function showDropTableConfirmationDialog({
         console.error("API Error dropping table:", error);
         isDroppingRef.current = false;
         toastManager.show(`Failed to drop table: ${errorMessage}`, "error");
-      },
-      () => {
+      })
+      .finally(() => {
         isDroppingRef.current = false;
-      }
-    );
+      });
 
-    dropTableCancellerRef.current = canceller;
+    dropTableCancellerRef.current = abortController;
     return false; // Don't close immediately - wait for the operation
   };
 
   const handleCancel = async (): Promise<boolean> => {
     if (dropTableCancellerRef.current && isDroppingRef.current) {
-      dropTableCancellerRef.current.cancel();
+      dropTableCancellerRef.current.abort();
       isDroppingRef.current = false;
     }
     if (onCancel) {

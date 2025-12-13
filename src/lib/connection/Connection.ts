@@ -1,39 +1,31 @@
-import type { AxiosInstance, AxiosRequestConfig } from "axios";
-import axios from "axios";
 import type { ConnectionConfig } from "./connection-config";
 
 // Re-export ConnectionConfig for convenience
 export type { ConnectionConfig };
 
-export interface ApiErrorResponse {
-  errorMessage: string;
+export class QueryError extends Error {
   httpStatus?: number;
   httpHeaders?: any;
   data: any;
+
+  constructor(message: string, httpStatus?: number, httpHeaders?: any, data?: any) {
+    super(message);
+    this.name = "QueryError";
+    this.httpStatus = httpStatus;
+    this.httpHeaders = httpHeaders;
+    this.data = data;
+
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (typeof (Error as any).captureStackTrace === "function") {
+      (Error as any).captureStackTrace(this, QueryError);
+    }
+  }
 }
 
-export interface ApiResponse {
+export interface QueryResponse {
   httpStatus: number;
   httpHeaders: any;
   data: any;
-}
-
-export interface ApiCanceller {
-  cancel: () => void;
-}
-
-class ApiCancellerImpl implements ApiCanceller {
-  abortController: AbortController | undefined;
-
-  constructor(abortController: AbortController) {
-    this.abortController = abortController;
-  }
-
-  public cancel() {
-    if (this.abortController !== undefined) {
-      this.abortController.abort();
-    }
-  }
 }
 
 export interface Session {
@@ -58,9 +50,6 @@ export class Connection {
 
   // Session information
   session: Session;
-
-  // HTTP Client
-  private instance: AxiosInstance;
 
   private constructor(config: ConnectionConfig) {
     this.name = config.name;
@@ -91,93 +80,17 @@ export class Connection {
       timezone: "UTC", // Default timezone
       function_table_has_description_column: false,
     };
-
-    // Initialize Axios
-    const axiosConfig: AxiosRequestConfig = {
-      baseURL: this.host,
-      auth: {
-        username: this.user,
-        password: this.password || "",
-      },
-    };
-    this.instance = axios.create(axiosConfig);
   }
 
   static create(config: ConnectionConfig): Connection {
     return new Connection(config);
   }
 
-  public executeSQL(
-    sql: { sql: string; headers?: Record<string, string>; params?: Record<string, unknown> },
-    onResponse: (response: ApiResponse) => void,
-    onError: (response: ApiErrorResponse) => void,
-    onFinal?: () => void
-  ): ApiCanceller {
-    if (sql.headers === undefined) {
-      sql.headers = {};
-    }
-
-    // Set default ClickHouse headers if not provided
-    if (!sql.headers["Content-Type"]) {
-      sql.headers["Content-Type"] = "text/plain";
-    }
-
-    // Merge user params with request params (request params take precedence)
-    const params: Record<string, unknown> = Object.assign({}, this.userParams);
-    if (sql.params) {
-      Object.assign(params, sql.params);
-    }
-    // Add default format if not specified
-    if (!params["default_format"]) {
-      params["default_format"] = "JSONCompact";
-    }
-
-    const maxExecutionTime = params["max_execution_time"];
-    const timeout = (typeof maxExecutionTime === "number" ? maxExecutionTime : 60) * 1000;
-
-    const apiCanceller = new ApiCancellerImpl(new AbortController());
-
-    this.instance
-      .request({
-        url: this.path,
-        method: "post",
-        data: sql.sql,
-        headers: sql.headers,
-        params: params,
-        signal: apiCanceller.abortController?.signal,
-        timeout: timeout,
-        timeoutErrorMessage: `${timeout / 1000}s timeout to wait for response from ClickHouse server.`,
-      })
-      .then((response) => {
-        onResponse({
-          httpStatus: response.status,
-          httpHeaders: response.headers,
-          data: response.data,
-        });
-      })
-      .catch((error) => {
-        onError({
-          errorMessage: error.message,
-          httpHeaders: error.response?.headers,
-          httpStatus: error.response?.status,
-          data: error.response?.data,
-        });
-      })
-      .finally(() => {
-        apiCanceller.abortController = undefined;
-        if (onFinal !== undefined && onFinal !== null) {
-          onFinal();
-        }
-      });
-
-    return apiCanceller;
-  }
-
-  public executeAsync(
+  public query(
     sql: string,
     params?: Record<string, unknown>,
     headers?: Record<string, string>
-  ): { response: Promise<ApiResponse>; abortController: AbortController } {
+  ): { response: Promise<QueryResponse>; abortController: AbortController } {
     const requestHeaders: Record<string, string> = headers || {};
 
     // Set default ClickHouse headers if not provided
@@ -224,7 +137,7 @@ export class Connection {
     abortController.signal.addEventListener("abort", () => combined.abort());
     timeoutController.signal.addEventListener("abort", () => combined.abort());
 
-    const response = (async (): Promise<ApiResponse> => {
+    const response = (async (): Promise<QueryResponse> => {
       try {
         const response = await fetch(url.toString(), {
           method: "POST",
@@ -239,13 +152,12 @@ export class Connection {
         const responseText = await response.text();
 
         if (!response.ok) {
-          const error: ApiErrorResponse = {
-            errorMessage: `Error executing query, got HTTP status ${response.status} ${response.statusText} from server`,
-            httpStatus: response.status,
-            httpHeaders: Object.fromEntries(response.headers.entries()),
-            data: responseText,
-          };
-          throw error;
+          throw new QueryError(
+            `Error executing query, got HTTP status ${response.status} ${response.statusText} from server`,
+            response.status,
+            Object.fromEntries(response.headers.entries()),
+            responseText
+          );
         }
 
         // Check Content-Type header to determine if response is JSON
@@ -274,54 +186,41 @@ export class Connection {
       } catch (error: unknown) {
         clearTimeout(timeoutId);
 
-        // If it's already an ApiErrorResponse, re-throw it
-        if (error && typeof error === "object" && "errorMessage" in error) {
+        // If it's already an QueryError, re-throw it
+        if (error instanceof QueryError) {
           throw error;
         }
 
         if (error instanceof Error && error.name === "AbortError") {
           if (timeoutController.signal.aborted) {
-            const timeoutError: ApiErrorResponse = {
-              errorMessage: `${timeout / 1000}s timeout to wait for response from ClickHouse server.`,
-              httpStatus: undefined,
-              httpHeaders: undefined,
-              data: undefined,
-            };
-            throw timeoutError;
+            throw new QueryError(`${timeout / 1000}s timeout to wait for response from ClickHouse server.`);
           }
-          const abortError: ApiErrorResponse = {
-            errorMessage: error.message || "Request aborted",
-            httpStatus: undefined,
-            httpHeaders: undefined,
-            data: undefined,
-          };
-          throw abortError;
+          throw new QueryError(error.message || "Request aborted");
         }
 
-        // Re-throw as ApiErrorResponse-like error
+        // Re-throw as QueryError-like error
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        const genericError: ApiErrorResponse = {
-          errorMessage,
-          httpStatus: undefined,
-          httpHeaders: undefined,
-          data: undefined,
-        };
-        throw genericError;
+        if (errorMessage === "Failed to fetch") {
+          throw new QueryError(
+            "Failed to connect to the server. Please check the server URL and network connection."
+          );
+        }
+        throw new QueryError(errorMessage);
       }
     })();
 
     return { response, abortController };
   }
 
-  public executeAsyncOnNode(
+  public queryOnNode(
     sql: string,
     params?: Record<string, unknown>,
     headers?: Record<string, string>
-  ): { response: Promise<ApiResponse>; abortController: AbortController } {
+  ): { response: Promise<QueryResponse>; abortController: AbortController } {
     const node = this.session.targetNode;
 
     if (node === undefined) {
-      return this.executeAsync(sql, params, headers);
+      return this.query(sql, params, headers);
     }
 
     if (this.cluster && this.cluster.length > 0 && sql.includes("{cluster}")) {
@@ -329,10 +228,10 @@ export class Connection {
       sql = sql.replaceAll("{cluster}", this.cluster);
 
       // Since cluster/clusterAllReplica is used, don't use remote function to execute this sql
-      return this.executeAsync(sql, params, headers);
+      return this.query(sql, params, headers);
     }
 
-    return this.executeAsync(
+    return this.query(
       `
 SELECT * FROM remote(
   '${node}', 

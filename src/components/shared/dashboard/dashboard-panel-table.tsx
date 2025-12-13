@@ -2,7 +2,7 @@
 
 import { CardContent } from "@/components/ui/card";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { type ApiCanceller, type ApiErrorResponse } from "@/lib/connection/connection";
+import { QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { showQueryDialog } from "./dashboard-dialog-utils";
@@ -83,7 +83,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
     });
 
     // Refs
-    const apiCancellerRef = useRef<ApiCanceller | null>(null);
+    const apiCancellerRef = useRef<AbortController | null>(null);
     // Ref to store current sort state for synchronous access in loadData
     const sortRef = useRef<{ column: string | null; direction: "asc" | "desc" | null }>({
       column: descriptor.sortOption?.initialSort?.column || null,
@@ -118,7 +118,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
         try {
           // Cancel previous request if any
           if (apiCancellerRef.current) {
-            apiCancellerRef.current.cancel();
+            apiCancellerRef.current.abort();
             apiCancellerRef.current = null;
           }
 
@@ -144,7 +144,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
           }
 
           try {
-            const { response, abortController } = connection.executeAsyncOnNode(
+            const { response, abortController } = connection.queryOnNode(
               finalSql,
               {
                 default_format: "JSON",
@@ -158,12 +158,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
             );
 
             // Set the canceller immediately after getting the abort controller
-            const canceller: ApiCanceller = {
-              cancel: () => {
-                abortController.abort();
-              },
-            };
-            apiCancellerRef.current = canceller;
+            apiCancellerRef.current = abortController;
 
             const apiResponse = await response;
 
@@ -190,10 +185,9 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
               return;
             }
 
-            // Handle ApiErrorResponse
-            if (error && typeof error === "object" && "errorMessage" in error) {
-              const apiError = error as ApiErrorResponse;
-              const errorMessage = apiError.errorMessage || "Unknown error occurred";
+            // Handle QueryError
+            if (error instanceof QueryError) {
+              const errorMessage = error.message || "Unknown error occurred";
               const lowerErrorMessage = errorMessage.toLowerCase();
 
               if (lowerErrorMessage.includes("cancel") || lowerErrorMessage.includes("abort")) {
@@ -201,7 +195,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
                 return;
               }
 
-              setError(apiError.data);
+              setError(error.data);
               setIsLoading(false);
             } else {
               // Handle other errors
@@ -265,7 +259,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
     useEffect(() => {
       return () => {
         if (apiCancellerRef.current) {
-          apiCancellerRef.current.cancel();
+          apiCancellerRef.current.abort();
           apiCancellerRef.current = null;
         }
       };

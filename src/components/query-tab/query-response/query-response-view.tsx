@@ -21,8 +21,8 @@ interface QueryResponseViewProps {
   view?: string;
 }
 
-export interface ApiErrorResponse {
-  errorMessage: string;
+export interface QueryErrorDisplay {
+  message: string;
   data: unknown;
   httpHeaders?: Record<string, string>;
 }
@@ -61,7 +61,7 @@ const ErrorLocationView = memo(function ErrorLocationView({ errorLocation }: Err
   );
 });
 
-export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: string }) {
+export function ApiErrorView({ error, sql }: { error: QueryErrorDisplay; sql?: string }) {
   const clickHouseErrorCode = error.httpHeaders?.["x-clickhouse-exception-code"];
 
   // Memoize detailMessage computation
@@ -100,7 +100,7 @@ export function ApiErrorView({ error, sql }: { error: ApiErrorResponse; sql?: st
     <Alert variant="destructive" className="border-0 p-3 text-yellow-900 dark:text-yellow-600">
       <div className="flex items-center gap-2">
         <AlertCircleIcon />
-        <AlertTitle>{error.errorMessage}</AlertTitle>
+        <AlertTitle>{error.message}</AlertTitle>
       </div>
       <AlertDescription className="mt-2">
         {clickHouseErrorCode && (
@@ -142,16 +142,16 @@ export function QueryResponseView({ queryResponse, queryRequest, isLoading = fal
   const [selectedTab, setSelectedTab] = useState("result");
 
   // Memoize error object creation
-  const error: ApiErrorResponse | undefined = useMemo(
+  const error: QueryErrorDisplay | undefined = useMemo(
     () =>
-      queryResponse.errorMessage === null
+      queryResponse.message === null
         ? undefined
         : {
-            errorMessage: queryResponse.errorMessage as string,
+            message: queryResponse.message as string,
             data: queryResponse.data,
             httpHeaders: queryResponse.httpHeaders,
           },
-    [queryResponse.errorMessage, queryResponse.data, queryResponse.httpHeaders]
+    [queryResponse.message, queryResponse.data, queryResponse.httpHeaders]
   );
 
   // Memoize response text computation

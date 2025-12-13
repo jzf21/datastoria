@@ -35,7 +35,7 @@ export interface QueryResponseViewModel {
 
   queryId: string | null;
   traceId: string | null;
-  errorMessage: string | null;
+  message: string | null;
   httpStatus?: number;
   httpHeaders?: Record<string, string>;
   data?: unknown;

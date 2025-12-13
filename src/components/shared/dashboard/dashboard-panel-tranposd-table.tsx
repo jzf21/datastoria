@@ -4,7 +4,7 @@ import { CardContent } from "@/components/ui/card";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type ApiCanceller, type ApiErrorResponse, type ApiResponse } from "@/lib/connection/connection";
+import { type QueryError, type QueryResponse } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { Formatter, type FormatName } from "@/lib/formatter";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -51,7 +51,7 @@ const DashboardPanelTransposedTable = forwardRef<DashboardPanelComponent, Dashbo
     const [skeletonOpacity, setSkeletonOpacity] = useState(1);
 
     // Refs
-    const apiCancellerRef = useRef<ApiCanceller | null>(null);
+    const apiCancellerRef = useRef<AbortController | null>(null);
     // Refs for skeleton timing
     const skeletonStartTimeRef = useRef<number | null>(null);
     const skeletonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,7 +92,7 @@ const DashboardPanelTransposedTable = forwardRef<DashboardPanelComponent, Dashbo
         try {
           // Cancel previous request if any
           if (apiCancellerRef.current) {
-            apiCancellerRef.current.cancel();
+            apiCancellerRef.current.abort();
             apiCancellerRef.current = null;
           }
 
@@ -113,7 +113,7 @@ const DashboardPanelTransposedTable = forwardRef<DashboardPanelComponent, Dashbo
             ? replaceTimeSpanParams(query.sql, param.selectedTimeSpan, connection.session.timezone)
             : query.sql;
 
-          const { response, abortController } = connection.executeAsync(
+          const { response, abortController } = connection.query(
             finalSql,
             {
               default_format: "JSON",
@@ -126,12 +126,10 @@ const DashboardPanelTransposedTable = forwardRef<DashboardPanelComponent, Dashbo
             }
           );
 
-          apiCancellerRef.current = {
-            cancel: () => abortController.abort(),
-          };
+          apiCancellerRef.current = abortController;
 
           response
-            .then((apiResponse: ApiResponse) => {
+            .then((apiResponse: QueryResponse) => {
               try {
                 const responseData = apiResponse.data;
 
@@ -171,8 +169,8 @@ const DashboardPanelTransposedTable = forwardRef<DashboardPanelComponent, Dashbo
                 setIsLoading(false);
               }
             })
-            .catch((error: ApiErrorResponse) => {
-              const errorMessage = error.errorMessage || "Unknown error occurred";
+            .catch((error: QueryError) => {
+              const errorMessage = error.message || "Unknown error occurred";
               const lowerErrorMessage = errorMessage.toLowerCase();
               if (lowerErrorMessage.includes("cancel") || lowerErrorMessage.includes("abort")) {
                 setIsLoading(false);
@@ -276,7 +274,7 @@ const DashboardPanelTransposedTable = forwardRef<DashboardPanelComponent, Dashbo
     useEffect(() => {
       return () => {
         if (apiCancellerRef.current) {
-          apiCancellerRef.current.cancel();
+          apiCancellerRef.current.abort();
           apiCancellerRef.current = null;
         }
       };

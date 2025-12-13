@@ -5,7 +5,7 @@ import { CardContent, CardFooter, CardTitle } from "@/components/ui/card";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog } from "@/components/use-dialog";
-import { type ApiResponse } from "@/lib/connection/connection";
+import { type QueryResponse } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { Formatter } from "@/lib/formatter";
@@ -440,7 +440,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
       return true;
     }, [descriptor]);
 
-    const getMinimapDataFromResponse = useCallback((response: ApiResponse): MinimapDataPoint[] => {
+    const getMinimapDataFromResponse = useCallback((response: QueryResponse): MinimapDataPoint[] => {
       if (!response.data) {
         return [];
       }
@@ -535,7 +535,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
 
             // Replace time span template parameters in SQL
             const finalSql = replaceTimeSpanParams(thisQuery.sql, _param.selectedTimeSpan, connection!.session.timezone);
-            const { response } = connection!.executeAsyncOnNode(
+            const { response } = connection!.queryOnNode(
               finalSql,
               {
                 default_format: "JSON",
@@ -565,7 +565,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
                 setIsLoadingMinimap(false);
               })
               .catch((error) => {
-                setError(error.data || error.errorMessage || "Failed to load data");
+                setError(error.data || error.message || "Failed to load data");
                 setIsLoadingValue(false);
                 setIsLoadingMinimap(false);
               });
@@ -575,7 +575,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
 
             // Replace time span template parameters in SQL
             const finalSql = replaceTimeSpanParams(query.sql, _param.selectedTimeSpan, connection!.session.timezone);
-            const { response } = connection!.executeAsyncOnNode(
+            const { response } = connection!.queryOnNode(
               finalSql,
               {
                 default_format: "JSONCompact",
@@ -610,7 +610,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
                 }
               })
               .catch((error) => {
-                setError(error.data || error.errorMessage || "Failed to load data");
+                setError(error.data || error.message || "Failed to load data");
                 setIsLoadingValue(false);
                 setIsLoadingMinimap(false);
               });

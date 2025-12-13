@@ -1,7 +1,7 @@
 import { GraphvizComponent } from "@/components/shared/graphviz/GraphvizComponent";
 import { useTheme } from "@/components/theme-provider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type ApiErrorResponse, type ApiResponse } from "@/lib/connection/connection";
+import { type QueryError, type QueryResponse } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { toastManager } from "@/lib/toast";
 import { memo, useEffect, useMemo, useState } from "react";
@@ -220,7 +220,7 @@ function ExplainPipeCompleteGraphView({ sql, isActive }: ExplainPipeGraphViewPro
   const { theme } = useTheme();
   const [rawGraphviz, setRawGraphviz] = useState("");
   const [result, setResult] = useState("");
-  const [loadError, setLoadError] = useState<ApiErrorResponse | null>(null);
+  const [loadError, setLoadError] = useState<QueryError | null>(null);
   const [bgColor, setBgColor] = useState("#002B36");
 
   // Update background color based on current theme
@@ -275,39 +275,33 @@ function ExplainPipeCompleteGraphView({ sql, isActive }: ExplainPipeGraphViewPro
     }
 
 
-    const canceller = connection.executeSQL(
-      {
-        sql: sql,
-        params: {
-          default_format: "TSVRaw",
-        },
-      },
-      (response: ApiResponse) => {
-        const cleaned = response.data === "" ? "" : cleanGraphviz(response.data);
+    const { response, abortController } = connection.query(sql, {
+      default_format: "TSVRaw",
+    });
+
+    response
+      .then((apiResponse: QueryResponse) => {
+        const cleaned = apiResponse.data === "" ? "" : cleanGraphviz(apiResponse.data);
         setRawGraphviz(cleaned);
         // Don't set result here - let the useEffect handle styling
         // This ensures styling is applied correctly even if bgColor changes
         setLoadError(null);
-      },
-      (error: ApiErrorResponse) => {
+      })
+      .catch((error: QueryError) => {
         setRawGraphviz("");
         setResult("");
         setLoadError(error);
-      },
-      () => {
-        // Query execution finished
-      }
-    );
+      });
 
     return () => {
-      canceller.cancel();
+      abortController.abort();
     };
   }, [isActive, sql, connection, rawGraphviz.length]);
 
   if (loadError) {
     return (
       <div className="text-sm text-destructive p-4">
-        <pre className="whitespace-pre-wrap">{loadError.errorMessage}</pre>
+        <pre className="whitespace-pre-wrap">{loadError.message}</pre>
       </div>
     );
   }
@@ -335,7 +329,7 @@ interface ExplainPipeLineTextViewProps {
 function ExplainPipeLineTextView({ sql, isActive }: ExplainPipeLineTextViewProps) {
   const { connection } = useConnection();
   const [result, setResult] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<ApiErrorResponse | null>(null);
+  const [loadError, setLoadError] = useState<QueryError | null>(null);
 
   useEffect(() => {
     if (!isActive) {
@@ -355,35 +349,29 @@ function ExplainPipeLineTextView({ sql, isActive }: ExplainPipeLineTextViewProps
     }
 
 
-    const canceller = connection.executeSQL(
-      {
-        sql: sql,
-        params: {
-          default_format: "TSVRaw",
-        },
-      },
-      (response: ApiResponse) => {
-        setResult(response.data === "" ? null : response.data);
+    const { response, abortController } = connection.query(sql, {
+      default_format: "TSVRaw",
+    });
+
+    response
+      .then((apiResponse: QueryResponse) => {
+        setResult(apiResponse.data === "" ? null : apiResponse.data);
         setLoadError(null);
-      },
-      (error: ApiErrorResponse) => {
+      })
+      .catch((error: QueryError) => {
         setResult(null);
         setLoadError(error);
-      },
-      () => {
-        // Query execution finished
-      }
-    );
+      });
 
     return () => {
-      canceller.cancel();
+      abortController.abort();
     };
   }, [isActive, sql, connection, result]);
 
   if (loadError) {
     return (
       <div className="text-sm text-destructive p-4">
-        <pre className="whitespace-pre-wrap text-xs">{loadError.errorMessage}</pre>
+        <pre className="whitespace-pre-wrap text-xs">{loadError.message}</pre>
       </div>
     );
   }

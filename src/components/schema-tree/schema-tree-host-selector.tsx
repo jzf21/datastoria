@@ -46,9 +46,9 @@ export function SchemaTreeHostSelector({ clusterName, nodeName, onHostChange }: 
   useEffect(() => {
     if (isOpen && data.length === 0 && !loading && connection && clusterName.length > 0) {
       setLoading(true);
-      connection.executeSQL(
-        {
-          sql: `
+      connection
+        .query(
+          `
 SELECT 
   host_name AS name, 
   host_address AS address, 
@@ -57,23 +57,22 @@ SELECT
 FROM system.clusters 
 WHERE cluster ='${clusterName}'
 ORDER BY shard, replica`,
-          params: { default_format: "JSON" },
-        },
-        (response) => {
+          { default_format: "JSON" }
+        )
+        .response.then((response) => {
           try {
             setData((response.data.data || []) as HostInfo[]);
             setError(null);
           } catch {
             setError("Failed to parse response");
           }
-        },
-        (err) => {
-          setError(err.errorMessage || "Failed to load cluster info");
-        },
-        () => {
+        })
+        .catch((err) => {
+          setError(err.message || "Failed to load cluster info");
+        })
+        .finally(() => {
           setLoading(false);
-        }
-      );
+        });
     }
   }, [isOpen, connection, clusterName, data.length, loading]);
 

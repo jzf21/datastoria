@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Connection, type ApiErrorResponse } from "@/lib/connection/connection";
+import { Connection, type QueryError } from "@/lib/connection/connection";
 import type { ConnectionConfig } from "@/lib/connection/connection-config";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
 import type { QueryContext } from "@/lib/query-context/query-context";
@@ -478,7 +478,7 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
 
     try {
       const connection = Connection.create(selectedConnection);
-      const { response } = connection.executeAsync(
+      const { response } = connection.query(
         // in old version, there's no 'default' value field
         "SELECT name, type, description, value FROM system.settings ORDER BY name",
         {
@@ -513,10 +513,10 @@ function QueryContextEditDialogWrapper({ onCancel }: { onCancel?: () => void }) 
         });
       }
     } catch (error) {
-      const apiError = error as ApiErrorResponse;
+      const apiError = error as QueryError;
       setBottomSectionContent({
         type: "error",
-        message: `Failed to load settings: ${apiError.errorMessage}`,
+        message: `Failed to load settings: ${apiError.message}`,
       });
     }
   }, [selectedConnection]);

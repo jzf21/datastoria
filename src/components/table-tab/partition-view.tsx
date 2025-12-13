@@ -3,7 +3,7 @@ import type { DashboardPanelComponent } from "@/components/shared/dashboard/dash
 import DashboardPanelTable from "@/components/shared/dashboard/dashboard-panel-table";
 import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
 import { Button } from "@/components/ui/button";
-import { Connection, type ApiErrorResponse } from "@/lib/connection/connection";
+import { Connection, QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { toastManager } from "@/lib/toast";
 import { Loader2, Trash2 } from "lucide-react";
@@ -37,7 +37,7 @@ function showDropPartitionDialog({ database, table, partition, connection, onSuc
       const sql = `ALTER TABLE \`${database}\`.\`${table}\` DROP PARTITION '${escapedPartition}'`;
 
       // Execute the SQL using async/await
-      const { response, abortController } = connection.executeAsync(
+      const { response, abortController } = connection.query(
         sql,
         {
           default_format: "JSON",
@@ -58,8 +58,8 @@ function showDropPartitionDialog({ database, table, partition, connection, onSuc
       }
     } catch (error) {
       const errorMessage =
-        error && typeof error === "object" && "errorMessage" in error
-          ? (error as ApiErrorResponse).errorMessage
+        error instanceof QueryError
+          ? error.message
           : error instanceof Error
             ? error.message
             : "Unknown error occurred";

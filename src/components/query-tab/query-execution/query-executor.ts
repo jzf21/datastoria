@@ -6,7 +6,7 @@ export interface QueryRequestOptions {
   displayFormat?: "sql" | "text";
   formatter?: (text: string) => string;
   view?: string; // View type (e.g., "dependency", "query")
-  params?: Record<string, unknown>; // Query parameters to pass to executeSQL
+  params?: Record<string, unknown>; // Query parameters to pass to query
 }
 
 export interface QueryRequestEventDetail {
@@ -30,7 +30,7 @@ export class QueryExecutor {
    * Emit a query request event
    * @param sql SQL query to execute
    * @param options Query display options
-   * @param params Query parameters to pass to executeSQL
+   * @param params Query parameters to pass to query
    * @param tabId Optional tab ID to target specific tab (if not provided, all tabs will handle it)
    */
   static sendQueryRequest(

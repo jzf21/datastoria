@@ -12,7 +12,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { FieldDescription } from "@/components/ui/field-description";
 import { Input } from "@/components/ui/input";
-import { Connection, type ApiCanceller, type ApiErrorResponse } from "@/lib/connection/connection";
+import { Connection, QueryError } from "@/lib/connection/connection";
 import type { ConnectionConfig } from "@/lib/connection/connection-config";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
 import axios from "axios";
@@ -162,7 +162,7 @@ function ConnectionEditDialogWrapper({
     }
   }, [connection]);
 
-  const [apiCanceller, setApiCanceller] = useState<ApiCanceller>();
+  const [apiCanceller, setAbort] = useState<AbortController>();
   const [connectionTemplates, setConnectionTemplates] = useState<ConnectionConfig[]>(
     isAddMode ? [] : ConnectionManager.getInstance().getConnections()
   );
@@ -170,7 +170,7 @@ function ConnectionEditDialogWrapper({
   // UI state
   const [isShowPassword, setShowPassword] = useState(false);
   const [isLoadingTemplates, setLoadingTemplates] = useState(false);
-  const [loadingTemplateError, setLoadingTemplateError] = useState<ApiErrorResponse | undefined>();
+  const [loadingTemplateError, setLoadingTemplateError] = useState<QueryError | undefined>();
   const [bottomSectionContent, setBottomSectionContent] = useState<BottomSectionContent>(null);
 
   // Error and message state
@@ -216,12 +216,14 @@ function ConnectionEditDialogWrapper({
         setLoadingTemplateError(undefined);
       })
       .catch((error) => {
-        setLoadingTemplateError({
-          errorMessage: "Failed to loading templates: " + error.message,
-          httpHeaders: error.response?.headers,
-          httpStatus: error.response?.status,
-          data: error.response?.data,
-        });
+        setLoadingTemplateError(
+          new QueryError(
+            "Failed to loading templates: " + error.message,
+            error.response?.status,
+            error.response?.headers,
+            error.response?.data
+          )
+        );
       })
       .finally(() => {
         setLoadingTemplates(false);
@@ -355,7 +357,7 @@ function ConnectionEditDialogWrapper({
   useEffect(() => {
     return () => {
       // cancel any inflight request on unmount
-      apiCanceller?.cancel();
+      apiCanceller?.abort();
     };
   }, [apiCanceller]);
 
@@ -448,7 +450,7 @@ function ConnectionEditDialogWrapper({
         <FieldLabel>{isAddMode ? "Templates(Optional)" : "Connections"}</FieldLabel>
         {isLoadingTemplates && <div>Loading...</div>}
         {!isLoadingTemplates && loadingTemplateError !== undefined && (
-          <div className="text-sm text-destructive">{loadingTemplateError.errorMessage}</div>
+          <div className="text-sm text-destructive">{loadingTemplateError.message}</div>
         )}
         {!isLoadingTemplates && loadingTemplateError === undefined && (
           <DropdownMenu>
@@ -514,17 +516,15 @@ function ConnectionEditDialogWrapper({
       const connection = Connection.create(testConnectionConfig);
 
       try {
-        const { response, abortController } = connection.executeAsync("SELECT 1");
+        const { response, abortController } = connection.query("SELECT 1");
 
         // Set the canceller immediately after getting the abort controller
-        setApiCanceller({
-          cancel: () => abortController.abort(),
-        });
+        setAbort(abortController);
 
         const apiResponse = await response;
 
         if (testConnectionConfig.cluster.length === 0) {
-          setApiCanceller(undefined);
+          setAbort(undefined);
           if (apiResponse.httpHeaders["x-clickhouse-format"] == null) {
             setTestResultWithDelay({
               type: "error",
@@ -542,18 +542,16 @@ function ConnectionEditDialogWrapper({
 
         // For CLUSTER MODE, continue to check if the cluster exists
         try {
-          const { response: clusterResponse, abortController: clusterAbortController } = connection.executeAsync(
+          const { response: clusterResponse, abortController: clusterAbortController } = connection.query(
             `SELECT 1 FROM system.clusters WHERE cluster = '${testConnectionConfig.cluster}' Format JSONCompact`
           );
 
           // Update the canceller for the cluster check
-          setApiCanceller({
-            cancel: () => clusterAbortController.abort(),
-          });
+          setAbort(clusterAbortController);
 
           const clusterApiResponse = await clusterResponse;
 
-          setApiCanceller(undefined);
+          setAbort(undefined);
           if (clusterApiResponse.data.data.length === 0) {
             setTestResultWithDelay({
               type: "error",
@@ -566,18 +564,18 @@ function ConnectionEditDialogWrapper({
             });
           }
         } catch (clusterError: unknown) {
-          const error = clusterError as ApiErrorResponse;
-          setApiCanceller(undefined);
+          const error = clusterError as QueryError;
+          setAbort(undefined);
           setTestResultWithDelay({
             type: "error",
-            message: `Successfully connected to ClickHouse server. But unable to determine if the cluster [${testConnectionConfig.name}] exists on the server. You can still save the connection to continue. ${error.httpStatus !== 404 ? error.errorMessage : ""
+            message: `Successfully connected to ClickHouse server. But unable to determine if the cluster [${testConnectionConfig.name}] exists on the server. You can still save the connection to continue. ${error.httpStatus !== 404 ? error.message : ""
               }`,
           });
         }
       } catch (error: unknown) {
-        setApiCanceller(undefined);
+        setAbort(undefined);
 
-        const apiError = error as ApiErrorResponse;
+        const apiError = error as QueryError;
 
         // Authentication fails
         if (
@@ -602,7 +600,7 @@ function ConnectionEditDialogWrapper({
 
         setTestResultWithDelay({
           type: "error",
-          message: `${apiError.errorMessage}${detailMessage ? `\n${detailMessage}` : ""}`,
+          message: `${apiError.message}${detailMessage ? `\n${detailMessage}` : ""}`,
         });
       }
     } catch (e: unknown) {
@@ -612,7 +610,7 @@ function ConnectionEditDialogWrapper({
         message: `Internal Error\n${errorMessage}`,
       });
     }
-  }, [getEditingConnection, setApiCanceller]);
+  }, [getEditingConnection, setAbort]);
 
 
 

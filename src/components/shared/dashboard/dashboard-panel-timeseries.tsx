@@ -4,7 +4,7 @@ import { CardContent } from "@/components/ui/card";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog } from "@/components/use-dialog";
-import { type ApiCanceller, type ApiErrorResponse } from "@/lib/connection/connection";
+import { type QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { Formatter, type FormatName, type ObjectFormatter } from "@/lib/formatter";
@@ -339,7 +339,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
     // Refs
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartInstanceRef = useRef<echarts.ECharts | null>(null);
-    const apiCancellerRef = useRef<ApiCanceller | null>(null);
+    const apiCancellerRef = useRef<AbortController | null>(null);
     const timestampsRef = useRef<number[]>([]);
     const hoveredSeriesRef = useRef<string | null>(null);
 
@@ -1076,7 +1076,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
         try {
           // Cancel previous request if any
           if (apiCancellerRef.current) {
-            apiCancellerRef.current.cancel();
+            apiCancellerRef.current.abort();
             apiCancellerRef.current = null;
           }
 
@@ -1085,7 +1085,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
 
           // Replace time span template parameters in SQL
           const finalSql = replaceTimeSpanParams(query.sql, param.selectedTimeSpan, connection.session.timezone);
-          const { response, abortController } = connection.executeAsyncOnNode(
+          const { response, abortController } = connection.queryOnNode(
             finalSql,
             {
               default_format: "JSON",
@@ -1098,9 +1098,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
             }
           );
 
-          apiCancellerRef.current = {
-            cancel: () => abortController.abort(),
-          };
+          apiCancellerRef.current = abortController;
 
           (async () => {
             try {
@@ -1195,8 +1193,8 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
                 return;
               }
 
-              const apiError = error as ApiErrorResponse;
-              const errorMessage = apiError.errorMessage || "Unknown error occurred";
+              const apiError = error as QueryError;
+              const errorMessage = apiError.message || "Unknown error occurred";
               const lowerErrorMessage = errorMessage.toLowerCase();
               if (lowerErrorMessage.includes("cancel") || lowerErrorMessage.includes("abort")) {
                 setIsLoading(false);
@@ -1371,7 +1369,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
     useEffect(() => {
       return () => {
         if (apiCancellerRef.current) {
-          apiCancellerRef.current.cancel();
+          apiCancellerRef.current.abort();
           apiCancellerRef.current = null;
         }
       };

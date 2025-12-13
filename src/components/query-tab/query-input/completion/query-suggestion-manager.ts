@@ -109,7 +109,7 @@ export class QuerySuggestionManager {
 
     // Query 1: Databases
     connection
-      .executeAsync(`SELECT name, 'database', -30, '' FROM system.databases ORDER BY name`, {
+      .query(`SELECT name, 'database', -30, '' FROM system.databases ORDER BY name`, {
         default_format: "JSONCompact",
       })
       .response.then((response) => {
@@ -124,13 +124,13 @@ export class QuerySuggestionManager {
 
     // Query 2: Functions
     connection
-      .executeAsync(
+      .query(
         `
 SELECT * FROM (
-        SELECT concat(name, '()') AS name, ${connection.session.function_table_has_description_column ? 'description' : ''} FROM system.functions WHERE is_aggregate = 0
+        SELECT concat(name, '()') AS name, ${connection.session.function_table_has_description_column ? "description" : "''"} FROM system.functions WHERE is_aggregate = 0
     UNION ALL
         -- Aggregate Combinator
-        SELECT concat(functions.name, combinator.name, '()') AS name, ${connection.session.function_table_has_description_column ? 'functions.description' : ''} FROM system.functions AS functions
+        SELECT concat(functions.name, combinator.name, '()') AS name, ${connection.session.function_table_has_description_column ? "functions.description" : "''"} FROM system.functions AS functions
         CROSS JOIN system.aggregate_function_combinators  AS combinator
         WHERE functions.is_aggregate
     UNION ALL
@@ -146,12 +146,7 @@ SELECT * FROM (
       .response.then((response) => {
         const returnList = response.data.data;
         returnList.forEach((eachRowObject: any) => {
-          const suggestion = [
-            eachRowObject[0],
-            'function',
-            -50,
-            eachRowObject[1]
-          ];
+          const suggestion = [eachRowObject[0], "function", -50, eachRowObject[1]];
           processCompletionItem(suggestion);
         });
       })
@@ -161,7 +156,7 @@ SELECT * FROM (
 
     // Query 3: Data Types
     connection
-      .executeAsync(
+      .query(
         `SELECT multiIf(alias_to = '', name, alias_to) AS name, 'type', -0, '' FROM system.data_type_families`,
         {
           default_format: "JSONCompact",
@@ -179,7 +174,7 @@ SELECT * FROM (
 
     // Query 4: Settings
     connection
-      .executeAsync(
+      .query(
         `SELECT name, 'setting', -60, concat(description, '<br/><br/>Current value: ', value) FROM system.settings ORDER BY name`,
         {
           default_format: "JSONCompact",
@@ -197,7 +192,7 @@ SELECT * FROM (
 
     // Query 5: Merge Tree Settings
     connection
-      .executeAsync(
+      .query(
         `SELECT name, 'merge_tree_setting', -100, concat(description, '<br/><br/>Current value: ', value) FROM system.merge_tree_settings ORDER BY name`,
         {
           default_format: "JSONCompact",
@@ -213,9 +208,26 @@ SELECT * FROM (
         console.error("Failed to load merge tree settings completion data:", error);
       });
 
+    connection
+      .query(
+        `SELECT name, 'server_setting', -100, concat(description, '<br/><br/>Current value: ', value) FROM system.server_settings ORDER BY name`,
+        {
+          default_format: "JSONCompact",
+        }
+      )
+      .response.then((response) => {
+        const returnList = response.data.data;
+        returnList.forEach((eachRowObject: any) => {
+          processCompletionItem(eachRowObject);
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to load server tree settings completion data:", error);
+      });
+
     // Query 6: Table Engines
     connection
-      .executeAsync(`SELECT name, 'engine', -100, '' FROM system.table_engines ORDER BY name`, {
+      .query(`SELECT name, 'engine', -100, '' FROM system.table_engines ORDER BY name`, {
         default_format: "JSONCompact",
       })
       .response.then((response) => {
@@ -230,7 +242,7 @@ SELECT * FROM (
 
     // Query 7: Formats
     connection
-      .executeAsync(`SELECT name, 'format', -60, '' FROM system.formats WHERE is_output ORDER BY name`, {
+      .query(`SELECT name, 'format', -60, '' FROM system.formats WHERE is_output ORDER BY name`, {
         default_format: "JSONCompact",
       })
       .response.then((response) => {
@@ -247,7 +259,7 @@ SELECT * FROM (
     // Get keywords from system.keywords if the table exists
     //
     connection
-      .executeAsync(`SELECT keyword, 'keyword', -10, '' FROM system.keywords ORDER BY keyword`, {
+      .query(`SELECT keyword, 'keyword', -10, '' FROM system.keywords ORDER BY keyword`, {
         default_format: "JSONCompact",
       })
       .response.then((response) => {
@@ -272,7 +284,7 @@ SELECT * FROM (
     // Get tables
     //
     connection
-      .executeAsync(
+      .query(
         `SELECT database, name, comment FROM system.tables WHERE NOT startsWith(tables.name, '.inner') ORDER BY database, name`,
         {
           default_format: "JSONCompact",
@@ -333,7 +345,7 @@ SELECT * FROM (
     // Get columns
     //
     connection
-      .executeAsync(
+      .query(
         `SELECT table, name, type, comment FROM system.columns WHERE NOT startsWith(table, '.inner') ORDER BY table, name`,
         {
           default_format: "JSONCompact",
@@ -387,7 +399,7 @@ SELECT * FROM (
       ];
     } else {
       connection
-        .executeAsync(`SELECT distinct cluster FROM system.clusters ORDER BY cluster`, {
+        .query(`SELECT distinct cluster FROM system.clusters ORDER BY cluster`, {
           default_format: "JSONCompact",
         })
         .response.then((response) => {

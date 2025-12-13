@@ -7,26 +7,30 @@ import { useConnection } from "@/lib/connection/connection-context";
 import { AlertCircle, Loader2, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { ConnectionSelector } from "./connection/connection-selector";
 import { MainPageTabList } from "./main-page-tab-list";
 
 export type AppInitStatus = "initializing" | "ready" | "error";
 
 interface MainPageLoadStatusComponentProps {
   status: AppInitStatus;
+  connectionName: string;
   error?: string | null;
-  onRetry?: () => void;
+  onRetry: () => void;
 }
 
 // Component for Initializing or Error states (covers the whole page)
-function MainPageLoadStatusComponent({ status, error, onRetry }: MainPageLoadStatusComponentProps) {
+function MainPageLoadStatusComponent({ status, connectionName, error, onRetry }: MainPageLoadStatusComponentProps) {
   if (status === "initializing") {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in fade-in duration-500">
-        <div className="bg-background p-4 rounded-full shadow-sm border mb-6">
+        <div className="bg-background p-4 ">
           <Loader2 className="h-8 w-8 text-primary animate-spin" />
         </div>
-        <h3 className="text-lg font-medium mb-2">Connecting to Database...</h3>
-        <p className="text-muted-foreground text-sm">Loading schema and verifying connection</p>
+        <h3 className="text-lg font-medium mb-2">Connecting to Database: {connectionName}</h3>
+        <p className="text-muted-foreground text-sm mb-8">Loading schema and verifying connection</p>
+        {/* Invisible spacer to match button height in error state */}
+        <div className="h-10" />
       </div>
     );
   }
@@ -34,20 +38,25 @@ function MainPageLoadStatusComponent({ status, error, onRetry }: MainPageLoadSta
   if (status === "error") {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in slide-in-from-bottom-4 duration-300">
-        <div className="bg-destructive/10 p-4 rounded-full mb-6">
+        <div className="bg-destructive/10 p-4 rounded-full">
           <AlertCircle className="h-10 w-10 text-destructive" />
         </div>
         <h3 className="text-lg font-medium mb-2">Connection Failed</h3>
-        <p className="text-muted-foreground max-w-md mb-8 text-sm whitespace-pre-wrap">
+        <p className="text-muted-foreground max-w-md text-sm whitespace-pre-wrap mb-8">
           {error || "Unable to establish a connection to the server."}
         </p>
-        <div className="flex gap-3 mt-4">
-          {onRetry && (
-            <Button onClick={onRetry} variant="outline" className="gap-2">
-              <RotateCcw className="h-4 w-4" />
-              Retry Connection
-            </Button>
-          )}
+        <div className="flex gap-3">
+          <Button onClick={onRetry} variant="outline" className="gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Retry
+          </Button>
+          <ConnectionSelector
+            trigger={
+              <Button variant="outline" className="gap-2">
+                Switch Connection
+              </Button>
+            }
+          />
         </div>
       </div>
     );
@@ -58,7 +67,7 @@ function MainPageLoadStatusComponent({ status, error, onRetry }: MainPageLoadSta
 
 // Initialize cluster info on a temporary connection and return the updates
 async function getSessionInfo(connection: Connection): Promise<Partial<Session>> {
-  const { response } = connection.executeAsync(
+  const { response } = connection.query(
     `
     SELECT currentUser(), timezone(), hasColumnInTable('system', 'functions', 'description')
 `,
@@ -91,6 +100,7 @@ export function MainPage() {
   const [initStatus, setInitStatus] = useState<AppInitStatus>("initializing");
   const [initError, setInitError] = useState<string | null>(null);
   const [loadedSchemaData, setLoadedSchemaData] = useState<SchemaLoadResult | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Main Loading Effect
   useEffect(() => {
@@ -141,8 +151,10 @@ export function MainPage() {
         }
       } catch (err) {
         if (isMounted) {
-          setInitStatus("error");
-          setInitError(err instanceof Error ? err.message : String(err));
+          setTimeout(() => {
+            setInitStatus("error");
+            setInitError(err instanceof Error ? err.message : String(err));
+          }, 300);
         }
       }
     };
@@ -151,9 +163,9 @@ export function MainPage() {
 
     return () => {
       isMounted = false;
-      schemaLoader.cancel();
+      schemaLoader.abort();
     };
-  }, [connection, updateConnection, setIsReady, isReady]);
+  }, [connection, updateConnection, setIsReady, isReady, retryCount]);
 
   // Show wizard if no connections exist
   if (!connection) {
@@ -163,7 +175,14 @@ export function MainPage() {
   // Show Full Page Status (Loading/Error)
   if (initStatus === "initializing" || initStatus === "error") {
     return (
-      <MainPageLoadStatusComponent status={initStatus} error={initError} onRetry={() => window.location.reload()} />
+      <MainPageLoadStatusComponent
+        status={initStatus}
+        connectionName={connection.name}
+        error={initError}
+        onRetry={() => {
+          setRetryCount((prev) => prev + 1);
+        }}
+      />
     );
   }
 

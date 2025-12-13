@@ -1,4 +1,4 @@
-import { Connection, type ApiCanceller, type ApiErrorResponse } from "@/lib/connection/connection";
+import { Connection, type QueryError } from "@/lib/connection/connection";
 import type { SchemaLoadResult, TableItemDO } from "./schema-tree-types";
 
 // Re-export types for backward compatibility
@@ -7,14 +7,14 @@ export type {
 } from "./schema-tree-types";
 
 export class SchemaTreeLoader {
-  private apiCanceller: ApiCanceller | null = null;
+  private apiCanceller: AbortController | null = null;
 
   /**
-   * Cancels any ongoing loading request
+   * Aborts any ongoing loading request
    */
-  cancel() {
+  abort() {
     if (this.apiCanceller) {
-      this.apiCanceller.cancel();
+      this.apiCanceller.abort();
       this.apiCanceller = null;
     }
   }
@@ -23,7 +23,7 @@ export class SchemaTreeLoader {
    * Loads the schema data for a given connection
    */
   async load(connection: Connection): Promise<SchemaLoadResult> {
-    this.cancel(); // Cancel previous
+    this.abort(); // Abort previous
 
     const sql = `
 SELECT 
@@ -50,14 +50,12 @@ WHERE
 ORDER BY lower(database), database, table, columnName`;
 
     try {
-      const { response, abortController } = connection.executeAsyncOnNode(
+      const { response, abortController } = connection.queryOnNode(
         sql,
         { default_format: "JSON", output_format_json_quote_64bit_integers: 0 }
       );
 
-      this.apiCanceller = {
-        cancel: () => abortController.abort(),
-      };
+      this.apiCanceller = abortController;
 
       const apiResponse = await response;
 
@@ -71,8 +69,8 @@ ORDER BY lower(database), database, table, columnName`;
         serverDisplayName: serverDisplayName || undefined,
       };
     } catch (error: unknown) {
-      const apiError = error as ApiErrorResponse;
-      let errorMessage = `Failed to load databases: ${apiError.errorMessage}`;
+      const apiError = error as QueryError;
+      let errorMessage = `Failed to load databases: ${apiError.message}`;
       if (apiError.httpStatus) {
         errorMessage += ` (HTTP ${apiError.httpStatus})`;
       }

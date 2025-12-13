@@ -3,7 +3,7 @@ import type { GraphEdge } from "@/components/shared/graphviz/Graph";
 import { OpenTableTabButton } from "@/components/table-tab/open-table-tab-button";
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Button } from "@/components/ui/button";
-import { type ApiErrorResponse } from "@/lib/connection/connection";
+import { type QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { StringUtils } from "@/lib/string-utils";
 import { toastManager } from "@/lib/toast";
@@ -64,7 +64,7 @@ const DependencyViewComponent = ({ database }: DependencyViewProps) => {
 
     (async () => {
       try {
-        const { response } = connection.executeAsync(
+        const { response } = connection.query(
           `
 SELECT
     concat(database, '.', name) AS id,
@@ -111,11 +111,11 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
 
         setIsLoading(false);
       } catch (error) {
-        const apiError = error as ApiErrorResponse;
+        const apiError = error as QueryError;
         setNodes(new Map());
         setEdges([]);
         setIsLoading(false);
-        toastManager.show(`Dependency query failed: ${apiError.errorMessage}`, "error");
+        toastManager.show(`Dependency query failed: ${apiError.message}`, "error");
       }
     })();
 

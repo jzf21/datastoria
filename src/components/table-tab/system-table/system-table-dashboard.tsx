@@ -5,7 +5,7 @@ import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/use-dialog";
-import { type ApiResponse } from "@/lib/connection/connection";
+import { type QueryResponse } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { AlertTriangle, EllipsisVertical } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -43,18 +43,18 @@ const DashboardTableComponent = ({ database, table }: DashboardTableComponentPro
       // Fetch dashboard definitions from system.dashboards (without predefined dashboard)
       if (!connection) return;
 
-      connection.executeSQL(
-        {
-          sql: "SELECT dashboard, title, query FROM system.dashboards ORDER BY dashboard, title",
-          headers: {
-            "Content-Type": "text/plain",
-          },
-          params: {
+      connection
+        .query(
+          "SELECT dashboard, title, query FROM system.dashboards ORDER BY dashboard, title",
+          {
             default_format: "JSON",
             output_format_json_quote_64bit_integers: 0,
           },
-        },
-        (response: ApiResponse) => {
+          {
+            "Content-Type": "text/plain",
+          }
+        )
+        .response.then((response: QueryResponse) => {
           try {
             const responseData = response.data;
             const rows = responseData.data || [];
@@ -193,14 +193,13 @@ const DashboardTableComponent = ({ database, table }: DashboardTableComponentPro
             console.error("Error processing dashboard data:", err);
             setError(null);
           }
-        },
-        (error) => {
+        })
+        .catch((error) => {
           console.error("Error fetching dashboard data:", error);
           setError(null);
-        }
-      );
+        });
     },
-    []
+    [connection]
   );
 
   useEffect(() => {
@@ -217,18 +216,18 @@ const DashboardTableComponent = ({ database, table }: DashboardTableComponentPro
 
 
     // First, check if metric_log and asynchronous_metric_log tables exist
-    connection.executeSQL(
-      {
-        sql: `SELECT name FROM system.tables WHERE database = 'system' AND (name LIKE 'metric_log%' OR name LIKE 'asynchronous_metric_log%')`,
-        headers: {
-          "Content-Type": "text/plain",
-        },
-        params: {
+    connection
+      .query(
+        `SELECT name FROM system.tables WHERE database = 'system' AND (name LIKE 'metric_log%' OR name LIKE 'asynchronous_metric_log%')`,
+        {
           default_format: "JSON",
           output_format_json_quote_64bit_integers: 0,
         },
-      },
-      (response: ApiResponse) => {
+        {
+          "Content-Type": "text/plain",
+        }
+      )
+      .response.then((response: QueryResponse) => {
         try {
           const responseData = response.data;
           const rows = responseData.data || [];
@@ -278,13 +277,12 @@ const DashboardTableComponent = ({ database, table }: DashboardTableComponentPro
           // Continue with fetching dashboards anyway
           fetchDashboards(false, false);
         }
-      },
-      (error) => {
+      })
+      .catch((error) => {
         console.error("Error checking metric_log tables:", error);
         // Continue with fetching dashboards anyway
         fetchDashboards(false, false);
-      }
-    );
+      });
   }, [connection, fetchDashboards, database, table]);
 
   const headerActions = null;
