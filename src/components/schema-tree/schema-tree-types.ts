@@ -1,6 +1,7 @@
 export interface TableItemDO {
   database: string;
   dbEngine: string;
+  dbComment: string | null;
   table: string | null;
   tableEngine: string | null;
   tableComment: string | null;
@@ -13,6 +14,7 @@ export interface DatabaseNodeData {
   type: "database";
   name: string;
   engine: string;
+  comment?: string | null;
   tableCount: number;
   hasDistributedTable: boolean;
   hasReplicatedTable: boolean;

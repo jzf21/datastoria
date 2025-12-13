@@ -29,6 +29,7 @@ export class SchemaTreeLoader {
 SELECT 
     databases.name AS database,
     databases.engine AS dbEngine,
+    databases.comment AS dbComment,
     tables.name AS table,
     tables.engine AS tableEngine,
     tables.comment AS tableComment,

@@ -213,10 +213,14 @@ function toTableTreeNode(table: {
   const fullName = `${databaseName}.${tableName}`;
   const tableComment = table.tableComment || null;
 
-  // Use labelTooltip for table comment
-  const labelTooltip = tableComment ? (
-    <div className="text-xs text-muted-foreground whitespace-pre-wrap">{tableComment}</div>
-  ) : undefined;
+  // Build comprehensive tooltip for table
+  const labelTooltip = (
+    <div className="text-xs space-y-1">
+      <div className="font-medium text-foreground">{tableName}</div>
+      {tableComment && <div className="text-muted-foreground whitespace-pre-wrap">{tableComment}</div>}
+      <div className="text-muted-foreground">{table.fullTableEngine || table.tableEngine}</div>
+    </div>
+  );
 
   return {
     id: `table:${fullName}`,
@@ -242,11 +246,23 @@ function toTableTreeNode(table: {
 function toDatabaseTreeNode(db: {
   name: string;
   engine: string;
+  comment?: string | null;
   tableCount: number;
   hasDistributedTable: boolean;
   hasReplicatedTable: boolean;
 }): TreeDataItem {
   const dbName = String(db.name || "Unknown");
+
+  // Build comprehensive tooltip for database
+  const labelTooltip = (
+    <div className="text-xs space-y-1">
+      <div className="font-medium text-foreground">{dbName}</div>
+      {db.comment && <div className="text-muted-foreground whitespace-pre-wrap">{db.comment}</div>}
+      <div className="text-muted-foreground">{db.engine}</div>
+      <div className="text-muted-foreground">{db.tableCount} tables</div>
+    </div>
+  );
+
   return {
     id: `db:${dbName}`,
     labelContent: dbName,
@@ -259,10 +275,12 @@ function toDatabaseTreeNode(db: {
         {db.engine || ""} | {db.tableCount}
       </SchemaTreeBadge>
     ),
+    labelTooltip: labelTooltip,
     data: {
       type: "database",
       name: dbName,
       engine: db.engine || "",
+      comment: db.comment || undefined,
       tableCount: db.tableCount,
       hasDistributedTable: db.hasDistributedTable,
       hasReplicatedTable: db.hasReplicatedTable,
@@ -278,6 +296,7 @@ function toDatabaseTreeNodes(rows: TableItemDO[]): [number, TreeDataItem[]] {
   const databaseNodes: TreeDataItem[] = [];
   let currentDatabase: string | null = null;
   let currentDbEngine = "";
+  let currentDbComment: string | null = null;
   let currentTable: string | null = null;
   let currentTableEngine = "";
   let currentFullTableEngine = "";
@@ -314,6 +333,7 @@ function toDatabaseTreeNodes(rows: TableItemDO[]): [number, TreeDataItem[]] {
         const databaseNode = toDatabaseTreeNode({
           name: currentDatabase,
           engine: currentDbEngine,
+          comment: currentDbComment,
           tableCount: tableNodes.length,
           hasDistributedTable,
           hasReplicatedTable,
@@ -333,6 +353,7 @@ function toDatabaseTreeNodes(rows: TableItemDO[]): [number, TreeDataItem[]] {
       // Start new database
       currentDatabase = database;
       currentDbEngine = String(row.dbEngine || "");
+      currentDbComment = row.dbComment ? String(row.dbComment) : null;
       tableNodes = [];
       hasDistributedTable = false;
       hasReplicatedTable = false;
@@ -403,9 +424,12 @@ function toDatabaseTreeNodes(rows: TableItemDO[]): [number, TreeDataItem[]] {
       columnNodes.push(columnNode);
     }
 
-    // Update database engine if changed
+    // Update database engine and comment if changed
     if (row.dbEngine) {
       currentDbEngine = String(row.dbEngine);
+    }
+    if (row.dbComment !== undefined) {
+      currentDbComment = row.dbComment ? String(row.dbComment) : null;
     }
   }
 
@@ -427,6 +451,7 @@ function toDatabaseTreeNodes(rows: TableItemDO[]): [number, TreeDataItem[]] {
     const databaseNode = toDatabaseTreeNode({
       name: currentDatabase,
       engine: currentDbEngine,
+      comment: currentDbComment,
       tableCount: tableNodes.length,
       hasDistributedTable,
       hasReplicatedTable,
@@ -470,12 +495,29 @@ export function buildSchemaTree(
   const [totalTables, databaseNodes] = toDatabaseTreeNodes(schemaData.rows);
 
   // Default no-op handler if not provided
-  const hostChangeHandler = onHostChange || (() => { });
+  const hostChangeHandler = onHostChange || (() => {});
+
+  // Build comprehensive tooltip for host
+  const hostTooltip = (
+    <div className="text-xs space-y-1">
+      <div className="font-medium text-foreground break-all">{serverName}</div>
+      <div className="text-muted-foreground">
+        <span className="font-medium">Databases:</span> {databaseNodes.length}
+      </div>
+      <div className="text-muted-foreground">
+        <span className="font-medium">Tables:</span> {totalTables}
+      </div>
+    </div>
+  );
 
   const hostNode: TreeDataItem = {
     id: "host",
     labelContent: (
-      <SchemaTreeHostSelector clusterName={connection.cluster || ""} nodeName={serverName} onHostChange={hostChangeHandler} />
+      <SchemaTreeHostSelector
+        clusterName={connection.cluster || ""}
+        nodeName={serverName}
+        onHostChange={hostChangeHandler}
+      />
     ),
     search: serverName.toLowerCase(),
     icon: Monitor,
@@ -486,6 +528,7 @@ export function buildSchemaTree(
         {databaseNodes.length} DBs | {totalTables} Tables
       </SchemaTreeBadge>
     ),
+    labelTooltip: hostTooltip,
     data: {
       type: "host",
       host: serverName,
@@ -494,4 +537,3 @@ export function buildSchemaTree(
 
   return hostNode;
 }
-
