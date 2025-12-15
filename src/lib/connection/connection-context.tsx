@@ -4,90 +4,95 @@ import { ConnectionManager } from "@/lib/connection/connection-manager";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface ConnectionContextType {
-    isReady: boolean;
-    setIsReady: (ready: boolean) => void;
-    connection: Connection | null;
-    switchConnection: (conn: ConnectionConfig | null) => void;
-    updateConnection: (session: Partial<Session>) => void;
+  isReady: boolean;
+  setIsReady: (ready: boolean) => void;
+  connection: Connection | null;
+  isMounted: boolean;
+  switchConnection: (conn: ConnectionConfig | null) => void;
+  updateConnection: (session: Partial<Session>) => void;
 }
 
 export const ConnectionContext = createContext<ConnectionContextType>({
-    isReady: false,
-    setIsReady: () => {
-        // Default implementation
-    },
-    connection: null,
-    switchConnection: () => {
-        // Default implementation
-    },
-    updateConnection: () => {
-        // Default implementation
-    },
+  isReady: false,
+  setIsReady: () => {
+    // Default implementation
+  },
+  connection: null,
+  isMounted: false,
+  switchConnection: () => {
+    // Default implementation
+  },
+  updateConnection: () => {
+    // Default implementation
+  },
 });
 
 export function ConnectionProvider({ children }: { children: React.ReactNode }) {
-    const [isReady, setIsReady] = useState<boolean>(false);
-    const [connection, setConnection] = useState<Connection | null>(null);
+  const [isReady, setIsReady] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [connection, setConnection] = useState<Connection | null>();
 
-    // Initial load
-    useEffect(() => {
-        const manager = ConnectionManager.getInstance();
-        const savedConnection = manager.getLastSelectedOrFirst();
-        if (savedConnection) {
-            setConnection(Connection.create(savedConnection));
-        }
-    }, []);
+  // Mount effect - load connection on client side
+  useEffect(() => {
+    setIsMounted(true);
 
-    const switchConnection = (config: ConnectionConfig | null) => {
-        const manager = ConnectionManager.getInstance();
+    const manager = ConnectionManager.getInstance();
+    const savedConnection = manager.getLastSelectedOrFirst();
+    if (savedConnection) {
+      setConnection(Connection.create(savedConnection));
+    }
+  }, []);
 
-        if (config) {
-            // 1. Save selection
-            manager.saveLastSelected(config.name);
-            // 2. Derive runtime
-            const conn = Connection.create(config);
-            setConnection(conn);
-            // 3. Reset ready state (MainPage will handle initialization)
-            setIsReady(false);
-        } else {
-            manager.saveLastSelected(undefined);
-            setConnection(null);
-            setIsReady(false); // No connection means not ready
-        }
-    };
+  const switchConnection = (config: ConnectionConfig | null) => {
+    const manager = ConnectionManager.getInstance();
 
-    const updateConnection = (sessionUpdates: Partial<Session>) => {
-        setConnection((prev) => {
-            if (!prev) return null;
-            // Since Connection is a class, we need to be careful about immutability if we are spreading.
-            // However, Connection class methods are on the prototype.
-            // Spreading {...prev, ...updates} will lose the prototype chain if not careful, 
-            // but Object.assign or spread on a class instance creates a plain object in some contexts if not handled right? 
-            // Actually, React state updates usually expect new objects. 
-            // Ideally we should clone the connection. 
-            // For now, let's assume we can create a new object with prototype.
-            const newConn = Object.create(Object.getPrototypeOf(prev));
-            Object.assign(newConn, prev);
-            // Update the session property
-            newConn.session = { ...prev.session, ...sessionUpdates };
-            return newConn;
-        });
-    };
+    if (config) {
+      // 1. Save selection
+      manager.saveLastSelected(config.name);
+      // 2. Derive runtime
+      const conn = Connection.create(config);
+      setConnection(conn);
+      // 3. Reset ready state (MainPage will handle initialization)
+      setIsReady(false);
+    } else {
+      manager.saveLastSelected(undefined);
+      setConnection(null);
+      setIsReady(false); // No connection means not ready
+    }
+  };
 
-    return (
-        <ConnectionContext.Provider
-            value={{
-                isReady,
-                setIsReady,
-                connection,
-                switchConnection,
-                updateConnection,
-            }}
-        >
-            {children}
-        </ConnectionContext.Provider>
-    );
+  const updateConnection = (sessionUpdates: Partial<Session>) => {
+    setConnection((prev) => {
+      if (!prev) return null;
+      // Since Connection is a class, we need to be careful about immutability if we are spreading.
+      // However, Connection class methods are on the prototype.
+      // Spreading {...prev, ...updates} will lose the prototype chain if not careful,
+      // but Object.assign or spread on a class instance creates a plain object in some contexts if not handled right?
+      // Actually, React state updates usually expect new objects.
+      // Ideally we should clone the connection.
+      // For now, let's assume we can create a new object with prototype.
+      const newConn = Object.create(Object.getPrototypeOf(prev));
+      Object.assign(newConn, prev);
+      // Update the session property
+      newConn.session = { ...prev.session, ...sessionUpdates };
+      return newConn;
+    });
+  };
+
+  return (
+    <ConnectionContext.Provider
+      value={{
+        isReady,
+        setIsReady,
+        connection,
+        isMounted,
+        switchConnection,
+        updateConnection,
+      }}
+    >
+      {children}
+    </ConnectionContext.Provider>
+  );
 }
 
 export const useConnection = () => useContext(ConnectionContext);
-

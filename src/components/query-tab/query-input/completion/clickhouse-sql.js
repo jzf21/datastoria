@@ -2,12 +2,13 @@
 // https://github.com/druid
 
 import * as druidKeywords from './keywords';
-// ace-builds uses CommonJS - import the default export
-// @ts-ignore - ace-builds is CommonJS and may not have proper types
-// @ts-expect-error - Vite transforms CommonJS, but types may not match
-import ace from 'ace-builds/src-noconflict/ace';
 
-ace.define(
+// Access ace from global scope (set by ace-setup.ts)
+// This avoids importing ace-builds at module level which causes SSR issues
+const ace = typeof window !== 'undefined' ? window.ace : null;
+
+if (ace) {
+  ace.define(
   'ace/mode/dsql_highlight_rules',
   ['require', 'exports', 'module', 'ace/lib/oop', 'ace/mode/text_highlight_rules'],
   function (acequire, exports, module) {
@@ -125,3 +126,4 @@ ace.define(
     exports.Mode = Mode;
   }
 );
+}

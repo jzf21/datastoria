@@ -508,6 +508,11 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
 
     const loadData = useCallback(
       async (_param: RefreshOptions, isOffset: boolean = false) => {
+        if (!connection) {
+          setError("No connection selected");
+          return;
+        }
+
         // Validate that we have a time span
         if (!_param.selectedTimeSpan) {
           if (!isOffset) {

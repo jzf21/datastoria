@@ -1,9 +1,16 @@
 import { QueryListView } from "@/components/query-tab/query-list-view";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { type ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import dynamic from "next/dynamic";
 import { QueryControl } from "./query-control/query-control";
 import { QueryExecutor, type QueryRequestEventDetail } from "./query-execution/query-executor";
-import { QueryInputView, type QueryInputViewRef } from "./query-input/query-input-view";
+import type { QueryInputViewRef } from "./query-input/query-input-view";
+
+// Dynamically import QueryInputView to prevent SSR issues with ace editor
+const QueryInputView = dynamic(
+  () => import("./query-input/query-input-view").then(mod => mod.QueryInputView),
+  { ssr: false }
+);
 
 export interface QueryTabProps {
   tabId?: string;

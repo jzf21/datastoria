@@ -1,13 +1,25 @@
 import type { Ace } from "ace-builds";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import AceEditor from "react-ace";
-// Import order is critical - ace-setup must be imported first
-// to make ace globally available before ext-language_tools
-import "ace-builds/src-noconflict/ext-language_tools";
-import "ace-builds/src-noconflict/theme-github";
-import "ace-builds/src-noconflict/theme-solarized_dark";
-import "./ace-setup";
-import "./completion/clickhouse-sql";
+import dynamic from "next/dynamic";
+
+// Dynamically import AceEditor to prevent SSR issues
+const AceEditor = dynamic(
+  async () => {
+    // Import order is critical - ace-setup must be imported first
+    // to make ace globally available before ext-language_tools
+    const { initAce } = await import("./ace-setup");
+    await initAce();
+    
+    await import("ace-builds/src-noconflict/ext-language_tools");
+    await import("ace-builds/src-noconflict/theme-github");
+    await import("ace-builds/src-noconflict/theme-solarized_dark");
+    await import("./completion/clickhouse-sql");
+    
+    const ReactAce = await import("react-ace");
+    return ReactAce.default;
+  },
+  { ssr: false }
+);
 
 import { TabManager } from "@/components/tab-manager";
 import { useTheme } from "@/components/theme-provider";

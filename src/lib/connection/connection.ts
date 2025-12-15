@@ -91,6 +91,13 @@ export class Connection {
     params?: Record<string, unknown>,
     headers?: Record<string, string>
   ): { response: Promise<QueryResponse>; abortController: AbortController } {
+    // Validate connection is properly initialized
+    if (!this.host || !this.path) {
+      throw new QueryError(
+        `Connection not properly initialized. Host: ${this.host}, Path: ${this.path}`
+      );
+    }
+
     const requestHeaders: Record<string, string> = headers || {};
 
     // Set default ClickHouse headers if not provided
@@ -128,18 +135,52 @@ export class Connection {
 
     // Create timeout controller
     const timeoutController = new AbortController();
+    
+    // Track which signal aborted (for error messages and abort reason)
+    let abortReason: string | undefined;
+    
+    // Helper to abort with reason if supported
+    const abortWithReason = (controller: AbortController, reason: string) => {
+      abortReason = reason;
+      // Try to use reason parameter if supported (modern browsers/Node.js)
+      try {
+        // TypeScript doesn't know about the reason parameter yet, so we cast
+        (controller.abort as (reason?: unknown) => void)(reason);
+      } catch {
+        // Fallback for environments that don't support reason parameter
+        controller.abort();
+      }
+    };
+    
     const timeoutId = setTimeout(() => {
-      timeoutController.abort();
+      abortWithReason(timeoutController, "timeout");
     }, timeout);
 
     // Combine abort signals - create a combined controller
     const combined = new AbortController();
-    abortController.signal.addEventListener("abort", () => combined.abort());
-    timeoutController.signal.addEventListener("abort", () => combined.abort());
+    abortController.signal.addEventListener("abort", () => {
+      // Always set reason before aborting
+      const reason = "user_cancelled";
+      abortReason = reason;
+      abortWithReason(combined, reason);
+    });
+    timeoutController.signal.addEventListener("abort", () => {
+      // Always set reason before aborting
+      const reason = "timeout";
+      abortReason = reason;
+      abortWithReason(combined, reason);
+    });
 
     const response = (async (): Promise<QueryResponse> => {
       try {
-        const response = await fetch(url.toString(), {
+        const fetchUrl = url.toString();
+        
+        // Validate URL before making request
+        if (!fetchUrl || !fetchUrl.startsWith('http://') && !fetchUrl.startsWith('https://')) {
+          throw new QueryError(`Invalid URL: ${fetchUrl}. Connection may not be properly initialized.`);
+        }
+        
+        const response = await fetch(fetchUrl, {
           method: "POST",
           headers: requestHeaders,
           body: sql,
@@ -191,19 +232,62 @@ export class Connection {
           throw error;
         }
 
-        if (error instanceof Error && error.name === "AbortError") {
-          if (timeoutController.signal.aborted) {
+        // Handle abort errors (can be Error with name "AbortError" or DOMException)
+        if (
+          (error instanceof Error && error.name === "AbortError") ||
+          (error instanceof DOMException && error.name === "AbortError")
+        ) {
+          // Check which signal actually caused the abort by checking their states
+          // This is more reliable than relying on abortReason variable
+          const isTimeout = timeoutController.signal.aborted;
+          const isUserCancelled = abortController.signal.aborted && !isTimeout;
+          
+          // Determine the reason from signal states or tracked reason
+          let reason: string;
+          if (isTimeout) {
+            reason = "timeout";
+          } else if (isUserCancelled) {
+            reason = "user_cancelled";
+          } else {
+            // Fallback to tracked reason or check signal reason if available
+            reason = abortReason || (combined.signal as { reason?: string }).reason || "unknown";
+          }
+          
+          console.debug("Abort detected:", {
+            isTimeout,
+            isUserCancelled,
+            abortReason,
+            errorMessage: error.message,
+            determinedReason: reason,
+          });
+          
+          // Provide appropriate error message based on the reason
+          if (reason === "timeout" || isTimeout) {
             throw new QueryError(`${timeout / 1000}s timeout to wait for response from ClickHouse server.`);
           }
-          throw new QueryError(error.message || "Request aborted");
+          if (reason === "user_cancelled" || isUserCancelled) {
+            throw new QueryError("Request was cancelled by user");
+          }
+          
+          // For any other abort reason, provide a descriptive message
+          const errorMsg = error.message || "Request aborted";
+          // Always replace "without reason" messages with our tracked reason
+          // Also provide a clear message even if the original doesn't mention "without reason"
+          if (errorMsg.includes("without reason") || reason !== "unknown") {
+            throw new QueryError(`Request aborted: ${reason}`);
+          }
+          // Fallback: use the original error message if we can't determine the reason
+          throw new QueryError(errorMsg);
         }
 
         // Re-throw as QueryError-like error
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         if (errorMessage === "Failed to fetch") {
-          throw new QueryError(
-            "Failed to connect to the server. Please check the server URL and network connection."
-          );
+          // This could be CORS, network error, or invalid URL
+          const errorDetails = `Failed to connect to ${this.host}${this.path}. ` +
+            `Possible causes: CORS issue, network error, or invalid server URL. ` +
+            `Please check the connection configuration and ensure the server allows requests from this origin.`;
+          throw new QueryError(errorDetails);
         }
         throw new QueryError(errorMessage);
       }

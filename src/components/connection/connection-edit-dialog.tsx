@@ -142,7 +142,7 @@ function ConnectionEditDialogWrapper({
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const hasProvider = import.meta.env.VITE_CONSOLE_CONNECTION_PROVIDER_ENABLED === "true";
+  const hasProvider = process.env.NEXT_PUBLIC_CONSOLE_CONNECTION_PROVIDER_ENABLED === "true";
 
   // View Model
   const [name, setName] = useState(connection ? connection.name : "");
@@ -183,9 +183,9 @@ function ConnectionEditDialogWrapper({
     setLoadingTemplates(true);
 
     const templateUrl =
-      import.meta.env.MODE === "development"
-        ? import.meta.env.VITE_CONSOLE_CONNECTION_PROVIDER_ENDPOINT_DEV
-        : import.meta.env.VITE_CONSOLE_CONNECTION_PROVIDER_ENDPOINT_PRD;
+      process.env.NODE_ENV === "development"
+        ? process.env.NEXT_PUBLIC_CONSOLE_CONNECTION_PROVIDER_ENDPOINT_DEV
+        : process.env.NEXT_PUBLIC_CONSOLE_CONNECTION_PROVIDER_ENDPOINT_PRD;
 
     const apiController = new AbortController();
     axios

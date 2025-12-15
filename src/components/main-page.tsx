@@ -94,7 +94,7 @@ async function getSessionInfo(connection: Connection): Promise<Partial<Session>>
 }
 
 export function MainPage() {
-  const { connection, updateConnection, setIsReady, isReady } = useConnection();
+  const { connection, updateConnection, setIsReady, isReady, isMounted } = useConnection();
 
   // State for global initialization status (driven by SchemaTreeView)
   const [initStatus, setInitStatus] = useState<AppInitStatus>("initializing");
@@ -104,10 +104,7 @@ export function MainPage() {
 
   // Main Loading Effect
   useEffect(() => {
-    // Reset if no connection
     if (!connection) {
-      setInitStatus("ready");
-      setLoadedSchemaData(null);
       return;
     }
 
@@ -115,14 +112,13 @@ export function MainPage() {
     if (isReady) {
       return;
     }
+    setInitStatus("initializing");
+    setInitError(null);
 
     let isMounted = true;
     const schemaLoader = new SchemaTreeLoader();
 
     const load = async () => {
-      setInitStatus("initializing");
-      setInitError(null);
-
       try {
         // 1. Initialize cluster info and get the updates
         const sessionUpdates = await getSessionInfo(connection);
@@ -166,6 +162,15 @@ export function MainPage() {
       schemaLoader.abort();
     };
   }, [connection, updateConnection, setIsReady, isReady, retryCount]);
+
+  // Show loading state while hydrating from localStorage
+  if (!isMounted) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-muted/5">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   // Show wizard if no connections exist
   if (!connection) {

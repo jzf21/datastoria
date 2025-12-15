@@ -609,8 +609,8 @@ const MainPageTabListComponent = ({ selectedConnection }: MainPageTabListProps) 
         </div>
       )}
       <div className="flex-1 overflow-hidden relative">
-        {/* Show Smart Empty State when no tabs exist */}
-        {tabs.length === 0 && <EmptyTabPlaceholderComponent />}
+        {/* Show Smart Empty State when no tabs exist, but only when ready */}
+        {tabs.length === 0 && isReady && <EmptyTabPlaceholderComponent />}
 
         {/* All Tabs - Always mounted */}
         {tabContent}
