@@ -1,4 +1,3 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +17,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { UserProfileImage } from "@/components/user-profile-image";
 import { useConnection } from "@/lib/connection/connection-context";
 import { MoonIcon, SunIcon } from "@radix-ui/react-icons";
 import { Database, LogOut, Search, Settings, Terminal } from "lucide-react";
@@ -177,19 +177,13 @@ function UserNavButton({ user }: { user: { name?: string | null; email?: string 
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton size="lg" className="justify-center">
-          <Avatar className="h-5 w-5">
-            <AvatarImage src={user.image ?? ""} alt={user.name ?? ""} />
-            <AvatarFallback>{user.name?.[0]?.toUpperCase() ?? "U"}</AvatarFallback>
-          </Avatar>
+          <UserProfileImage user={user} className="h-5 w-5" />
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-56" align="end" side="right" forceMount>
         <DropdownMenuLabel className="p-0 font-normal">
           <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user.image ?? ""} alt={user.name ?? ""} />
-              <AvatarFallback>{user.name?.[0]?.toUpperCase() ?? "U"}</AvatarFallback>
-            </Avatar>
+            <UserProfileImage user={user} className="h-8 w-8" />
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-semibold">{user.name}</span>
               <span className="truncate text-xs text-muted-foreground">{user.email}</span>

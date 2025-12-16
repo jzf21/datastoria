@@ -1,10 +1,9 @@
+import { UserProfileImage } from "@/components/user-profile-image";
 import type { AppUIMessage } from "@/lib/ai/ai-tools";
-import { AlertCircleIcon, Loader2, Sparkles, User } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useSession } from "next-auth/react";
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Badge } from "../ui/badge";
 import { SqlCodeBlock } from "./sql-code-block";
 
@@ -153,10 +152,7 @@ const MessageView = memo(function MessageView({
     <div className="flex gap-3 mb-2">
       <div className="flex-shrink-0 mt-0.5">
         {isUser ? (
-          <Avatar className="h-6 w-6">
-            <AvatarImage src={user?.image || ""} alt={user?.name || "User"} />
-            <AvatarFallback>{user?.name?.[0]?.toUpperCase() || <User className="h-4 w-4" />}</AvatarFallback>
-          </Avatar>
+          <UserProfileImage />
         ) : (
           <div className="h-6 w-6 rounded-sm flex items-center justify-center">
             <Sparkles
