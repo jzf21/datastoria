@@ -3,11 +3,11 @@ import { useConnection } from "@/lib/connection/connection-context";
 import { toastManager } from "@/lib/toast";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { type ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryControl } from "./query-control/query-control";
 import { useQueryEditor } from "./query-control/use-query-editor";
 import { ChatExecutor } from "./query-execution/chat-executor";
-import { QueryExecutor, type QueryRequestEventDetail } from "./query-execution/query-executor";
+import { QueryExecutor } from "./query-execution/query-executor";
 import { QueryInputLocalStorage } from "./query-input/query-input-local-storage";
 import type { QueryInputViewRef } from "./query-input/query-input-view";
 
@@ -28,7 +28,6 @@ export interface QueryTabProps {
 const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTabProps) => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [mode, setMode] = useState<"sql" | "chat">("sql");
-  const resultPanelRef = useRef<ImperativePanelHandle>(null);
   const queryInputRef = useRef<QueryInputViewRef>(null);
   const { connection } = useConnection();
   const { text } = useQueryEditor(); // Get current text for chat
@@ -89,30 +88,6 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
     toastManager.show("Chat context cleared (execution history)", "success");
   }, []);
 
-  // Auto-expand the result panel when a query is executed
-  useEffect(() => {
-    const unsubscribe = QueryExecutor.onQueryRequest((event: CustomEvent<QueryRequestEventDetail>) => {
-      const { tabId: eventTabId } = event.detail;
-
-      // If tabId is specified, only handle events for this tab
-      // If no tabId is specified in event, handle it in all tabs (or conservatively, just this one)
-      if (eventTabId !== undefined && eventTabId !== tabId) {
-        return;
-      }
-
-      const panel = resultPanelRef.current;
-      if (panel) {
-        const currentSize = panel.getSize();
-        // If panel is collapsed or very small, expand it
-        if (currentSize < 10) {
-          panel.resize(60);
-        }
-      }
-    });
-
-    return unsubscribe;
-  }, [tabId]);
-
   // Focus editor when tab becomes active
   useEffect(() => {
     if (active) {
@@ -126,7 +101,7 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
   return (
     <PanelGroup direction="vertical" className="h-full">
       {/* Top Panel: Query Response View */}
-      <Panel ref={resultPanelRef} defaultSize={0} minSize={0} className="bg-background overflow-auto">
+      <Panel defaultSize={60} minSize={20} className="bg-background overflow-auto">
         <QueryListView tabId={tabId} onExecutionStateChange={handleExecutionStateChange} />
         {/* <ChatPanel
           currentDatabase={"default"}
@@ -137,7 +112,7 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
       <PanelResizeHandle className="h-[1px] bg-border hover:bg-border/80 transition-colors cursor-row-resize" />
 
       {/* Bottom Panel: Query Input View with Control */}
-      <Panel defaultSize={100} minSize={20} className="bg-background flex flex-col">
+      <Panel defaultSize={40} minSize={20} className="bg-background flex flex-col">
 
         <div className="flex-1 overflow-hidden">
           <QueryInputView

@@ -1,5 +1,6 @@
 import type { LanguageModel } from "ai";
-import { MockLanguageModelV2, simulateReadableStream } from "ai/test";
+import { simulateReadableStream } from "ai";
+import { MockLanguageModelV2 } from "ai/test";
 
 /**
  * Creates a mock language model that simulates LLM responses without making API calls.
@@ -24,7 +25,8 @@ const createMockModel = (modelName: string): LanguageModel => {
     doStream: async () => {
       const textId = "mock-text-id";
       const mockText =
-        "[MOCK] This is a streaming mock response from ${modelName}. \n```sql\nSELECT version();\n```\nThe response is simulated and doesn't make real API calls. Set USE_MOCK_LLM=false in your .env to use real providers.";
+        "[MOCK] This is a streaming mock response from ${modelName}. \n```sql\nSELECT version();\n```\nThe response is simulated and doesn't make real API calls. Set USE_MOCK_LLM=false in your .env to use real providers.\n" +
+        " mock_token".repeat(Math.floor(Math.random() * 200) + 50);
 
       // Split text into words for realistic streaming
       const words = mockText.split(" ");

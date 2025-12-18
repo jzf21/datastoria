@@ -25,7 +25,6 @@ export interface QueryControlProps {
 
 export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, onExplain, onClearContext }: QueryControlProps) {
   const { selectedText, text } = useQueryEditor();
-  const { connection } = useConnection();
   const [isExplainOpen, setIsExplainOpen] = useState(false);
 
   const handleQuery = useCallback(() => {
@@ -110,7 +109,7 @@ export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, o
         className={`h-6 gap-1 px-2 text-xs`}
       >
         {mode === "sql" ? <Play className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
-        {mode === "sql" ? (selectedText ? "Run Selected (Cmd+Enter)" : "Run (Cmd+Enter)") : "Ask AI (Cmd+Enter)"}
+        {mode === "sql" ? (selectedText ? "Run Selected SQL(Cmd+Enter)" : "Run SQL(Cmd+Enter)") : "Ask AI (Cmd+Enter)"}
       </Button>
 
       <Separator orientation="vertical" className="h-4" />
@@ -135,7 +134,7 @@ export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, o
         <DropdownMenu open={isExplainOpen} onOpenChange={setIsExplainOpen}>
           <DropdownMenuTrigger asChild>
             <Button disabled={isDisabled} size="sm" variant="ghost" className="h-6 gap-1 px-2 text-xs">
-              {selectedText ? "Explain Selected" : "Explain"}
+              {selectedText ? "Explain Selected SQL" : "Explain SQL"}
               <ChevronDown className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>

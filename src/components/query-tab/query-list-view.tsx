@@ -83,8 +83,14 @@ function QueryListViewContent({
   // Track executing state for Chat
   const isChatExecuting = status === 'streaming' || status === 'submitted';
 
-  const scrollToBottom = useCallback(() => {
-    if (scrollPlaceholderRef.current) {
+  const scrollToBottom = useCallback((instant = false) => {
+    if (scrollPlaceholderRef.current && responseScrollContainerRef.current) {
+      // If instant, set scrollTop directly
+      if (instant) {
+        responseScrollContainerRef.current.scrollTop = responseScrollContainerRef.current.scrollHeight;
+        return;
+      }
+
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (scrollPlaceholderRef.current) {
@@ -249,7 +255,15 @@ function QueryListViewContent({
     } else {
       // Also scroll if streaming happens (content size change)
       if (isChatExecuting) {
-        scrollToBottom();
+        const container = responseScrollContainerRef.current;
+        if (container) {
+          const { scrollTop, scrollHeight, clientHeight } = container;
+          // Threshold of 100px to consider "at bottom"
+          const isAtBottom = scrollHeight - scrollTop - clientHeight <= 100;
+          if (isAtBottom) {
+            scrollToBottom(true);
+          }
+        }
       }
     }
   }, [mergedMessageList, isChatExecuting, scrollToBottom]);
