@@ -10,59 +10,75 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ConnectionSelectorDialog } from "./connection/connection-selector-dialog";
 import { MainPageTabList } from "./main-page-tab-list";
 
-export type AppInitStatus = "initializing" | "ready" | "error";
+export type AppInitStatus = "initializing" | "connecting" | "ready" | "error";
 
 interface MainPageLoadStatusComponentProps {
   status: AppInitStatus;
-  connectionName: string;
+  connectionName?: string;
   error?: string | null;
   onRetry: () => void;
 }
 
-// Component for Initializing or Error states (covers the whole page)
+// Component for Initializing, Connecting or Error states (covers the whole page)
 function MainPageLoadStatusComponent({ status, connectionName, error, onRetry }: MainPageLoadStatusComponentProps) {
-  if (status === "initializing") {
-    return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in fade-in duration-500">
-        <div className="bg-background p-4 ">
-          <Loader2 className="h-8 w-8 text-primary animate-spin" />
-        </div>
-        <h3 className="text-lg font-medium mb-2">Connecting to: {connectionName}</h3>
-        <p className="text-muted-foreground text-sm mb-8">Loading schema and verifying connection</p>
-        {/* Invisible spacer to match button height in error state */}
-        <div className="h-10" />
-      </div>
-    );
-  }
+  return (
+    <div
+      className={`h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in duration-500 ${
+        status === "error" ? "slide-in-from-bottom-4 duration-300" : "fade-in"
+      }`}
+    >
+      {status === "initializing" && (
+        <>
+          <div className="bg-background p-4 ">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">Loading connections...</h3>
+          <p className="text-muted-foreground text-sm mb-8">Loading connections from local storage</p>
+          {/* Invisible spacer to match button height in error state */}
+          <div className="h-10" />
+        </>
+      )}
 
-  if (status === "error") {
-    return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in slide-in-from-bottom-4 duration-300">
-        <div className="bg-destructive/10 p-4 rounded-full">
-          <AlertCircle className="h-10 w-10 text-destructive" />
-        </div>
-        <h3 className="text-lg font-medium mb-2">Connection Failed</h3>
-        <p className="text-muted-foreground max-w-md text-sm whitespace-pre-wrap mb-8">
-          {error || "Unable to establish a connection to the server."}
-        </p>
-        <div className="flex gap-3">
-          <Button onClick={onRetry} variant="outline" className="gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Retry
-          </Button>
-          <ConnectionSelectorDialog
-            trigger={
-              <Button variant="outline" className="gap-2">
-                Switch Connection
-              </Button>
-            }
-          />
-        </div>
-      </div>
-    );
-  }
+      {status === "connecting" && (
+        <>
+          <div className="bg-background p-4 ">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">
+            {connectionName ? `Connecting to: ${connectionName}` : "Connecting..."}
+          </h3>
+          <p className="text-muted-foreground text-sm mb-8">Loading schema and verifying connection</p>
+          {/* Invisible spacer to match button height in error state */}
+          <div className="h-10" />
+        </>
+      )}
 
-  return null;
+      {status === "error" && (
+        <>
+          <div className="bg-destructive/10 p-4 rounded-full">
+            <AlertCircle className="h-10 w-10 text-destructive" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">Connection Failed</h3>
+          <p className="text-muted-foreground max-w-md text-sm whitespace-pre-wrap mb-8">
+            {error || "Unable to establish a connection to the server."}
+          </p>
+          <div className="flex gap-3">
+            <Button onClick={onRetry} variant="outline" className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Retry
+            </Button>
+            <ConnectionSelectorDialog
+              trigger={
+                <Button variant="outline" className="gap-2">
+                  Switch Connection
+                </Button>
+              }
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 // Initialize cluster info on a temporary connection and return the updates
@@ -112,7 +128,7 @@ export function MainPage() {
     if (isReady) {
       return;
     }
-    setInitStatus("initializing");
+    setInitStatus("connecting");
     setInitError(null);
 
     let isMounted = true;
@@ -163,26 +179,23 @@ export function MainPage() {
     };
   }, [connection, updateConnection, setIsReady, isReady, retryCount]);
 
-  // Show loading state while hydrating from localStorage
-  if (!isInitialized) {
-    return (
-      <div className="h-full w-full flex items-center justify-center bg-muted/5">
-        <Loader2 className="h-8 w-8 text-primary animate-spin" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (isInitialized && !connection) {
+      setInitStatus("connecting");
+    }
+  }, [isInitialized, connection]);
 
   // Show wizard if no connections exist
-  if (!connection) {
+  if (isInitialized && !connection) {
     return <ConnectionWizard />;
   }
 
-  // Show Full Page Status (Loading/Error)
-  if (initStatus === "initializing" || initStatus === "error") {
+  // Show Full Page Status (Initializing/Connecting/Error)
+  if (initStatus === "initializing" || initStatus === "connecting" || initStatus === "error") {
     return (
       <MainPageLoadStatusComponent
         status={initStatus}
-        connectionName={connection.name}
+        connectionName={connection ? connection.name : undefined}
         error={initError}
         onRetry={() => {
           setRetryCount((prev) => prev + 1);

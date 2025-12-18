@@ -1,14 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { signIn } from "next-auth/react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -25,12 +20,11 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">
-            Sign in to ClickHouse Console
+          <CardTitle className="text-2xl font-bold flex items-center">
+            <Image src="/logo.png" alt="Data Scopic" width={64} height={64} />
+            Sign in to Data Scopic
           </CardTitle>
-          <CardDescription>
-            Choose your authentication provider to continue
-          </CardDescription>
+          <CardDescription>Choose your authentication provider to continue</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -43,11 +37,7 @@ function LoginForm() {
             )}
 
             {process.env.NEXT_PUBLIC_GOOGLE_ENABLED === "true" && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSignIn("google")}
-              >
+              <Button variant="outline" className="w-full" onClick={() => handleSignIn("google")}>
                 <svg
                   className="mr-2 h-4 w-4"
                   aria-hidden="true"
@@ -68,11 +58,7 @@ function LoginForm() {
             )}
 
             {process.env.NEXT_PUBLIC_GITHUB_ENABLED === "true" && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSignIn("github")}
-              >
+              <Button variant="outline" className="w-full" onClick={() => handleSignIn("github")}>
                 <svg
                   className="mr-2 h-4 w-4"
                   aria-hidden="true"
@@ -93,11 +79,7 @@ function LoginForm() {
             )}
 
             {process.env.NEXT_PUBLIC_MICROSOFT_ENABLED === "true" && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSignIn("microsoft-entra-id")}
-              >
+              <Button variant="outline" className="w-full" onClick={() => handleSignIn("microsoft-entra-id")}>
                 <svg
                   className="mr-2 h-4 w-4"
                   aria-hidden="true"
@@ -119,8 +101,7 @@ function LoginForm() {
               !process.env.NEXT_PUBLIC_GITHUB_ENABLED &&
               !process.env.NEXT_PUBLIC_MICROSOFT_ENABLED && (
                 <div className="text-center text-sm text-muted-foreground">
-                  No authentication providers are configured. Please check your
-                  environment variables.
+                  No authentication providers are configured. Please check your environment variables.
                 </div>
               )}
           </div>
@@ -141,4 +122,3 @@ export default function LoginPage() {
     </Suspense>
   );
 }
-

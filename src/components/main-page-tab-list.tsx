@@ -37,8 +37,8 @@ interface MainPageTabListProps {
 // Component for the "Ready" state (Welcome screen)
 function EmptyTabPlaceholderComponent() {
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in fade-in zoom-in-95 duration-300">
-      <div className="bg-background p-6 shadow-sm">
+    <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 text-center animate-in fade-in zoom-in-95 duration-300">
+      <div className="bg-background shadow-sm">
         <Image src="/logo.png" alt="Data Scopic" width={64} height={64} />
       </div>
 

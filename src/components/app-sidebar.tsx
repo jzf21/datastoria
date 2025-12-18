@@ -44,31 +44,31 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="pt-0">
           <SidebarMenu>
-            <SidebarMenuItem>
-              <Tooltip open={isConnectionSelectorOpen ? false : undefined}>
-                <TooltipTrigger asChild>
-                  <div>
-                    <ConnectionSelectorPopover
-                      trigger={
-                        <SidebarMenuButton size="lg" className="justify-center">
-                          <Database className="h-5 w-5" />
-                        </SidebarMenuButton>
-                      }
-                      sideOffset={5}
-                      side="right"
-                      onOpenChange={setIsConnectionSelectorOpen}
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="right" align="center">
-                  Manage Connections
-                </TooltipContent>
-              </Tooltip>
-            </SidebarMenuItem>
             {isReady && (
               <>
+                <SidebarMenuItem>
+                  <Tooltip open={isConnectionSelectorOpen ? false : undefined}>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <ConnectionSelectorPopover
+                          trigger={
+                            <SidebarMenuButton size="lg" className="justify-center">
+                              <Database className="h-5 w-5" />
+                            </SidebarMenuButton>
+                          }
+                          sideOffset={5}
+                          side="right"
+                          onOpenChange={setIsConnectionSelectorOpen}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="center">
+                      Manage Connections
+                    </TooltipContent>
+                  </Tooltip>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     tooltip="Query"
