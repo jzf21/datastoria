@@ -27,6 +27,7 @@ import {
   Terminal,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface MainPageTabListProps {
@@ -37,13 +38,13 @@ interface MainPageTabListProps {
 function EmptyTabPlaceholderComponent() {
   return (
     <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 p-8 text-center animate-in fade-in zoom-in-95 duration-300">
-      <div className="bg-background p-6 rounded-full shadow-sm border mb-6">
-        <Database className="h-10 w-10 text-primary/80" />
+      <div className="bg-background p-6 shadow-sm">
+        <Image src="/logo.png" alt="Data Scopic" width={64} height={64} />
       </div>
 
       <h3 className="text-2xl font-semibold tracking-tight mb-2">Welcome to Data Scopic</h3>
 
-      <p className="text-muted-foreground max-w-md mb-8 text-sm leading-relaxed">
+      <p className="text-muted-foreground max-w-md mb-6 text-sm leading-relaxed">
         Select a table from the sidebar to view its details, or start by running a new SQL query.
       </p>
 
