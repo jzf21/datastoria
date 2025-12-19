@@ -6,7 +6,7 @@ import { Pencil } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Input } from "../ui/input";
-import { showConnectionEditDialog } from "./connection-edit-dialog";
+import { showConnectionEditDialog } from "./connection-edit-component";
 import { ConnectionSelector } from "./connection-selector";
 
 interface ConnectionSelectorPopoverProps {

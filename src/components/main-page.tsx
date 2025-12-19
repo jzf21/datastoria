@@ -148,6 +148,8 @@ export function MainPage() {
           tempConnection.session = { ...connection.session, ...sessionUpdates };
         }
 
+        const startTime = Date.now();
+
         // 3. Load Schema data using the temporary connection
         const result = await schemaLoader.load(tempConnection);
 
@@ -157,9 +159,20 @@ export function MainPage() {
             updateConnection(sessionUpdates);
           }
 
-          setLoadedSchemaData(result);
-          setInitStatus("ready");
-          setIsReady(true);
+          const post = () => {
+            setLoadedSchemaData(result);
+            setInitStatus("ready");
+            setIsReady(true);
+          };
+
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+          if (duration < 800) {
+            // Delay a little for better UX
+            setTimeout(() => post(), 800 - duration);
+          } else {
+            post();
+          }
         }
       } catch (err) {
         if (isMounted) {

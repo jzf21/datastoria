@@ -3,33 +3,36 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { ConnectionConfig } from "@/lib/connection/connection-config";
 import { useConnection } from "@/lib/connection/connection-context";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
+import { X } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
-import { ConnectionEditDialogContent } from "./connection-edit-dialog";
+import { ConnectionEditComponent } from "./connection-edit-component";
 
 export function ConnectionWizard() {
   const { switchConnection } = useConnection();
-  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [isCreatingConnection, setIsCreatingConnection] = useState(false);
 
   const handleCreateConnection = () => {
-    setShowEditDialog(true);
+    setIsCreatingConnection(true);
   };
 
   const handleSave = (savedConnection: ConnectionConfig) => {
     // Set the newly created connection as the selected one
     // This will update hasAnyConnections and trigger MainPage to show the main interface
     switchConnection(savedConnection);
-    setShowEditDialog(false);
+    setIsCreatingConnection(false);
   };
 
   const handleCancel = () => {
-    setShowEditDialog(false);
+    setIsCreatingConnection(false);
   };
 
   return (
     <div className="fixed inset-0 bg-background flex items-center justify-center p-8">
-      {!showEditDialog ? (
-        <div className="w-full max-w-2xl flex flex-col h-[80vh] overflow-hidden justify-center">
+      <div
+        className={`w-full max-w-2xl flex flex-col overflow-hidden justify-center ${!isCreatingConnection ? "h-[80vh]" : ""}`}
+      >
+        {!isCreatingConnection ? (
           <Card className="w-full">
             <CardHeader className="text-center space-y-2">
               <div className="flex justify-center">
@@ -101,16 +104,32 @@ export function ConnectionWizard() {
                   }}
                   className="px-4"
                 >
-                  No ClickHouse Cluster? Try ClickHouse Playground
+                  Try ClickHouse Playground
                 </Button>
               </div>
             </CardContent>
+            {/* Spacer to match the height of ConnectionEditDialogContent's bottom section */}
           </Card>
-          {/* Spacer to match the height of ConnectionEditDialogContent's bottom section */}
-        </div>
-      ) : (
-        <ConnectionEditDialogContent connection={null} onSave={handleSave} onCancel={handleCancel} isAddMode={true} />
-      )}
+        ) : (
+          <Card className="w-full relative flex-shrink-0">
+            <Button variant="ghost" size="icon" onClick={handleCancel} className="absolute top-2 right-2 h-8 w-8 z-10">
+              <X className="h-4 w-4" />
+            </Button>
+            <CardHeader>
+              <CardTitle>Create a new connection</CardTitle>
+              <CardDescription>Configure your ClickHouse connection settings.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ConnectionEditComponent
+                connection={null}
+                onSave={handleSave}
+                onCancel={handleCancel}
+                isAddMode={true}
+              />
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,132 +1,64 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { FieldDescription } from "@/components/ui/field-description";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog } from "@/components/use-dialog";
 import { Connection, QueryError } from "@/lib/connection/connection";
 import type { ConnectionConfig } from "@/lib/connection/connection-config";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
+import { cn } from "@/lib/utils";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
 import axios from "axios";
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import ReactDOM from "react-dom/client";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 
-export interface ConnectionEditDialogProps {
-  connection: ConnectionConfig | null;
-  onClose: () => void;
-}
-
-// Type for bottom section content
-type BottomSectionContent =
-  | { type: "test-success"; message: string }
-  | { type: "error"; message: string }
-  | { type: "delete-confirmation" }
-  | null;
-
-// Sub-components for bottom section
-function TestSuccessMessage({ message }: { message: string }) {
-  return (
-    <Card className="w-full rounded-t-none border-t-0">
-      <CardContent className="p-0">
-        <Alert
-          variant="default"
-          className="border-0 rounded-t-none p-3 flex items-start bg-green-500/10 dark:bg-green-500/20"
-        >
-          <div className="flex items-start gap-2 w-full">
-            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <AlertTitle className="text-sm">Connection Test</AlertTitle>
-              <AlertDescription className="mt-1 break-words overflow-wrap-anywhere whitespace-pre-wrap text-xs">
-                {message}
-              </AlertDescription>
-            </div>
-          </div>
-        </Alert>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ErrorMessage({ message, title }: { message: string; title?: string }) {
-  return (
-    <Card className="w-full rounded-t-none border-t-0 max-h-[140px] flex flex-col">
-      <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
-        <Alert
-          variant="destructive"
-          className="border-0 rounded-t-none p-3 h-full flex items-start bg-destructive/10 dark:bg-destructive/20"
-        >
-          <div className="flex items-start gap-2 w-full h-full min-h-0">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-              <AlertTitle className="text-sm shrink-0">{title || "Error"}</AlertTitle>
-              <AlertDescription className="mt-1 break-words overflow-wrap-anywhere whitespace-pre-wrap text-xs overflow-y-auto flex-1 min-h-0">
-                {message}
-              </AlertDescription>
-            </div>
-          </div>
-        </Alert>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DeleteConfirmation({
-  onConfirm,
-  onCancel,
-  disabled,
-}: {
-  onConfirm: () => void;
-  onCancel: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <Card className="w-full rounded-t-none border-t-0">
-      <CardContent className="p-0">
-        <Alert
-          variant="destructive"
-          className="border-0 rounded-t-none px-6 py-3 flex items-start bg-destructive/10 dark:bg-destructive/20"
-        >
-          <div className="flex items-start gap-2 w-full">
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <AlertTitle className="text-sm">Confirm deletion</AlertTitle>
-              <AlertDescription className="mt-2 break-words overflow-wrap-anywhere text-xs">
-                Are you sure you want to delete this connection? This action cannot be reverted.
-              </AlertDescription>
-              <div className="flex justify-end gap-2 mt-3">
-                <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
-                  Cancel
-                </Button>
-                <Button type="button" variant="destructive" size="sm" onClick={onConfirm} disabled={disabled}>
-                  Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Alert>
-      </CardContent>
-    </Card>
-  );
-}
-
-export interface ShowConnectionEditDialogOptions {
-  connection: ConnectionConfig | null;
-  onSave?: (connection: ConnectionConfig) => void;
-  onDelete?: () => void;
-  onCancel?: () => void;
-}
+// Type for test status
+type TestStatus = { type: "success" | "error"; message: string } | null;
 
 // Exported component for inline use (e.g., in ConnectionWizard)
-export function ConnectionEditDialogContent({
+function StatusPopover({
+  children,
+  className,
+  icon,
+  title,
+  trigger,
+  open,
+  onOpenChange,
+  ...props
+}: ComponentPropsWithoutRef<typeof PopoverContent> & {
+  icon: ReactNode;
+  title: string;
+  trigger: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent className={cn("p-0 overflow-hidden z-[10000]", className)} {...props}>
+        <PopoverPrimitive.Arrow className={cn("fill-[var(--border)]")} width={12} height={8} />
+        <div className="flex items-start gap-2 p-4">
+          {icon}
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-sm mb-1">{title}</div>
+            {children}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export function ConnectionEditComponent({
   connection,
   onSave,
   onDelete,
@@ -171,7 +103,8 @@ export function ConnectionEditDialogContent({
   const [isShowPassword, setShowPassword] = useState(false);
   const [isLoadingTemplates, setLoadingTemplates] = useState(false);
   const [loadingTemplateError, setLoadingTemplateError] = useState<QueryError | undefined>();
-  const [bottomSectionContent, setBottomSectionContent] = useState<BottomSectionContent>(null);
+  const [testStatus, setTestStatus] = useState<TestStatus>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Error and message state
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -236,7 +169,6 @@ export function ConnectionEditDialogContent({
 
   const clearFieldErrors = useCallback(() => {
     setFieldErrors({});
-    setBottomSectionContent(null);
   }, []);
 
   const setFieldError = useCallback((field: string, error: string) => {
@@ -298,7 +230,6 @@ export function ConnectionEditDialogContent({
     }
 
     clearFieldErrors();
-    setBottomSectionContent(null);
 
     const manager = ConnectionManager.getInstance();
 
@@ -332,10 +263,8 @@ export function ConnectionEditDialogContent({
     // Get the saved connection from manager to ensure consistency
     const savedConnection = manager.getConnections().find((conn) => conn.name === editingConnection.name);
     if (!savedConnection) {
-      setBottomSectionContent({
-        type: "error",
-        message: "Failed to retrieve saved connection from ConnectionManager.",
-      });
+      // This shouldn't happen, but handle gracefully
+      console.error("Failed to retrieve saved connection from ConnectionManager.");
       return false; // Keep dialog open
     }
 
@@ -445,11 +374,7 @@ export function ConnectionEditDialogContent({
         {!isLoadingTemplates && loadingTemplateError === undefined && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                disabled={bottomSectionContent?.type === "delete-confirmation"}
-              >
+              <Button variant="outline" className="w-full justify-start" disabled={showDeleteConfirm}>
                 {currentSelectedConnection ? currentSelectedConnection.name : "Select a template..."}
               </Button>
             </DropdownMenuTrigger>
@@ -474,7 +399,7 @@ export function ConnectionEditDialogContent({
     currentSelectedConnection,
     connectionTemplates,
     handleTemplateSelect,
-    bottomSectionContent,
+    showDeleteConfirm,
   ]);
 
   // Test handler that manages testing state
@@ -484,8 +409,8 @@ export function ConnectionEditDialogContent({
       return;
     }
 
-    // Clear previous bottom section content
-    setBottomSectionContent(null);
+    // Clear previous test status
+    setTestStatus(null);
 
     // Set testing state to true
     setIsTesting(true);
@@ -494,11 +419,7 @@ export function ConnectionEditDialogContent({
     const setTestResultWithDelay = (result: { type: "success" | "error"; message: string }) => {
       setTimeout(() => {
         setIsTesting(false);
-        if (result.type === "success") {
-          setBottomSectionContent({ type: "test-success", message: result.message });
-        } else {
-          setBottomSectionContent({ type: "error", message: result.message });
-        }
+        setTestStatus(result);
       }, 300); // 300ms delay for smooth UI transition
     };
 
@@ -625,13 +546,13 @@ export function ConnectionEditDialogContent({
   }, [handleCancel]);
 
   const handleDeleteClick = useCallback(() => {
-    setBottomSectionContent({ type: "delete-confirmation" });
+    setShowDeleteConfirm(true);
   }, []);
 
   const handleDeleteConfirm = useCallback(() => {
     if (connection) {
       ConnectionManager.getInstance().remove(connection.name.trim());
-      setBottomSectionContent(null);
+      setShowDeleteConfirm(false);
       if (onDelete) {
         onDelete();
       }
@@ -639,7 +560,7 @@ export function ConnectionEditDialogContent({
   }, [connection, onDelete]);
 
   const handleDeleteCancel = useCallback(() => {
-    setBottomSectionContent(null);
+    setShowDeleteConfirm(false);
   }, []);
 
   // Handle ESC key to close
@@ -657,245 +578,251 @@ export function ConnectionEditDialogContent({
   }, [handleClose]);
 
   return (
-    <div className="w-full max-w-2xl flex flex-col h-[80vh] overflow-hidden">
-      <Card className={`w-full ${bottomSectionContent ? "rounded-b-none" : ""} relative flex-shrink-0`}>
-        {/* Close Button - Top Right inside Card */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleClose}
-          disabled={bottomSectionContent?.type === "delete-confirmation"}
-          className="absolute top-2 right-2 h-8 w-8 z-10"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-        <CardHeader>
-          <CardTitle>{isAddMode ? "Create a new connection" : "Modify existing connection"}</CardTitle>
-          <CardDescription>Configure your ClickHouse connection settings.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSave();
-            }}
-          >
-            <FieldGroup className="space-y-2">
-              {hasProvider && <Field>{renderConnectionSelector}</Field>}
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleSave();
+      }}
+    >
+      <FieldGroup className="space-y-2">
+        {hasProvider && <Field>{renderConnectionSelector}</Field>}
 
-              <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
-                <FieldLabel htmlFor="url" className="text-right">
-                  URL
-                </FieldLabel>
+        <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
+          <FieldLabel htmlFor="url" className="text-right">
+            URL
+          </FieldLabel>
 
-                <Input
-                  id="url"
-                  autoFocus
-                  placeholder="http(s)://"
-                  value={url}
-                  onChange={handleUrlChange}
-                  className={fieldErrors.url ? "border-destructive" : ""}
-                />
-                <div></div>
-                {fieldErrors.url ? (
-                  <FieldDescription className="text-destructive">{fieldErrors.url}</FieldDescription>
-                ) : (
-                  <FieldDescription>The HTTP(s) URL of the ClickHouse server</FieldDescription>
-                )}
-              </Field>
+          <Input
+            id="url"
+            autoFocus
+            placeholder="http(s)://"
+            value={url}
+            onChange={handleUrlChange}
+            className={fieldErrors.url ? "border-destructive" : ""}
+          />
+          <div></div>
+          {fieldErrors.url ? (
+            <FieldDescription className="text-destructive">{fieldErrors.url}</FieldDescription>
+          ) : (
+            <FieldDescription>The HTTP(s) URL of the ClickHouse server</FieldDescription>
+          )}
+        </Field>
 
-              <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
-                <FieldLabel htmlFor="user" className="text-right">
-                  User
-                </FieldLabel>
-                <Input
-                  id="user"
-                  value={user}
-                  onChange={handleUserChange}
-                  className={fieldErrors.user ? "border-destructive" : ""}
-                />
-                <div></div>
-                {fieldErrors.user ? (
-                  <FieldDescription className="text-destructive">{fieldErrors.user}</FieldDescription>
-                ) : (
-                  <FieldDescription>The user name to access the ClickHouse server</FieldDescription>
-                )}
-              </Field>
+        <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
+          <FieldLabel htmlFor="user" className="text-right">
+            User
+          </FieldLabel>
+          <Input
+            id="user"
+            value={user}
+            onChange={handleUserChange}
+            className={fieldErrors.user ? "border-destructive" : ""}
+          />
+          <div></div>
+          {fieldErrors.user ? (
+            <FieldDescription className="text-destructive">{fieldErrors.user}</FieldDescription>
+          ) : (
+            <FieldDescription>The user name to access the ClickHouse server</FieldDescription>
+          )}
+        </Field>
 
-              <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
-                <FieldLabel htmlFor="password" className="text-right">
-                  Password
-                </FieldLabel>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={isShowPassword ? "text" : "password"}
-                    value={password}
-                    onChange={handlePasswordChange}
-                    className="pr-10"
-                  />
+        <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
+          <FieldLabel htmlFor="password" className="text-right">
+            Password
+          </FieldLabel>
+          <div className="relative">
+            <Input
+              id="password"
+              type={isShowPassword ? "text" : "password"}
+              value={password}
+              onChange={handlePasswordChange}
+              className="pr-10"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+              onClick={() => setShowPassword((prev) => !prev)}
+              disabled={showDeleteConfirm}
+            >
+              {isShowPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+          </div>
+          <div></div>
+          <FieldDescription>
+            The password to access the ClickHouse server. Leave it blank if password is not needed.
+          </FieldDescription>
+        </Field>
+
+        <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
+          <FieldLabel htmlFor="cluster" className={`text-right ${!editable ? "text-muted-foreground" : ""}`}>
+            Cluster
+          </FieldLabel>
+          <Input id="cluster" value={cluster} disabled={!editable} onChange={handleClusterChange} />
+          <div></div>
+          <FieldDescription>
+            Configure the cluster name to access full features of this console if the ClickHouse server is deployed as
+            cluster
+          </FieldDescription>
+        </Field>
+
+        <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
+          <FieldLabel htmlFor="name" className="text-right">
+            Connection Name
+          </FieldLabel>
+          <Input
+            id="name"
+            value={name}
+            onChange={handleNameChange}
+            className={fieldErrors.name ? "border-destructive" : ""}
+          />
+          <div></div>
+          {fieldErrors.name ? (
+            <FieldDescription className="text-destructive">{fieldErrors.name}</FieldDescription>
+          ) : (
+            <FieldDescription>Name of the connection</FieldDescription>
+          )}
+        </Field>
+
+        <FieldGroup>
+          <Field>
+            <div className="flex items-center justify-end gap-2 pt-4 border-t">
+              <StatusPopover
+                open={testStatus !== null}
+                onOpenChange={(open) => !open && setTestStatus(null)}
+                trigger={
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    disabled={bottomSectionContent?.type === "delete-confirmation"}
+                    variant="outline"
+                    onClick={handleTestConnection}
+                    disabled={isTesting || isSaving || showDeleteConfirm}
                   >
-                    {isShowPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {isTesting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Test Connection
                   </Button>
+                }
+                side="left"
+                align="end"
+                sideOffset={0}
+                className="max-w-md"
+                icon={
+                  testStatus?.type === "success" ? (
+                    <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+                  )
+                }
+                title={testStatus?.type === "success" ? "Connection Test" : "Error"}
+              >
+                <div className="text-xs whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto">
+                  {testStatus?.message}
                 </div>
-                <div></div>
-                <FieldDescription>
-                  The password to access the ClickHouse server. Leave it blank if password is not needed.
-                </FieldDescription>
-              </Field>
-
-              <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
-                <FieldLabel htmlFor="cluster" className={`text-right ${!editable ? "text-muted-foreground" : ""}`}>
-                  Cluster
-                </FieldLabel>
-                <Input id="cluster" value={cluster} disabled={!editable} onChange={handleClusterChange} />
-                <div></div>
-                <FieldDescription>
-                  Configure the cluster name to access full features of this console if the ClickHouse server is
-                  deployed as cluster
-                </FieldDescription>
-              </Field>
-
-              <Field className="grid grid-cols-[128px_1fr] gap-x-2 items-center">
-                <FieldLabel htmlFor="name" className="text-right">
-                  Connection Name
-                </FieldLabel>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={handleNameChange}
-                  className={fieldErrors.name ? "border-destructive" : ""}
-                />
-                <div></div>
-                {fieldErrors.name ? (
-                  <FieldDescription className="text-destructive">{fieldErrors.name}</FieldDescription>
-                ) : (
-                  <FieldDescription>Name of the connection</FieldDescription>
-                )}
-              </Field>
-
-              <FieldGroup>
-                <Field>
-                  <div className="flex items-center justify-end gap-2 pt-4 border-t">
+              </StatusPopover>
+              {!isAddMode && onDelete && (
+                <StatusPopover
+                  open={showDeleteConfirm}
+                  onOpenChange={setShowDeleteConfirm}
+                  trigger={
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleTestConnection}
-                      disabled={isTesting || isSaving || bottomSectionContent?.type === "delete-confirmation"}
+                      onClick={handleDeleteClick}
+                      disabled={isTesting || isSaving}
                     >
-                      {isTesting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Test Connection
+                      Delete
                     </Button>
-                    {!isAddMode && onDelete && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleDeleteClick}
-                        disabled={isTesting || isSaving || bottomSectionContent?.type === "delete-confirmation"}
-                      >
-                        Delete
-                      </Button>
-                    )}
+                  }
+                  side="top"
+                  align="end"
+                  icon={<AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600 dark:text-red-400" />}
+                  title="Confirm deletion"
+                >
+                  <div className="text-xs mb-3">
+                    Are you sure to delete this connection? This action cannot be reverted.
+                  </div>
+                  <div className="flex justify-end gap-2">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleCancel}
-                      disabled={isTesting || isSaving || bottomSectionContent?.type === "delete-confirmation"}
+                      size="sm"
+                      onClick={handleDeleteCancel}
+                      disabled={isTesting || isSaving}
                     >
                       Cancel
                     </Button>
                     <Button
-                      type="submit"
-                      disabled={isTesting || isSaving || bottomSectionContent?.type === "delete-confirmation"}
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDeleteConfirm}
+                      disabled={isTesting || isSaving}
                     >
-                      Save
+                      Delete
                     </Button>
                   </div>
-                </Field>
-              </FieldGroup>
-            </FieldGroup>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Bottom Section Area - Fixed height container, content adapts inside */}
-      {bottomSectionContent && (
-        <div className="h-[140px] relative overflow-hidden flex items-start">
-          <div
-            className={`w-full transition-all duration-300 ease-in-out ${
-              bottomSectionContent ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4 pointer-events-none"
-            }`}
-          >
-            {bottomSectionContent?.type === "test-success" && (
-              <TestSuccessMessage message={bottomSectionContent.message} />
-            )}
-            {bottomSectionContent?.type === "error" && <ErrorMessage message={bottomSectionContent.message} />}
-            {bottomSectionContent?.type === "delete-confirmation" && (
-              <DeleteConfirmation
-                onConfirm={handleDeleteConfirm}
-                onCancel={handleDeleteCancel}
-                disabled={isTesting || isSaving}
-              />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+                </StatusPopover>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancel}
+                disabled={isTesting || isSaving || showDeleteConfirm}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isTesting || isSaving || showDeleteConfirm}>
+                Save
+              </Button>
+            </div>
+          </Field>
+        </FieldGroup>
+      </FieldGroup>
+    </form>
   );
+}
+
+export interface ShowConnectionEditDialogOptions {
+  connection: ConnectionConfig | null;
+  onSave?: (connection: ConnectionConfig) => void;
+  onDelete?: () => void;
+  onCancel?: () => void;
 }
 
 export function showConnectionEditDialog(options: ShowConnectionEditDialogOptions) {
   const { connection, onSave, onDelete, onCancel } = options;
   const isAddMode = connection == null;
 
-  // Create a container div to mount the full-screen component
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-
-  // Create React root
-  const root = ReactDOM.createRoot(container);
-
-  // Function to cleanup and close
-  const cleanup = () => {
-    if (container.parentNode) {
-      root.unmount();
-      document.body.removeChild(container);
-    }
+  const handleClose = () => {
+    Dialog.close();
     if (onCancel) {
       onCancel();
     }
   };
 
-  // Render the full-screen component with wrapper
-  root.render(
-    <div className="fixed inset-0 z-[9999] bg-background flex flex-col">
-      {/* Main Content - Centered */}
-      <div className="flex-1 overflow-y-auto flex items-center justify-center p-8 relative">
-        <ConnectionEditDialogContent
-          connection={connection}
-          onSave={(savedConnection: ConnectionConfig) => {
-            cleanup();
-            if (onSave) {
-              onSave(savedConnection);
-            }
-          }}
-          onDelete={() => {
-            cleanup();
-            if (onDelete) {
-              onDelete();
-            }
-          }}
-          onCancel={cleanup}
-          isAddMode={isAddMode}
-        />
-      </div>
-    </div>
-  );
+  Dialog.showDialog({
+    title: isAddMode ? "Create a new connection" : "Modify existing connection",
+    description: "Configure your ClickHouse connection settings.",
+    className: "max-w-2xl",
+    mainContent: (
+      <ConnectionEditComponent
+        connection={connection}
+        onSave={(savedConnection: ConnectionConfig) => {
+          Dialog.close();
+          if (onSave) {
+            onSave(savedConnection);
+          }
+        }}
+        onDelete={() => {
+          Dialog.close();
+          if (onDelete) {
+            onDelete();
+          }
+        }}
+        onCancel={handleClose}
+        isAddMode={isAddMode}
+      />
+    ),
+    onCancel: handleClose,
+  });
 }

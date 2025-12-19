@@ -8,7 +8,7 @@ import { ConnectionManager } from "@/lib/connection/connection-manager";
 import { cn } from "@/lib/utils";
 import { Check, Pencil, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { showConnectionEditDialog } from "./connection-edit-dialog";
+import { showConnectionEditDialog } from "./connection-edit-component";
 
 interface ConnectionSelectorProps {
   /**
