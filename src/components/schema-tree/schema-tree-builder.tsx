@@ -15,6 +15,7 @@ import {
   Table as TableIcon,
   Type,
 } from "lucide-react";
+import { CopyButton } from "@/components/ui/copy-button";
 import { SchemaTreeBadge, SchemaTreeHostSelector } from "./schema-tree-host-selector";
 import type {
   ColumnNodeData,
@@ -148,22 +149,21 @@ function toColumnTreeNode(column: { name: string; type: string; comment?: string
     }
 
     return (
-      <div className="space-y-1 max-w-[300px]">
-        {/* Column name */}
-        <div className="font-semibold text-sm break-words">{columnName}</div>
-
-        {/* Column type */}
-        <div className="text-xs text-muted-foreground break-words">
-          <span className="font-mono">{columnType}</span>
+      <div className="text-xs space-y-1 max-w-[300px]">
+        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+          <div className="font-medium text-muted-foreground">Column</div>
+          <div className="text-foreground break-words">{columnName}</div>
+          <div className="font-medium text-muted-foreground">Type</div>
+          <div className="text-foreground font-mono break-words">{columnType}</div>
         </div>
 
         {/* Enum info */}
         {hasEnumPairs && (
-          <div className="mt-2 pt-2 border-t space-y-1">
-            <div className="font-semibold text-xs break-words">{enumInfo.baseType}</div>
+          <div className="pt-1 mt-1 border-t space-y-1">
+            <div className="font-medium text-muted-foreground">{enumInfo.baseType}</div>
             <div className="space-y-1">
               {enumInfo.pairs.map(([key, value], index) => (
-                <div key={index} className="text-xs font-mono break-words">
+                <div key={index} className="font-mono break-words">
                   <span className="text-muted-foreground break-all">{key}</span>
                   <span className="mx-2">=</span>
                   <span className="break-all">{value}</span>
@@ -175,8 +175,8 @@ function toColumnTreeNode(column: { name: string; type: string; comment?: string
 
         {/* Comment */}
         {hasComment && (
-          <div className={hasEnumPairs ? "mt-2 pt-2 border-t" : ""}>
-            <div className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{columnComment}</div>
+          <div className="pt-1 mt-1 border-t">
+            <div className="text-foreground whitespace-pre-wrap break-words">{columnComment}</div>
           </div>
         )}
       </div>
@@ -216,9 +216,20 @@ function toTableTreeNode(table: {
   // Build comprehensive tooltip for table
   const labelTooltip = (
     <div className="text-xs space-y-1">
-      <div className="font-medium text-foreground">{tableName}</div>
-      {tableComment && <div className="text-muted-foreground whitespace-pre-wrap">{tableComment}</div>}
-      <div className="text-muted-foreground">{table.fullTableEngine || table.tableEngine}</div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
+        <div className="font-medium text-muted-foreground">Table</div>
+        <div className="text-foreground break-all flex items-center gap-1">
+          <span>{fullName}</span>
+          <CopyButton value={fullName} className="relative top-0 right-0 h-4 w-4 shrink-0 [&_svg]:h-2.5 [&_svg]:w-2.5" />
+        </div>
+        <div className="font-medium text-muted-foreground">Engine</div>
+        <div className="text-foreground break-all">{table.fullTableEngine || table.tableEngine}</div>
+      </div>
+      {tableComment && (
+        <div className="pt-1 mt-1 border-t">
+          <div className="text-foreground whitespace-pre-wrap break-words">{tableComment}</div>
+        </div>
+      )}
     </div>
   );
 
@@ -256,10 +267,22 @@ function toDatabaseTreeNode(db: {
   // Build comprehensive tooltip for database
   const labelTooltip = (
     <div className="text-xs space-y-1">
-      <div className="font-medium text-foreground">{dbName}</div>
-      {db.comment && <div className="text-muted-foreground whitespace-pre-wrap">{db.comment}</div>}
-      <div className="text-muted-foreground">{db.engine}</div>
-      <div className="text-muted-foreground">{db.tableCount} tables</div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
+        <div className="font-medium text-muted-foreground">Database</div>
+        <div className="text-foreground break-all flex items-center gap-1">
+          <span>{dbName}</span>
+          <CopyButton value={dbName} className="relative top-0 right-0 h-4 w-4 shrink-0 [&_svg]:h-2.5 [&_svg]:w-2.5" />
+        </div>
+        <div className="font-medium text-muted-foreground">Engine</div>
+        <div className="text-foreground break-all">{db.engine}</div>
+        <div className="font-medium text-muted-foreground">Tables</div>
+        <div className="text-foreground">{db.tableCount}</div>
+      </div>
+      {db.comment && (
+        <div className="pt-1 mt-1 border-t">
+          <div className="text-foreground whitespace-pre-wrap break-words">{db.comment}</div>
+        </div>
+      )}
     </div>
   );
 
@@ -500,12 +523,23 @@ export function buildSchemaTree(
   // Build comprehensive tooltip for host
   const hostTooltip = (
     <div className="text-xs space-y-1">
-      <div className="font-medium text-foreground break-all">{serverName}</div>
-      <div className="text-muted-foreground">
-        <span className="font-medium">Databases:</span> {databaseNodes.length}
+      <div className="font-medium text-muted-foreground">{connection.name}</div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
+        <div className="font-medium text-muted-foreground">URL</div>
+        <div className="text-foreground break-all flex items-center gap-1">
+          <span>{connection.url}</span>
+          <CopyButton value={connection.url} className="relative top-0 right-0 h-4 w-4 shrink-0 [&_svg]:h-2.5 [&_svg]:w-2.5" />
+        </div>
+        <div className="font-medium text-muted-foreground">User</div>
+        <div className="text-foreground break-all">{connection.user}</div>
+        <div className="font-medium text-muted-foreground">Current Node</div>
+        <div className="text-foreground break-all">{serverName}</div>
       </div>
-      <div className="text-muted-foreground">
-        <span className="font-medium">Tables:</span> {totalTables}
+      <div className="pt-1 mt-1 border-t grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+        <div className="font-medium text-muted-foreground">Databases</div>
+        <div className="text-foreground">{databaseNodes.length}</div>
+        <div className="font-medium text-muted-foreground">Tables</div>
+        <div className="text-foreground">{totalTables}</div>
       </div>
     </div>
   );
