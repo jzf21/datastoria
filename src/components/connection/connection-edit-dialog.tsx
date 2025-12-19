@@ -44,7 +44,7 @@ function TestSuccessMessage({ message }: { message: string }) {
           <div className="flex items-start gap-2 w-full">
             <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              <AlertTitle className="text-sm">Connection Test Successful</AlertTitle>
+              <AlertTitle className="text-sm">Connection Test</AlertTitle>
               <AlertDescription className="mt-1 break-words overflow-wrap-anywhere whitespace-pre-wrap text-xs">
                 {message}
               </AlertDescription>
@@ -100,7 +100,7 @@ function DeleteConfirmation({
             <div className="flex-1 min-w-0">
               <AlertTitle className="text-sm">Confirm deletion</AlertTitle>
               <AlertDescription className="mt-2 break-words overflow-wrap-anywhere text-xs">
-                Are you sure you want to delete this connection? This action cannot be undone.
+                Are you sure you want to delete this connection? This action cannot be reverted.
               </AlertDescription>
               <div className="flex justify-end gap-2 mt-3">
                 <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
@@ -657,7 +657,7 @@ export function ConnectionEditDialogContent({
   }, [handleClose]);
 
   return (
-    <div className="w-full max-w-2xl flex flex-col h-[90vh] overflow-hidden">
+    <div className="w-full max-w-2xl flex flex-col h-[80vh] overflow-hidden">
       <Card className={`w-full ${bottomSectionContent ? "rounded-b-none" : ""} relative flex-shrink-0`}>
         {/* Close Button - Top Right inside Card */}
         <Button
@@ -796,7 +796,7 @@ export function ConnectionEditDialogContent({
                     {!isAddMode && onDelete && (
                       <Button
                         type="button"
-                        variant="destructive"
+                        variant="outline"
                         onClick={handleDeleteClick}
                         disabled={isTesting || isSaving || bottomSectionContent?.type === "delete-confirmation"}
                       >

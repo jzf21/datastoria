@@ -117,7 +117,7 @@ export function showDropTableConfirmationDialog({
 
   Dialog.showDialog({
     title: "Drop Table",
-    description: `Are you sure you want to drop the table ${table.database}.${table.table}? This action cannot be undone.`,
+    description: `Are you sure you want to drop the table ${table.database}.${table.table}? This action cannot be reverted.`,
     mainContent: mainContent,
     className: "max-w-2xl",
     dialogButtons: [

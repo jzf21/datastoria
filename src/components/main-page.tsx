@@ -45,7 +45,7 @@ function MainPageLoadStatusComponent({ status, connectionName, error, onRetry }:
             <Loader2 className="h-8 w-8 text-primary animate-spin" />
           </div>
           <h3 className="text-lg font-medium mb-2">
-            {connectionName ? `Connecting to: ${connectionName}` : "Connecting..."}
+            {connectionName ? `Connecting to ${connectionName}` : "Connecting..."}
           </h3>
           <p className="text-muted-foreground text-sm mb-8">Loading schema and verifying connection</p>
           {/* Invisible spacer to match button height in error state */}
@@ -212,7 +212,7 @@ export function MainPage() {
           <SchemaTreeView initialSchemaData={loadedSchemaData} />
         </Panel>
 
-        <PanelResizeHandle className="w-0.5 bg-border hover:bg-border/80 transition-colors cursor-col-resize" />
+        <PanelResizeHandle className="w-0.5 bg-border hover:bg-border/80 transition-colors" />
 
         {/* Right Panel Group: Tabs for Query and Table Views */}
         <Panel defaultSize={80} minSize={50} className="bg-background">

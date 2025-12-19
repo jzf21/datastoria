@@ -44,7 +44,7 @@ function EmptyTabPlaceholderComponent() {
 
       <h3 className="text-2xl font-semibold tracking-tight mb-2">Welcome to Data Scopic</h3>
 
-      <p className="text-muted-foreground max-w-md mb-6 text-sm leading-relaxed">
+      <p className="text-muted-foreground max-w-xl mb-4 text-sm leading-relaxed">
         Select a table from the sidebar to view its details, or start by running a new SQL query.
       </p>
 
@@ -582,7 +582,6 @@ const MainPageTabListComponent = ({ selectedConnection }: MainPageTabListProps) 
                       <ContextMenuItem onClick={() => handleCloseTabsToRight(tab.id)} disabled={!hasTabsToRight}>
                         Close to the right
                       </ContextMenuItem>
-                      <ContextMenuSeparator />
                       <ContextMenuItem onClick={() => handleCloseOthers(tab.id)} disabled={!hasOtherTabs}>
                         Close others
                       </ContextMenuItem>

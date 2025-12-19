@@ -96,7 +96,7 @@ function showDropPartitionDialog({ database, table, partition, connection, onSuc
 
   Dialog.showDialog({
     title: "Drop Partition",
-    description: `Are you sure you want to drop partition ${partition} from table ${database}.${table}? This action cannot be undone.`,
+    description: `Are you sure you want to drop partition ${partition} from table ${database}.${table}? This action cannot be reverted.`,
     className: "max-w-2xl",
     dialogButtons: [
       {
