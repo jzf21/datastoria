@@ -288,6 +288,17 @@ function ExplainPipeCompleteGraphView({ sql, isActive }: ExplainPipeGraphViewPro
         setLoadError(null);
       })
       .catch((error: QueryError) => {
+        // Ignore abort errors
+        const errorMessage = error.message || "Unknown error occurred";
+        const lowerErrorMessage = errorMessage.toLowerCase();
+        if (
+          lowerErrorMessage.includes("cancel") || 
+          lowerErrorMessage.includes("abort") ||
+          lowerErrorMessage.includes("signal is aborted without reason")
+        ) {
+          return;
+        }
+
         setRawGraphviz("");
         setResult("");
         setLoadError(error);
@@ -359,6 +370,17 @@ function ExplainPipeLineTextView({ sql, isActive }: ExplainPipeLineTextViewProps
         setLoadError(null);
       })
       .catch((error: QueryError) => {
+        // Ignore abort errors
+        const errorMessage = error.message || "Unknown error occurred";
+        const lowerErrorMessage = errorMessage.toLowerCase();
+        if (
+          lowerErrorMessage.includes("cancel") || 
+          lowerErrorMessage.includes("abort") ||
+          lowerErrorMessage.includes("signal is aborted without reason")
+        ) {
+          return;
+        }
+
         setResult(null);
         setLoadError(error);
       });

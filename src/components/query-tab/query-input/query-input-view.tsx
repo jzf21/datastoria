@@ -26,6 +26,8 @@ import { useTheme } from "@/components/theme-provider";
 import { useConnection } from "@/lib/connection/connection-context";
 import { updateQueryEditorState } from "../query-control/use-query-editor";
 import { QueryExecutor } from "../query-execution/query-executor";
+import { ChatExecutor } from "../query-execution/chat-executor";
+import { isAIChatMessage } from "@/lib/ai/config";
 import { QueryInputLocalStorage } from "../query-input/query-input-local-storage";
 import { QuerySuggestionManager } from "./completion/query-suggestion-manager";
 import "./query-input-view.css";

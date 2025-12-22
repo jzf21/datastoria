@@ -12,6 +12,9 @@ import { ChevronDown, Play } from "lucide-react";
 import { useCallback, useState } from "react";
 import { QueryExecutor } from "../query-execution/query-executor";
 import { useQueryEditor } from "./use-query-editor";
+import { ChatExecutor } from "../query-execution/chat-executor";
+import { isAIChatMessage } from "@/lib/ai/config";
+import { useConnection } from "@/lib/connection/connection-context";
 
 export interface QueryControlProps {
   isExecuting?: boolean;
@@ -21,6 +24,7 @@ export interface QueryControlProps {
 
 export function QueryControl({ isExecuting = false, onQuery, onExplain }: QueryControlProps) {
   const { selectedText, text } = useQueryEditor();
+  const { connection } = useConnection();
   const [isExplainOpen, setIsExplainOpen] = useState(false);
 
   const handleQuery = useCallback(() => {
@@ -32,6 +36,21 @@ export function QueryControl({ isExecuting = false, onQuery, onExplain }: QueryC
     const queryText = selectedText || text;
     if (!queryText) {
       toastManager.show("No SQL to execute", "error");
+      return;
+    }
+
+    // Check if this is an AI chat message
+    if (isAIChatMessage(queryText)) {
+      // Build context for chat
+      const context = {
+        currentQuery: queryText,
+        database: connection?.database,
+        // TODO: Add tables context if available
+        // tables: getAvailableTables(),
+      };
+
+      // Send to chat API
+      ChatExecutor.sendChatRequest(queryText, context);
       return;
     }
 
@@ -51,7 +70,7 @@ export function QueryControl({ isExecuting = false, onQuery, onExplain }: QueryC
     }
 
     QueryExecutor.sendQueryRequest(queryText, { params });
-  }, [onQuery, selectedText, text]);
+  }, [onQuery, selectedText, text, connection]);
 
   const removeComments = useCallback((sql: string) => {
     return (

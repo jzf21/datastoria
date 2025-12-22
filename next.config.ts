@@ -8,9 +8,6 @@ const nextConfig: NextConfig = {
     // TODO: Fix TypeScript errors in the codebase
     ignoreBuildErrors: true,
   },
-  // Empty turbopack config to silence the warning
-  // Most applications work fine under Turbopack with no configuration
-  turbopack: {},
   // Enable standalone output for Docker deployment
   output: 'standalone',
 }
