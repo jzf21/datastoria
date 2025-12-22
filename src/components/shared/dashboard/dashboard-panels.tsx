@@ -48,9 +48,9 @@ function getDefaultHeight(chart: PanelDescriptor): number {
     return 6; // Tables need more height
   }
   if (chart.type === "stat") {
-    return 2; // Stats are compact
+    return 4; // Stats are compact
   }
-  return 4; // Default for charts (line, bar, area, etc.)
+  return 6; // Default for charts
 }
 
 // Helper function to get gridPos from chart, with fallback to width-based system
@@ -238,20 +238,16 @@ const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
   onCollapsedChange,
 }) => {
   const gridPos = getGridPos(chart);
-  
+
   // Use minimal row span (1) when collapsed, full height when expanded
   const effectiveRowSpan = isCollapsed ? 1 : gridPos.h;
-  
+
   // Calculate max height based on grid rows: each row is 32px min + 8px gap between rows
   // This ensures the panel doesn't grow beyond its intended height even with gridAutoRows: auto
   const ROW_HEIGHT = 36; // minmax(32px, auto) plus title padding
   const GAP_SIZE = 8; // gap-y-2 = 0.5rem = 8px
   const maxHeight = effectiveRowSpan * ROW_HEIGHT + (effectiveRowSpan - 1) * GAP_SIZE;
-  
-  // Tables need overflow: hidden to prevent content from expanding grid rows
-  // Other components (stat, chart) should use overflow: visible for proper rendering
-  const isTableType = chart.type === "table" || chart.type === "transpose-table";
-  
+
   const gridStyle: React.CSSProperties = {
     display: isVisible ? "block" : "none",
     gridColumn: `span ${gridPos.w}`,
@@ -259,16 +255,10 @@ const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
     minHeight: 0, // Allow grid item to shrink below content size
   };
 
-  // Only constrain height for tables to force them to scroll instead of expanding
-  // For other panels (stats, charts), let the grid rows expand to fit content (preventing overlaps)
-  if (isTableType) {
-    gridStyle.maxHeight = `${maxHeight}px`;
-    gridStyle.overflow = "hidden";
-  } else {
-    // For non-table panels, let them grow if needed, but use at least the grid height
-    // overflow: visible is default, but being explicit doesn't hurt
-    gridStyle.overflow = "visible"; 
-  }
+  // Always constrain height to prevent grid rows from expanding beyond intended size
+  // This ensures error messages or large content don't break the dashboard layout
+  gridStyle.maxHeight = `${maxHeight}px`;
+  gridStyle.overflow = "hidden";
 
   // Use explicit positioning only if x/y are specified
   if (gridPos.x !== undefined) {
@@ -551,7 +541,7 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
                           {group.charts.map((chart: PanelDescriptor, chartIndex) => {
                             const panelIndex = groupInfo.startPanelIndex + chartIndex;
                             const isVisible = isPanelVisible(panelIndex) && !isCollapsed;
-                            const isPanelCollapsed = panelCollapseStates.get(panelIndex) ?? (chart.collapsed ?? false);
+                            const isPanelCollapsed = panelCollapseStates.get(panelIndex) ?? chart.collapsed ?? false;
 
                             return (
                               <DashboardGridPanel
@@ -576,8 +566,9 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
 
                       const isVisible = isPanelVisible(panelIndex);
                       if (!isVisible) return null;
-                      
-                      const isPanelCollapsed = panelCollapseStates.get(panelIndex) ?? (panelDescriptor.collapsed ?? false);
+
+                      const isPanelCollapsed =
+                        panelCollapseStates.get(panelIndex) ?? panelDescriptor.collapsed ?? false;
 
                       return (
                         <DashboardGridPanel
@@ -617,4 +608,3 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
 DashboardPanels.displayName = "DashboardPanels";
 
 export default DashboardPanels;
-

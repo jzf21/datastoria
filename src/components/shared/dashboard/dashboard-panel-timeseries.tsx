@@ -1527,17 +1527,17 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
         dropdownItems={dropdownItems}
         headerBackground={true}
       >
-        <CardContent className="px-0 p-0">
+        <CardContent className="px-0 p-0 h-full flex flex-col">
           {error ? (
-            <div key="error" className="flex flex-col items-center justify-center h-[300px] gap-2 text-destructive p-8">
-              <p className="font-semibold">Error loading chart data:</p>
-              <p className="text-sm">{error}</p>
+            <div key="error" className="flex flex-col items-center justify-center h-full gap-2 text-destructive p-4 overflow-hidden">
+              <p className="font-semibold shrink-0">Error loading chart data:</p>
+              <p className="text-sm overflow-auto w-full text-center max-h-full custom-scrollbar">{error}</p>
             </div>
           ) : (
             <>
               <div
                 ref={chartContainerRef}
-                className="h-[300px] w-full"
+                className="flex-1 w-full min-h-0"
                 style={{
                   minHeight: descriptor.height ? `${descriptor.height}px` : undefined,
                   width: "100%",

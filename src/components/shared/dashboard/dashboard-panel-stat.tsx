@@ -1098,8 +1098,6 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
       );
     };
 
-    // Get height from descriptor, default to 180px
-    const cardHeight = descriptor.height ?? 180;
     const hasTitle = !!descriptor.titleOption?.title && descriptor.titleOption?.showTitle !== false;
 
     // Build dropdown menu items
@@ -1115,7 +1113,9 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
     return (
       <DashboardPanelLayout
         componentRef={componentRef}
-        style={{ height: `${cardHeight}px` }}
+        // Use explicit height if provided, otherwise fill the container (100%)
+        // This allows the grid system to control the height via gridPos
+        style={{ height: descriptor.height ? `${descriptor.height}px` : "100%" }}
         isLoading={isLoadingValue}
         titleOption={descriptor.titleOption}
         dropdownItems={dropdownItems}
