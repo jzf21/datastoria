@@ -537,8 +537,7 @@ export function buildSchemaTree(
         <div className="text-foreground break-all min-w-0">{connection.user}</div>
         <div className="font-medium text-muted-foreground">Current Node</div>
         <div className="text-foreground break-all min-w-0">{serverName}</div>
-      </div>
-      <div className="pt-1 mt-1 border-t grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+        <div className="col-span-2 pt-1 mt-1 border-t" />
         <div className="font-medium text-muted-foreground">Databases</div>
         <div className="text-foreground">{databaseNodes.length}</div>
         <div className="font-medium text-muted-foreground">Tables</div>
