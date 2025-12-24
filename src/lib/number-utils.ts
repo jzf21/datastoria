@@ -9,6 +9,9 @@ declare global {
   }
 }
 
+// Export empty object to make this a module
+export {};
+
 function isNumeric(n: number): boolean {
   return !Number.isNaN(n) && Number.isFinite(n);
 }

@@ -1,4 +1,4 @@
-import { CLIENT_TOOL_NAMES, tools as clientTools } from "@/lib/ai/client-tools";
+import { CLIENT_TOOL_NAMES, ClientTools as clientTools } from "@/lib/ai/client-tools";
 import { LanguageModelProviderFactory } from "@/lib/ai/llm-provider-factory";
 import { generateSqlTool, generateVisualizationTool } from "@/lib/ai/server-tools";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";

@@ -1,7 +1,7 @@
-import type { AppUIMessage } from "@/lib/ai/client-tools";
-import { tools } from "@/lib/ai/client-tools";
-import { buildSystemPrompt } from "@/lib/ai/system-prompt";
+import { ClientTools } from "@/lib/ai/client-tools";
+import type { AppUIMessage } from "@/lib/ai/common-types";
 import { LanguageModelProviderFactory } from "@/lib/ai/llm-provider-factory";
+import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import type { ChatContext } from "@/lib/chat/types";
 import { convertToModelMessages, smoothStream, streamText } from "ai";
 import { v7 as uuidv7 } from "uuid";
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       baseSystemPrompt,
       "",
       "You can use the following tools to help you generate the SQL code:",
-      ...Object.entries(tools).map(([toolName, toolDef]) => {
+      ...Object.entries(ClientTools).map(([toolName, toolDef]) => {
         const desc =
           typeof toolDef.description === "string"
             ? toolDef.description
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         },
         ...convertedMessages,
       ],
-      tools,
+      tools: ClientTools,
       experimental_transform: smoothStream(),
 
       // DON'T DELETE THIS, it will be used for debugging if LLM providers respond unexpected response
@@ -131,8 +131,9 @@ export async function POST(req: Request) {
                 outputTokens: part.totalUsage.outputTokens || 0,
                 totalTokens: part.totalUsage.totalTokens || 0,
               },
-            };
+            } as AppUIMessage["metadata"];
           }
+          return undefined;
         },
         onFinish: async () => {
           // Stream completed successfully

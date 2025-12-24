@@ -5,9 +5,10 @@
  * They provide schema introspection and query execution capabilities.
  */
 import { QueryError, type Connection } from "@/lib/connection/connection";
-import type { InferToolInput, InferToolOutput, InferUITools, UIDataTypes, UIMessage } from "ai";
+import type { InferToolInput, InferToolOutput, UIMessage } from "ai";
 import { tool } from "ai";
 import * as z from "zod";
+import type { AppUIMessage } from "./common-types";
 
 export type ValidateSqlToolInput = {
   sql: string;
@@ -18,7 +19,7 @@ export type ValidateSqlToolOutput = {
   error?: string;
 };
 
-export const tools = {
+export const ClientTools = {
   get_table_columns: tool({
     description: "Use this tool if you need to get the list of columns in one or more tables. You can query multiple tables at once by providing an array of tables. IMPORTANT: If the user provides a fully qualified table name (e.g., 'system.metric_log'), you MUST split it into database='system' and table='metric_log'. The 'table' field should ONLY contain the table name without the database prefix.",
     inputSchema: z.object({
@@ -104,25 +105,6 @@ export const CLIENT_TOOL_NAMES = {
   VALIDATE_SQL: "validate_sql",
 } as const;
 
-export type TokenUsage = {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  reasoningTokens: number;
-  cachedInputTokens: number;
-};
-
-export type AppUIMessage = UIMessage<
-  {
-    updatedAt?: Date;
-    createdAt?: Date;
-  },
-  UIDataTypes,
-  InferUITools<typeof tools>
-> & {
-  usage?: TokenUsage
-};
-
 export function convertToAppUIMessage(message: UIMessage): AppUIMessage {
   return message as AppUIMessage;
 }
@@ -143,8 +125,8 @@ type ToolExecutor<TInput, TOutput> = (input: TInput, connection: Connection) => 
 /**
  * Tool registry - maps tool names to their executor functions
  */
-export const toolExecutors: {
-  [K in keyof typeof tools]: ToolExecutor<InferToolInput<(typeof tools)[K]>, InferToolOutput<(typeof tools)[K]>>;
+export const ClientToolExecutors: {
+  [K in keyof typeof ClientTools]: ToolExecutor<InferToolInput<(typeof ClientTools)[K]>, InferToolOutput<(typeof ClientTools)[K]>>;
 } = {
   get_table_columns: async (input, connection) => {
     const { tablesAndSchemas } = input;

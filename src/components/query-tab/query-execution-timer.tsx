@@ -10,7 +10,7 @@ export function QueryExecutionTimer({ isExecuting }: QueryExecutionTimerProps) {
   // Store startTime in state as requested, though we use the captured 'now' value in the interval
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_, setStartTime] = useState<number | null>(null);
-  const intervalRef = useRef<number | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const formatter = Formatter.getInstance().getFormatter("millisecond");
 
   useEffect(() => {

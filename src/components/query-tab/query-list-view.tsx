@@ -1,5 +1,5 @@
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
-import type { AppUIMessage } from "@/lib/ai/client-tools";
+import type { AppUIMessage } from "@/lib/ai/common-types";
 import { createChat, setChatContextBuilder } from "@/lib/chat";
 import { useConnection } from "@/lib/connection/connection-context";
 import { toastManager } from "@/lib/toast";
@@ -8,7 +8,7 @@ import { useChat } from "@ai-sdk/react";
 import { Loader2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuid } from "uuid";
-import { ChatMessageView } from "./chat-message-view";
+import { ChatMessageView } from "./chat/chat-message-view";
 import { ChatExecutor } from "./query-execution/chat-executor";
 import { QueryExecutor } from "./query-execution/query-executor";
 import { QueryListItemView } from "./query-list-item-view";
@@ -119,10 +119,10 @@ function QueryListViewContent({
 
     const chatMessages: ChatMessage[] = (rawMessages as AppUIMessage[])
       .filter((m) => {
-        const disposable = (m as any).type === "step-start" || (m as any).type === "step-finish";
+        const exclude = (m as any).type === "step-start" || (m as any).type === "step-finish";
         // Filter internal messages if needed, matching chat-list-item-view logic
         // For now, allow all, or filter raw text parts
-        return !disposable;
+        return !exclude;
       })
       .map((m) => {
         // Access generic properties safely

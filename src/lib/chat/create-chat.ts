@@ -1,5 +1,5 @@
-import { CLIENT_TOOL_NAMES, type AppUIMessage } from "@/lib/ai/client-tools";
-import { toolExecutors } from "@/lib/ai/client-tools";
+import { CLIENT_TOOL_NAMES, ClientToolExecutors } from "@/lib/ai/client-tools";
+import type { AppUIMessage } from "@/lib/ai/common-types";
 import { Connection } from "@/lib/connection/connection";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
 import { Chat } from "@ai-sdk/react";
@@ -154,7 +154,7 @@ export async function createChat(options?: {
 
 
       // Type guard to ensure toolName is a valid key
-      if (!(toolName in toolExecutors)) {
+      if (!(toolName in ClientToolExecutors)) {
         console.error(`Unknown tool: ${toolName}`);
         chat.addToolResult({
           tool: toolName as
@@ -168,7 +168,7 @@ export async function createChat(options?: {
       }
 
       // Get the executor for this tool from the registry
-      const executor = toolExecutors[toolName as keyof typeof toolExecutors];
+      const executor = ClientToolExecutors[toolName as keyof typeof ClientToolExecutors];
 
       // Get the current connection
       const config = ConnectionManager.getInstance().getLastSelectedOrFirst();

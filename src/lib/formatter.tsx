@@ -182,24 +182,24 @@ export class Formatter {
     this._formatters["binary_byte"] = (v) => {
       if (v === undefined || v === null) return "null";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "null" : numValue.formatBinarySize();
+      return isNaN(numValue) ? "null" : (numValue as number & { formatBinarySize(): string }).formatBinarySize();
     };
     this._formatters["binary_size"] = (v) => {
       if (v === undefined || v === null) return "null";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "null" : numValue.formatBinarySize();
+      return isNaN(numValue) ? "null" : (numValue as number & { formatBinarySize(): string }).formatBinarySize();
     };
 
     // For compatiblity only, use short_number instead
     this._formatters["compact_number"] = (v) => {
       if (v === undefined || v === null) return "null";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "null" : numValue.formatCompactNumber();
+      return isNaN(numValue) ? "null" : (numValue as number & { formatCompactNumber(): string }).formatCompactNumber();
     };
     this._formatters["short_number"] = (v) => {
       if (v === undefined || v === null) return "null";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "null" : numValue.formatCompactNumber();
+      return isNaN(numValue) ? "null" : (numValue as number & { formatCompactNumber(): string }).formatCompactNumber();
     };
 
     this._formatters["comma_number"] = (v) => {
@@ -209,12 +209,13 @@ export class Formatter {
     this._formatters["percentage"] = (v) => {
       if (v === "NaN" || v === undefined || v === null) return "0%";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "0%" : numValue.formatWithNoTrailingZeros(2) + "%";
+      return isNaN(numValue) ? "0%" : (numValue as number & { formatWithNoTrailingZeros(fraction: number): string }).formatWithNoTrailingZeros(2) + "%";
     };
     this._formatters["percentage_0_1"] = (v) => {
       if (v === "NaN" || v === undefined || v === null) return "0%";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "0%" : (numValue * 100).formatWithNoTrailingZeros(2) + "%";
+      const multiplied = numValue * 100;
+      return isNaN(numValue) ? "0%" : (multiplied as number & { formatWithNoTrailingZeros(fraction: number): string }).formatWithNoTrailingZeros(2) + "%";
     };
     this._formatters["percentage_bar"] = (v, params) => {
       // Ensure value is a number
@@ -248,12 +249,12 @@ export class Formatter {
     this._formatters["byte_rate"] = (v) => {
       if (v === undefined || v === null) return "null/s";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "null/s" : numValue.formatBinarySize() + "/s";
+      return isNaN(numValue) ? "null/s" : (numValue as number & { formatBinarySize(): string }).formatBinarySize() + "/s";
     };
     this._formatters["rate"] = (v) => {
       if (v === undefined || v === null) return "null/s";
       const numValue = typeof v === "number" ? v : Number(v);
-      return isNaN(numValue) ? "null/s" : numValue.formatCompactNumber() + "/s";
+      return isNaN(numValue) ? "null/s" : (numValue as number & { formatCompactNumber(): string }).formatCompactNumber() + "/s";
     };
 
     // Deprecated
@@ -271,9 +272,9 @@ export class Formatter {
       return DateTimeExtension.formatDateTime(new Date(v), "MM-dd hh:mm:ss.SSS" /*props.template*/);
     };
 
-    this._formatters["timeDuration"] = (v) => v.formatTimeDuration();
+    this._formatters["timeDuration"] = (v) => (v as number & { formatTimeDuration(): string }).formatTimeDuration();
     this._formatters["timeDiff"] = (v) => this.timeDifference(v);
-    this._formatters["days"] = (v) => v.formatDays();
+    this._formatters["days"] = (v) => (v as number & { formatDays(): string }).formatDays();
     this._formatters["template"] = (_v, params) => {
       // Template formatter - params[0] should be the template object
       const template = params && params[0];
@@ -482,7 +483,7 @@ export class Formatter {
       return "";
     }
     const now = new Date().getTime();
-    return (now - time).formatTimeDiff();
+    return ((now - time) as number & { formatTimeDiff(): string }).formatTimeDiff();
   }
 
   nanoFormat(nanoTime: number, fractionDigits: number): string {
@@ -506,7 +507,7 @@ export class Formatter {
       val = time / 1000 ** index;
     }
 
-    return val.formatWithNoTrailingZeros(fractionDigits) + units[index];
+    return (val as number & { formatWithNoTrailingZeros(fraction: number): string }).formatWithNoTrailingZeros(fractionDigits) + units[index];
   }
 
   inlineSqlFormat(sql: string): React.ReactNode {

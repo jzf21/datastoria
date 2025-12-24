@@ -1,7 +1,7 @@
 import { generateObject, generateText } from "ai";
+import { ClientTools, type ValidateSqlToolInput } from "../client-tools";
 import { LanguageModelProviderFactory } from "../llm-provider-factory";
 import { sqlSubAgentOutputSchema, type SQLSubAgentInput, type SQLSubAgentOutput } from "./types";
-import { tools as clientTools, type ValidateSqlToolInput } from "../client-tools";
 
 /**
  * SQL Sub-Agent
@@ -188,7 +188,7 @@ ${schemaContext.length > 0 ? schemaContext.join("\n") : "No schema context provi
       messages: [{ role: "system", content: systemPromptDiscovery }, ...messages],
       tools: {
         // Only validation tool - NO schema discovery tools
-        validate_sql: clientTools.validate_sql,
+        validate_sql: ClientTools.validate_sql,
       },
       temperature: 0.1,
     });

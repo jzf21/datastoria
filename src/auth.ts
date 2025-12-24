@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
-import NextAuth, { NextAuthConfig } from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
@@ -41,7 +41,7 @@ function getAuthProviders(): Provider[] {
         clientId: process.env.MICROSOFT_CLIENT_ID,
         clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
         tenantId: process.env.MICROSOFT_TENANT_ID,
-      })
+      } as Parameters<typeof MicrosoftEntraID>[0])
     );
   }
 
@@ -59,6 +59,9 @@ const authConfig: NextAuthConfig = {
   jwt: {
     maxAge: 7 * 24 * 60 * 60, // 7 days
     encode: async ({ secret, token }) => {
+      if (!token) {
+        throw new Error("Token is required for encoding");
+      }
       // Issue time and expiration time are all based on seconds
       const iat = token.iat ? token.iat : Math.floor(Date.now() / 1000);
       const exp = token.exp ? token.exp : iat + 7 * 24 * 60 * 60; // 7 days
@@ -69,7 +72,7 @@ const authConfig: NextAuthConfig = {
         picture: token.picture 
       })
         // Store email as subject for identification
-        .setSubject(token.email as string)
+        .setSubject((token.email as string) || "")
         .setProtectedHeader({ alg: "HS256", typ: "JWT" })
         .setExpirationTime(exp)
         .setIssuedAt(iat)
@@ -78,6 +81,9 @@ const authConfig: NextAuthConfig = {
         .sign(new TextEncoder().encode(secret as string));
     },
     decode: async ({ secret, token }) => {
+      if (!token) {
+        throw new Error("Token is required for decoding");
+      }
       const { payload } = await jwtVerify(
         token, 
         new TextEncoder().encode(secret as string), 
