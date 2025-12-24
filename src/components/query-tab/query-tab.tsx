@@ -4,6 +4,7 @@ import { toastManager } from "@/lib/toast";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { v7 as uuid } from "uuid";
 import { QueryControl } from "./query-control/query-control";
 import { useQueryEditor } from "./query-control/use-query-editor";
 import { ChatExecutor } from "./query-execution/chat-executor";
@@ -32,6 +33,11 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
   const { connection } = useConnection();
   const { text } = useQueryEditor(); // Get current text for chat
 
+  // Session tracking for chat conversations
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => uuid());
+  const [sessionMessageCount, setSessionMessageCount] = useState(0);
+  const sessionStartTimeRef = useRef<Date>(new Date());
+
   const lastExecutionRef = useRef<any>(null);
 
   const handleExecutionStateChange = useCallback((executing: boolean) => {
@@ -54,12 +60,12 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
       lastExecution: lastExecutionRef.current,
     };
 
-    // Send to chat API
-    ChatExecutor.sendChatRequest(textToUse, context);
+    // Send to chat API with session ID
+    ChatExecutor.sendChatRequest(textToUse, context, tabId, currentSessionId);
 
     // Clear the chat input after sending
     queryInputRef.current?.setValue('');
-  }, [text, connection]);
+  }, [text, connection, tabId, currentSessionId]);
 
   const handleRun = useCallback((textToRun: string) => {
     if (mode === "chat") {
@@ -83,10 +89,24 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
     return unsubscribe;
   }, []);
 
-  const handleClearContext = useCallback(() => {
+  const handleNewConversation = useCallback(() => {
+    // Show confirmation if conversation has many messages
+    if (sessionMessageCount > 5) {
+      const confirmed = window.confirm(
+        `Start new conversation? Current conversation has ${sessionMessageCount} messages.`
+      );
+      if (!confirmed) return;
+    }
+
+    // Create new session
+    const newSessionId = uuid();
+    setCurrentSessionId(newSessionId);
+    setSessionMessageCount(0);
+    sessionStartTimeRef.current = new Date();
     lastExecutionRef.current = null;
-    toastManager.show("Chat context cleared (execution history)", "success");
-  }, []);
+    
+    toastManager.show("Started new conversation", "success");
+  }, [sessionMessageCount]);
 
   // Focus editor when tab becomes active
   useEffect(() => {
@@ -102,7 +122,12 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
     <PanelGroup direction="vertical" className="h-full">
       {/* Top Panel: Query Response View */}
       <Panel defaultSize={60} minSize={20} className="bg-background overflow-auto">
-        <QueryListView tabId={tabId} onExecutionStateChange={handleExecutionStateChange} />
+        <QueryListView 
+          tabId={tabId} 
+          currentSessionId={currentSessionId}
+          onExecutionStateChange={handleExecutionStateChange}
+          onSessionMessageCountChange={setSessionMessageCount}
+        />
         {/* <ChatPanel
           currentDatabase={"default"}
           availableTables={[{ name: "table1", columns: ["column1", "column2"] }]}
@@ -131,7 +156,9 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
           onModeChange={setMode}
           isExecuting={isExecuting}
           onRun={handleRun}
-          onClearContext={handleClearContext}
+          onNewConversation={handleNewConversation}
+          sessionMessageCount={sessionMessageCount}
+          sessionStartTime={sessionStartTimeRef.current}
         />
       </Panel>
     </PanelGroup>

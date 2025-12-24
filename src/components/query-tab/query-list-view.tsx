@@ -1,34 +1,30 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { useConnection } from "@/lib/connection/connection-context";
-import { toastManager } from "@/lib/toast";
-import { Trash2, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { v4 as uuid } from "uuid";
-import { QueryExecutor } from "./query-execution/query-executor";
-import { ChatExecutor } from "./query-execution/chat-executor";
-import { QueryListItemView } from "./query-list-item-view";
-import { ChatResponseView } from "./chat-response-view";
-import type { QueryRequestViewModel } from "./query-view-model";
-import { useChat } from '@ai-sdk/react';
-import type { Chat } from '@ai-sdk/react';
-import { format } from "date-fns";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { AppUIMessage } from "@/lib/ai/client-tools";
 import { createChat, setChatContextBuilder } from "@/lib/chat";
+import { useConnection } from "@/lib/connection/connection-context";
+import { toastManager } from "@/lib/toast";
+import type { Chat } from "@ai-sdk/react";
+import { useChat } from "@ai-sdk/react";
+import { Loader2, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { v4 as uuid } from "uuid";
+import { ChatMessageView } from "./chat-message-view";
+import { ChatExecutor } from "./query-execution/chat-executor";
+import { QueryExecutor } from "./query-execution/query-executor";
+import { QueryListItemView } from "./query-list-item-view";
+import type { QueryRequestViewModel } from "./query-view-model";
 
 export interface QueryListViewProps {
   tabId?: string; // Optional tab ID for multi-tab support
+  currentSessionId?: string; // Current session ID for chat messages
   onExecutionStateChange?: (isExecuting: boolean) => void;
+  onSessionMessageCountChange?: (count: number) => void; // Callback to update parent with message count
 }
 
 const MAX_MESSAGE_LIST_SIZE = 100;
 
 export interface SQLMessage {
-  type: 'sql';
+  type: "sql";
   id: string;
   queryRequest: QueryRequestViewModel;
   view: string;
@@ -39,26 +35,31 @@ export interface SQLMessage {
     params?: Record<string, unknown>;
   };
   timestamp: number;
+  sessionId?: string; // Optional session ID when SQL is added to chat
 }
 
 // Adapter interface for the merged list
-interface MergedChatMessage {
-  type: 'chat';
+export interface ChatMessage {
+  type: "chat";
   id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  parts: AppUIMessage['parts']; // Use parts from AppUIMessage
+  role: "user" | "assistant" | "system";
+  parts: AppUIMessage["parts"];
+  usage?: AppUIMessage["usage"];
+  content: string; // Kept for search/display purposes
   isLoading: boolean;
   timestamp: number;
   error?: Error | undefined;
+  sessionId?: string; // Session ID for grouping messages
 }
 
-export type Message = SQLMessage | MergedChatMessage;
+export type Message = SQLMessage | ChatMessage;
 
 function QueryListViewContent({
   tabId,
+  currentSessionId,
   onExecutionStateChange,
-  chatInstance
+  onSessionMessageCountChange,
+  chatInstance,
 }: QueryListViewProps & { chatInstance: Chat<AppUIMessage> }) {
   const { connection } = useConnection();
   // We now split state: SQL messages are local, Chat messages are managed by useChat
@@ -71,17 +72,20 @@ function QueryListViewContent({
   const messageTimestampsRef = useRef<Map<string, number>>(new Map());
 
   // Use hook with the instance
-  // @ts-ignore - useChat types might be outdated or custom in this project
-  const { messages: rawMessages, sendMessage, status } = useChat({
+  const {
+    messages: rawMessages,
+    sendMessage,
+    status,
+  } = useChat({
     chat: chatInstance,
     onError: (error: Error) => {
       console.error("Chat error:", error);
       toastManager.show("Chat failed: " + error.message, "error");
-    }
+    },
   });
 
   // Track executing state for Chat
-  const isChatExecuting = status === 'streaming' || status === 'submitted';
+  const isChatExecuting = status === "streaming" || status === "submitted";
 
   const scrollToBottom = useCallback((instant = false) => {
     if (scrollPlaceholderRef.current && responseScrollContainerRef.current) {
@@ -94,7 +98,7 @@ function QueryListViewContent({
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (scrollPlaceholderRef.current) {
-            scrollPlaceholderRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' });
+            scrollPlaceholderRef.current.scrollIntoView({ block: "end", behavior: "smooth" });
           }
         });
       });
@@ -113,90 +117,106 @@ function QueryListViewContent({
   const mergedMessageList = useMemo(() => {
     if (!rawMessages) return sqlMessages;
 
-    const chatObjs: MergedChatMessage[] = (rawMessages as AppUIMessage[]).filter(m => {
-      // Filter internal messages if needed, matching chat-list-item-view logic
-      // For now, allow all, or filter raw text parts
-      return true;
-    }).map(m => {
-      // Access generic properties safely
-      const mAny = m as any;
+    const chatMessages: ChatMessage[] = (rawMessages as AppUIMessage[])
+      .filter((m) => {
+        const disposable = (m as any).type === "step-start" || (m as any).type === "step-finish";
+        // Filter internal messages if needed, matching chat-list-item-view logic
+        // For now, allow all, or filter raw text parts
+        return !disposable;
+      })
+      .map((m) => {
+        // Access generic properties safely
+        const mAny = m as any;
 
-      // Stable timestamp logic:
-      // 1. If message has createdAt, use it.
-      // 2. If not, check if we already assigned a timestamp in our ref map.
-      // 3. If not, assign Date.now() and store it.
-      let ts: number;
-      if (mAny.createdAt) {
-        ts = new Date(mAny.createdAt).getTime();
-      } else {
-        const existingTs = messageTimestampsRef.current.get(m.id);
-        if (existingTs) {
-          ts = existingTs;
+        // Stable timestamp logic:
+        // 1. If message has createdAt, use it.
+        // 2. If not, check if we already assigned a timestamp in our ref map.
+        // 3. If not, assign Date.now() and store it.
+        let ts: number;
+        if (mAny.createdAt) {
+          ts = new Date(mAny.createdAt).getTime();
         } else {
-          ts = Date.now();
-          messageTimestampsRef.current.set(m.id, ts);
-        }
-      }
-
-      // Ensure parts exist and are up to date with streaming content
-      // If parts is empty or undefined, but content exists (streaming text), use content.
-      let parts = m.parts;
-      if ((!parts || parts.length === 0) && mAny.content) {
-        parts = [{ type: 'text', text: mAny.content }];
-      } else if (!parts) {
-        parts = [];
-      }
-
-      // Compute content string for display fallback or search
-      let content = mAny.content || '';
-      if (!content && parts.length > 0) {
-        content = parts.filter(p => p.type === 'text').map(p => p.text).join('');
-      }
-
-      // Map 'data' role to 'system'
-      let role = m.role as string;
-      if (role === 'data') role = 'system';
-
-      // Extract usage from metadata, usage property, or finish part
-      let usage = (m as any).metadata?.usage || (m as any).usage;
-
-      if (!usage && parts) {
-        const finishPart = parts.find((p: any) => p.type === 'finish');
-        if (finishPart) {
-          const partMetadata = (finishPart as any).messageMetadata;
-          if (partMetadata?.usage) {
-            usage = partMetadata.usage;
-          } else if ((finishPart as any).usage) {
-            usage = (finishPart as any).usage;
+          const existingTs = messageTimestampsRef.current.get(m.id);
+          if (existingTs) {
+            ts = existingTs;
+          } else {
+            ts = Date.now();
+            messageTimestampsRef.current.set(m.id, ts);
           }
         }
-      }
 
-      return {
-        type: 'chat',
-        id: m.id,
-        role: role as 'user' | 'assistant' | 'system',
-        content: content,
-        parts: parts,
-        isLoading: false,
-        timestamp: ts,
-        usage: usage
-      };
-    });
+        // Ensure parts exist and are up to date with streaming content
+        // If parts is empty or undefined, but content exists (streaming text), use content.
+        let parts = m.parts;
+        if ((!parts || parts.length === 0) && mAny.content) {
+          parts = [{ type: "text", text: mAny.content }];
+        } else if (!parts) {
+          parts = [];
+        }
+
+        // Compute content string for display fallback or search
+        let content = mAny.content || "";
+        if (!content && parts.length > 0) {
+          content = parts
+            .filter((p) => p.type === "text")
+            .map((p) => p.text)
+            .join("");
+        }
+
+        // Map 'data' role to 'system'
+        let role = m.role as string;
+        if (role === "data") role = "system";
+
+        // Extract usage from metadata, usage property, or finish part
+        let usage = (m as any).metadata?.usage || (m as any).usage;
+
+        if (!usage && parts) {
+          const finishPart = parts.find((p: any) => p.type === "finish");
+          if (finishPart) {
+            const partMetadata = (finishPart as any).messageMetadata;
+            if (partMetadata?.usage) {
+              usage = partMetadata.usage;
+            } else if ((finishPart as any).usage) {
+              usage = (finishPart as any).usage;
+            }
+          }
+        }
+
+        return {
+          type: "chat",
+          id: m.id,
+          role: role as "user" | "assistant" | "system",
+          parts: parts,
+          usage: usage,
+          content: content,
+          isLoading: false,
+          timestamp: ts,
+          sessionId: (m as any).sessionId || currentSessionId, // Use message's sessionId or current session
+        };
+      });
 
     // Mark the last assistant message as loading if global loading is true
-    if (isChatExecuting && chatObjs.length > 0) {
-      const last = chatObjs[chatObjs.length - 1];
-      if (last.role === 'assistant') {
+    if (isChatExecuting && chatMessages.length > 0) {
+      const last = chatMessages[chatMessages.length - 1];
+      if (last.role === "assistant") {
         last.isLoading = true;
       }
     }
 
     // Merge and sort
-    const all = [...sqlMessages, ...chatObjs];
+    const all = [...sqlMessages, ...chatMessages];
     return all.sort((a, b) => a.timestamp - b.timestamp);
-  }, [sqlMessages, rawMessages, isChatExecuting]);
+  }, [sqlMessages, rawMessages, isChatExecuting, currentSessionId]);
 
+  // Update parent with current session message count
+  useEffect(() => {
+    if (onSessionMessageCountChange && currentSessionId) {
+      const currentSessionMessages = mergedMessageList.filter(
+        (msg) => msg.type === "chat" && msg.sessionId === currentSessionId
+      );
+      onSessionMessageCountChange(currentSessionMessages.length);
+    }
+  }, [mergedMessageList, currentSessionId, onSessionMessageCountChange]);
 
   const addQuery = useCallback(
     (
@@ -237,7 +257,7 @@ function QueryListViewContent({
         const showRequest = isExplainQuery ? "show" : options?.formatter ? "hide" : "show";
 
         const queryMsg: SQLMessage = {
-          type: 'sql',
+          type: "sql",
           id: queryId,
           timestamp,
           view: options?.view || "query",
@@ -252,7 +272,7 @@ function QueryListViewContent({
             timestamp: timestamp,
             showRequest: showRequest,
             params: params,
-            onCancel: () => { },
+            onCancel: () => {},
           },
         };
 
@@ -284,7 +304,6 @@ function QueryListViewContent({
     }
   }, [mergedMessageList, isChatExecuting, scrollToBottom]);
 
-
   // Listeners
   useEffect(() => {
     const unsubscribeQuery = QueryExecutor.onQueryRequest((event) => {
@@ -302,8 +321,11 @@ function QueryListViewContent({
           setChatContextBuilder(() => event.detail.context);
         }
 
+        // Send message to chat
+        // Note: sessionId is tracked at the message level after creation,
+        // not passed through the sendMessage call
         sendMessage({
-          text: event.detail.message
+          text: event.detail.message,
         });
         shouldScrollRef.current = true;
       } else {
@@ -314,13 +336,12 @@ function QueryListViewContent({
     return () => {
       unsubscribeQuery();
       unsubscribeChat();
-    }
-  }, [tabId, addQuery, sendMessage]);
-
+    };
+  }, [tabId, addQuery, sendMessage, currentSessionId]);
 
   // Deletion Handlers
   const handleQueryDelete = useCallback((id: string) => {
-    setSqlMessages(prev => prev.filter(m => m.id !== id));
+    setSqlMessages((prev) => prev.filter((m) => m.id !== id));
   }, []);
 
   const handleClearScreen = useCallback(() => {
@@ -332,13 +353,30 @@ function QueryListViewContent({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div ref={responseScrollContainerRef} className="h-full w-full overflow-auto p-2" style={{ scrollBehavior: 'smooth' }}>
+        <div
+          ref={responseScrollContainerRef}
+          className="h-full w-full overflow-auto p-2"
+          style={{ scrollBehavior: "smooth" }}
+        >
           {mergedMessageList.length === 0 ? (
-            <div className="text-sm text-muted-foreground p-1">Input your SQL in the editor below and execute it, then the results will appear here. Or type '@ai' to chat with the AI assistant.</div>
+            <div className="text-sm text-muted-foreground p-1">
+              Input your SQL in the editor below and execute it, then the results will appear here. Or type '@ai' to
+              chat with the AI assistant.
+            </div>
           ) : (
             <>
               {mergedMessageList.map((msg, index) => {
-                if (msg.type === 'sql') {
+                // Check if this is the start of a new session
+                const prevMsg = index > 0 ? mergedMessageList[index - 1] : null;
+
+                const isNewSession =
+                  msg.type === "chat" &&
+                  msg.sessionId &&
+                  prevMsg?.type === "chat" &&
+                  (prevMsg as ChatMessage).sessionId !== msg.sessionId &&
+                  msg.role === "user";
+
+                if (msg.type === "sql") {
                   return (
                     <QueryListItemView
                       key={msg.id}
@@ -353,19 +391,19 @@ function QueryListViewContent({
                   );
                 } else {
                   return (
-                    <div key={msg.id} className={``}>
-                      {msg.role === 'user' && <div className="flex items-center gap-2 mt-2">
-                        <h4 className="text-sm font-semibold">{format(msg.timestamp, "yyyy-MM-dd HH:mm:ss")}</h4>
-                      </div>}
-                      <ChatResponseView
-                        messages={[{
-                          id: msg.id,
-                          role: msg.role,
-                          parts: msg.parts,
-                          usage: (msg as any).usage
-                        } as AppUIMessage]}
-                        isLoading={msg.isLoading}
-                        error={msg.error}
+                    <div key={msg.id}>
+                      {/* Show separator for new conversation */}
+                      {isNewSession && (
+                        <div className="flex items-center gap-2 my-4 text-xs text-muted-foreground">
+                          <div className="flex-1 h-px bg-border" />
+                          <span className="px-2">New conversation started</span>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      )}
+                      <ChatMessageView
+                        message={msg}
+                        isFirst={index === 0}
+                        isLast={index === mergedMessageList.length - 1}
                       />
                     </div>
                   );
@@ -405,7 +443,9 @@ export function QueryListView(props: QueryListViewProps) {
       }
     }
     initChat();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [props.tabId]);
 
   if (!chatInstance) {

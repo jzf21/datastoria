@@ -7,6 +7,8 @@ import {
   type ValidateSqlToolInput,
   type ValidateSqlToolOutput,
 } from "@/lib/ai/client-tools";
+import { ColorGenerator } from "@/lib/color-generator";
+import { DateTimeExtension } from "@/lib/datetime-utils";
 import { cn } from "@/lib/utils";
 import { Check, ChevronDown, ChevronRight, Info, Loader2, Sparkles } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
@@ -16,30 +18,28 @@ import type { PanelDescriptor, TableDescriptor, TimeseriesDescriptor } from "../
 import DashboardPanelTable from "../shared/dashboard/dashboard-panel-table";
 import DashboardPanelTimeseries from "../shared/dashboard/dashboard-panel-timeseries";
 import { Badge } from "../ui/badge";
+import type { ChatMessage } from "./query-list-view";
 import { SqlCodeBlock } from "./sql-code-block";
 
-interface ChatResponseViewProps {
-  messages: AppUIMessage[];
-  isLoading?: boolean;
-  error?: Error | null;
-}
+// Create a singleton instance for session colors
+const sessionColorGenerator = new ColorGenerator();
 
 /**
  * Display token usage information
  */
 const TokenUsageDisplay = memo(function TokenUsageDisplay({ usage }: { usage: TokenUsage }) {
   return (
-    <div className="flex items-center gap-2 bg-muted/30 rounded-md text-[10px] text-muted-foreground">
+    <div className="flex items-center mt-2 gap-1 bg-muted/30 rounded-md text-[10px] text-muted-foreground">
       <Info className="h-3 w-3" />
       <div className="flex items-center gap-1">
-        <span className="font-medium">Input Tokens:</span>
+        <span className="font-medium">Total Tokens:</span>
+        <span className="">{usage.totalTokens.toLocaleString()}</span>
+
+        <span className="font-medium">| Input Tokens:</span>
         <span className="">{usage.inputTokens.toLocaleString()}</span>
 
         <span className="font-medium">| Output Tokens:</span>
         <span className="">{usage.outputTokens.toLocaleString()}</span>
-
-        <span className="font-medium">| Total Tokens:</span>
-        <span className="">{usage.totalTokens.toLocaleString()}</span>
 
         {usage.reasoningTokens != null && usage.reasoningTokens > 0 && (
           <>
@@ -339,15 +339,12 @@ const GetTablesTool = memo(function GetTablesTool({ part }: { part: AppUIMessage
     <CollapsibleTool toolName={CLIENT_TOOL_NAMES.GET_TABLES} state={state}>
       {input && (
         <div className="mt-1">
-          <div className="mb-0.5 text-[10px] text-muted-foreground">input:</div>
-          <pre className="bg-muted/30 rounded p-2 overflow-x-auto shadow-sm leading-tight border border-muted/20 text-[10px] text-muted-foreground">
-            input.database
-          </pre>
+          <div className="mb-0.5 text-[10px] text-muted-foreground">input: {input.database}</div>
         </div>
       )}
       {output && Array.isArray(output) && (
         <>
-          <div className="mt-2 text-[10px] text-muted-foreground">output:</div>
+          <div className="mt-1 text-[10px] text-muted-foreground">output: {output.length} tables</div>
           <div className="border rounded-md overflow-hidden bg-background">
             <div className="max-h-[300px] overflow-auto">
               <Table className="text-[11px]">
@@ -538,7 +535,7 @@ const TextMessage = memo(function TextMessage({ text }: { text: string }) {
 /**
  * Render a single message part
  */
-function MessagePart({ part }: { part: AppUIMessage["parts"][0] }) {
+function ChatMessagePart({ part }: { part: AppUIMessage["parts"][0] }) {
   if (part.type === "text") {
     return <TextMessage text={part.text} />;
   }
@@ -569,67 +566,74 @@ function MessagePart({ part }: { part: AppUIMessage["parts"][0] }) {
   return null;
 }
 
+interface ChatMessageViewProps {
+  message: ChatMessage;
+  isFirst?: boolean; // Whether this is a new user request (needs top spacing)
+  isLast?: boolean; // Whether this is the last message in a sequence
+}
 /**
- * Render a single message
+ * Render a single message with session styling and visualization
  */
-const MessageView = memo(function MessageView({
+export const ChatMessageView = memo(function ChatMessageView({
   message,
-  isLast,
-  isLoading,
-  children,
-}: {
-  message: AppUIMessage;
-  isLast?: boolean;
-  isLoading?: boolean;
-  children?: React.ReactNode;
-}) {
+  isFirst = false,
+  isLast = false,
+}: ChatMessageViewProps) {
+  // Get session colors from color generator
+  const sessionColor = message.sessionId ? sessionColorGenerator.getColor(message.sessionId) : null;
+  const sessionStyles = sessionColor
+    ? {
+        borderLeftColor: sessionColor.foreground,
+      }
+    : {};
+
   const isUser = message.role === "user";
 
   return (
-    <div className="flex gap-1 mb-2">
-      <div className="flex-shrink-0 mt-0.5">
-        {isUser ? (
-          <UserProfileImage />
-        ) : (
-          <div className="h-6 w-6 rounded-sm flex items-center justify-center">
-            <Sparkles
-              className={`h-4 w-4 ${isLast && isLoading ? "animate-spin" : ""}`}
-              style={isLast && isLoading ? { animationDuration: "2s" } : undefined}
-            />
+    <div className="border-l-4 transition-colors" style={sessionStyles}>
+      {/* Separator for new user requests */}
+      {isUser && !isFirst && (
+        <div className="flex items-center h-4">
+          <div className="flex-1 h-px bg-border" />
+        </div>
+      )}
+
+      <div className="pl-2 py-1">
+        {/* Timestamp above profile for user messages - reserve space for alignment */}
+        {isUser && message.timestamp && (
+          <div className="text-[10px] text-muted-foreground font-medium whitespace-nowrap pl-1">
+            {DateTimeExtension.toYYYYMMddHHmmss(new Date(message.timestamp))}
           </div>
         )}
-      </div>
 
-      <div className="flex-1 overflow-hidden min-w-0 text-sm">
-        {message.parts.map((part, i) => (
-          <MessagePart key={i} part={part} />
-        ))}
-        {children}
-        {!isUser && message.usage && !isLoading && <TokenUsageDisplay usage={message.usage} />}
+        {/* Profile and message row - aligned at top */}
+        <div className="flex gap-1 items-start">
+          <div className="flex-shrink-0">
+            {isUser ? (
+              <UserProfileImage />
+            ) : (
+              <div className="h-6 w-6 flex items-center justify-center">
+                <Sparkles
+                  className={`h-4 w-4 ${isLast && message.isLoading ? "animate-spin" : ""}`}
+                  style={isLast && message.isLoading ? { animationDuration: "2s" } : undefined}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-hidden min-w-0">
+            <div className="text-sm">
+              {message.parts.length === 0 && message.isLoading && "Thinking..."}
+              {message.parts.length === 0 && !message.isLoading && "Nothing returned"}
+              {message.parts.map((part, i) => (
+                <ChatMessagePart key={i} part={part} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {!isUser && message.usage && !message.isLoading && <TokenUsageDisplay usage={message.usage} />}
       </div>
     </div>
   );
 });
-
-export function ChatResponseView({ messages, isLoading = false }: ChatResponseViewProps) {
-  if (isLoading && messages.length === 0) {
-    return (
-      <div className="h-full w-full overflow-auto p-4 flex flex-col items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
-        <div className="text-sm text-muted-foreground">AI is thinking...</div>
-      </div>
-    );
-  }
-
-  if (messages.length === 0 && !isLoading) {
-    return <div className="p-4 text-sm text-muted-foreground">Waiting for AI response...</div>;
-  }
-
-  return (
-    <div className="overflow-auto">
-      {messages.map((message, index) => (
-        <MessageView key={message.id} message={message} isLast={index === messages.length - 1} isLoading={isLoading} />
-      ))}
-    </div>
-  );
-}

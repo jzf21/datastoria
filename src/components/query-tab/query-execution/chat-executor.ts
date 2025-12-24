@@ -24,6 +24,7 @@ export interface ChatRequestEventDetail {
     };
   };
   tabId?: string; // Optional tabId for multi-tab support
+  sessionId?: string; // Session ID for grouping related messages
 }
 
 /**
@@ -42,14 +43,16 @@ export class ChatExecutor {
    * @param message User's message (will be checked for @ai prefix and removed)
    * @param context Optional context for the chat
    * @param tabId Optional tab ID to target specific tab
+   * @param sessionId Optional session ID for grouping messages
    */
   static sendChatRequest(
     message: string,
     context?: ChatRequestEventDetail['context'],
-    tabId?: string
+    tabId?: string,
+    sessionId?: string
   ): void {
     try {
-      console.log('🚀 ChatExecutor.sendChatRequest called:', { message, hasContext: !!context, tabId })
+      console.log('🚀 ChatExecutor.sendChatRequest called:', { message, hasContext: !!context, tabId, sessionId })
 
       // Check if this is an AI chat message or a direct request
       // If it starts with prefix, strip it. If not, pass through (assuming direct UI invocation)
@@ -64,14 +67,15 @@ export class ChatExecutor {
             message: cleanMessage,
             originalMessage: message,
             context,
-            tabId
+            tabId,
+            sessionId
           },
         }
       );
       window.dispatchEvent(event);
       console.log('📤 ChatExecutor: Event dispatched successfully')
     } catch (error) {
-      console.error('❌ Error in ChatExecutor.sendChatRequest:', error, { message, context, tabId })
+      console.error('❌ Error in ChatExecutor.sendChatRequest:', error, { message, context, tabId, sessionId })
     }
   }
 

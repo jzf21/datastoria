@@ -198,7 +198,7 @@ ${schemaContext.length > 0 ? schemaContext.join("\n") : "No schema context provi
       return {
         // Return the generated SQL to client for observability
         sql: (processResult.toolCalls[0].input as ValidateSqlToolInput).sql,
-        notes: "I am currently validating SQL syntax.",
+        notes: "I am currently validating syntax of the generated SQL.",
         assumptions: [],
         needs_clarification: true,
         questions: ["Performing: validating SQL syntax"],

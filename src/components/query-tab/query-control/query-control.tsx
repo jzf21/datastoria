@@ -5,14 +5,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toastManager } from "@/lib/toast";
-import { ChevronDown, Database, Eraser, Play, Sparkles } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ChevronDown, Database, MessageSquare, MessageSquarePlus, Play, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
 import { QueryExecutor } from "../query-execution/query-executor";
 import { useQueryEditor } from "./use-query-editor";
-import { useConnection } from "@/lib/connection/connection-context";
 
 export interface QueryControlProps {
   mode: "sql" | "chat";
@@ -20,12 +25,24 @@ export interface QueryControlProps {
   isExecuting?: boolean;
   onRun?: (text: string) => void;
   onExplain?: (name: string) => void;
-  onClearContext?: () => void;
+  onNewConversation?: () => void;
+  sessionMessageCount?: number;
+  sessionStartTime?: Date;
 }
 
-export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, onExplain, onClearContext }: QueryControlProps) {
+export function QueryControl({ 
+  mode, 
+  onModeChange, 
+  isExecuting = false, 
+  onRun, 
+  onExplain, 
+  onNewConversation,
+  sessionMessageCount = 0,
+  sessionStartTime
+}: QueryControlProps) {
   const { selectedText, text } = useQueryEditor();
   const [isExplainOpen, setIsExplainOpen] = useState(false);
+  const [isSessionPopoverOpen, setIsSessionPopoverOpen] = useState(false);
 
   const handleQuery = useCallback(() => {
     const queryText = selectedText || text;
@@ -97,7 +114,7 @@ export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, o
           title="Switch to SQL Editor (Cmd+I)"
         >
           <Database className="h-3 w-3 mr-1" />
-          SQL
+          SQL{mode === "chat" ? "(Cmd + I)" : ""}
         </ToggleGroupItem>
         <ToggleGroupItem 
           value="chat" 
@@ -106,7 +123,7 @@ export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, o
           title="Switch to AI Chat (Cmd+I)"
         >
           <Sparkles className="h-3 w-3 mr-1" />
-          Chat
+          Chat{mode === "sql" ? "(Cmd + I)" : ""}
         </ToggleGroupItem>
       </ToggleGroup>
       <Separator orientation="vertical" className="h-4" />
@@ -126,16 +143,55 @@ export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, o
 
       {mode === "chat" && (
         <>
-          <Button
-            onClick={onClearContext}
-            size="sm"
-            variant="ghost"
-            className="h-6 gap-1 px-2 text-xs hover:text-red-400"
-            title="Clear Chat Context (keep history, reset active memory)"
-          >
-            <Eraser className="h-3 w-3" />
-            Clear Context
-          </Button>
+          {/* Session indicator with popover */}
+          <Popover open={isSessionPopoverOpen} onOpenChange={setIsSessionPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={sessionMessageCount === 0}
+                className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                title={sessionMessageCount === 0 ? "No messages yet" : "View conversation info"}
+              >
+                <MessageSquare className="h-3 w-3" />
+                {sessionMessageCount} {sessionMessageCount === 1 ? 'message' : 'messages'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" align="start">
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Current Conversation</h4>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>Messages:</span>
+                    <span className="font-medium text-foreground">{sessionMessageCount}</span>
+                  </div>
+                  {sessionStartTime && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Started:</span>
+                        <span className="font-medium text-foreground">
+                          {formatDistanceToNow(sessionStartTime, { addSuffix: true })}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <Separator className="my-2" />
+                <Button
+                  onClick={() => {
+                    setIsSessionPopoverOpen(false);
+                    onNewConversation?.();
+                  }}
+                  size="sm"
+                  variant="outline"
+                  className="w-full h-7 text-xs"
+                >
+                  <MessageSquarePlus className="h-3 w-3 mr-1" />
+                  Start New Conversation
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Separator orientation="vertical" className="h-4" />
         </>
       )}
