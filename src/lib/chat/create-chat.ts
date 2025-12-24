@@ -193,7 +193,7 @@ export async function createChat(options?: {
         const outputStr = JSON.stringify(output);
         const outputSizeKB = (outputStr.length / 1024).toFixed(2);
         console.log(`🔧 Tool ${toolName} output size: ${outputSizeKB}KB`);
-        
+
         if (outputStr.length > 500 * 1024) { // Warn if > 500KB
           console.warn(`⚠️ Large tool output detected for ${toolName}: ${outputSizeKB}KB`);
         }
@@ -219,6 +219,13 @@ export async function createChat(options?: {
     onFinish: skipStorage
       ? undefined
       : async ({ message }) => {
+        const uiMessage = message as AppUIMessage & {
+          usage?: {
+            inputTokens: number;
+            outputTokens: number;
+            totalTokens: number;
+          };
+        };
         const messageToSave: Message = {
           id: message.id,
           chatId,
@@ -226,6 +233,7 @@ export async function createChat(options?: {
           parts: message.parts as any,
           createdAt: new Date(),
           updatedAt: new Date(),
+          usage: uiMessage.usage,
         };
 
         await chatStorage.saveMessage(messageToSave);

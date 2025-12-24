@@ -32,6 +32,11 @@ export interface Message {
   parts: MessagePart[]
   createdAt: Date
   updatedAt: Date
+  usage?: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+  }
 }
 
 export interface Chat {

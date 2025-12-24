@@ -1,9 +1,9 @@
-import { generateSqlTool, generateVisualizationTool } from "@/lib/ai/server-tools";
-import { tools as clientTools, CLIENT_TOOL_NAMES } from "@/lib/ai/client-tools";
+import { CLIENT_TOOL_NAMES, tools as clientTools } from "@/lib/ai/client-tools";
 import { getLanguageModel } from "@/lib/ai/provider";
+import { generateSqlTool, generateVisualizationTool } from "@/lib/ai/server-tools";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import type { ChatContext } from "@/lib/chat/types";
-import { streamText, convertToModelMessages } from "ai";
+import { convertToModelMessages, streamText } from "ai";
 import { v7 as uuidv7 } from "uuid";
 
 // Force dynamic rendering (no static generation)
@@ -27,20 +27,27 @@ export const maxDuration = 60; // 60 seconds timeout
 export async function POST(req: Request) {
   try {
     // Parse request body with size validation
-    let body: { messages?: unknown[]; chatId?: string; id?: string; context?: ChatContext; body?: { context?: ChatContext } };
+    let body: {
+      messages?: unknown[];
+      chatId?: string;
+      id?: string;
+      context?: ChatContext;
+      body?: { context?: ChatContext };
+    };
     try {
       const text = await req.text();
       const sizeInMB = (text.length / 1024 / 1024).toFixed(2);
       console.log(`📦 Request body size: ${sizeInMB}MB`);
-      
-      if (text.length > 10 * 1024 * 1024) { // 10MB limit
+
+      if (text.length > 10 * 1024 * 1024) {
+        // 10MB limit
         console.error(`❌ Request body too large: ${sizeInMB}MB (limit: 10MB)`);
-        return new Response("Request body too large. Please reduce the amount of data being sent.", { 
+        return new Response("Request body too large. Please reduce the amount of data being sent.", {
           status: 413,
-          headers: { "Content-Type": "text/plain" }
+          headers: { "Content-Type": "text/plain" },
         });
       }
-      
+
       body = JSON.parse(text) as typeof body;
     } catch (error) {
       console.error("Failed to parse request body:", error);
@@ -135,18 +142,6 @@ Before final answer: if user asked for visualization and generate_visualization 
 
     // Convert UIMessages to ModelMessages
     const modelMessages = convertToModelMessages(messages);
-    
-    // Log the messages being sent to the LLM for debugging
-    console.log(`🔍 Sending ${modelMessages.length} messages to LLM`);
-    if (modelMessages.length > 0) {
-      const lastMsg = modelMessages[modelMessages.length - 1];
-      console.log(`📝 Last message role: ${lastMsg.role}, parts: ${JSON.stringify(lastMsg).substring(0, 200)}...`);
-    }
-
-    // Note: We're NOT extracting history for generate_sql anymore
-    // The orchestrator will handle tool calls directly, and the conversation
-    // context in modelMessages already contains all the tool results
-    // This avoids the complex nested tool calling scenario
 
     // Use streamText with all tools (both server-side and client-side)
     const result = streamText({
@@ -175,14 +170,20 @@ Before final answer: if user asked for visualization and generate_visualization 
       originalMessages: messages,
       generateMessageId: () => uuidv7(),
       // Extract message metadata (usage) and send it to the client
-    //   messageMetadata: async ({ part }) => {
-    //     // Only add metadata on finish events
-    //     if (part.type === "finish") {
-    //       return {
-    //         usage: part.totalUsage,
-    //       };
-    //     }
-    //   },
+      messageMetadata: ({ part }) => {
+        // Only add metadata on finish events
+        if (part.type === "finish") {
+          return {
+            usage: {
+              inputTokens: part.totalUsage.inputTokens || 0,
+              outputTokens: part.totalUsage.outputTokens || 0,
+              totalTokens: part.totalUsage.totalTokens || 0,
+              reasoningTokens: part.totalUsage.reasoningTokens || 0,
+              cachedInputTokens: part.totalUsage.cachedInputTokens || 0,
+            },
+          };
+        }
+      },
       onFinish: async () => {
         // Stream completed successfully
       },

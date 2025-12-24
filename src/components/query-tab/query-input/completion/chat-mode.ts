@@ -46,7 +46,8 @@ export function defineChatMode() {
                   regex: tablePattern, // Match exact table names with word boundaries
                 },
                 {
-                  token: "text",
+                  token: "token",
+                  merge: false,
                   regex: "[^\\s]+",
                 },
               ]

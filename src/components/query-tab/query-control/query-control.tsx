@@ -89,12 +89,22 @@ export function QueryControl({ mode, onModeChange, isExecuting = false, onRun, o
 
   return (
     <div className="flex h-8 w-full gap-2 rounded-sm items-center px-2 text-xs transition-colors">
-      <ToggleGroup type="single" value={mode} onValueChange={(val) => val && onModeChange(val as "sql" | "chat")} className="h-7 p-[2px]">
-        <ToggleGroupItem value="sql" size="sm" className="h-6 px-2 text-[10px] data-[state=on]:bg-accent data-[state=on]:text-accent-foreground" title="Switch to SQL Editor (Cmd+I)">
+      <ToggleGroup type="single" value={mode} onValueChange={(val) => val && onModeChange(val as "sql" | "chat")} className="h-7 p-[2px] bg-muted/50 rounded-md">
+        <ToggleGroupItem 
+          value="sql" 
+          size="sm" 
+          className="h-6 px-2 text-[10px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground rounded-sm" 
+          title="Switch to SQL Editor (Cmd+I)"
+        >
           <Database className="h-3 w-3 mr-1" />
           SQL
         </ToggleGroupItem>
-        <ToggleGroupItem value="chat" size="sm" className="h-6 px-2 text-[10px] data-[state=on]:bg-accent data-[state=on]:text-accent-foreground" title="Switch to AI Chat (Cmd+I)">
+        <ToggleGroupItem 
+          value="chat" 
+          size="sm" 
+          className="h-6 px-2 text-[10px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground rounded-sm" 
+          title="Switch to AI Chat (Cmd+I)"
+        >
           <Sparkles className="h-3 w-3 mr-1" />
           Chat
         </ToggleGroupItem>

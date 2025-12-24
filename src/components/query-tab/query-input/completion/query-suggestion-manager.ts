@@ -433,11 +433,11 @@ SELECT * FROM (
    * Custom insertMatch function for table completions that removes the '@' trigger character
    * when inserting the completion
    */
-  private static insertTableMatch(editor: Ace.Editor, data: Ace.Completion): void {
+  private static insertTableCompletion(editor: Ace.Editor, table: Ace.Completion): void {
     const session = editor.getSession();
     const pos = editor.getCursorPosition();
     const line = session.getLine(pos.row);
-    
+
     // Find the '@' before the cursor
     let startCol = pos.column;
     while (startCol > 0 && line[startCol - 1] !== '@') {
@@ -446,14 +446,14 @@ SELECT * FROM (
     if (startCol > 0 && line[startCol - 1] === '@') {
       startCol--; // Include the '@' in the range to replace
     }
-    
+
     // Replace from '@' to cursor position with the table name
     const range = {
       start: { row: pos.row, column: startCol },
       end: { row: pos.row, column: pos.column }
     };
-    
-    session.replace(range, data.value || data.caption || '');
+
+    session.replace(range, table.value || table.caption || '');
   }
 
   public getCompleters(completers: Ace.Completer[] | undefined): Ace.Completer[] {
@@ -478,13 +478,14 @@ SELECT * FROM (
          */
         getCompletions: (editor: Ace.Editor, session: Ace.EditSession, pos: Ace.Point, prefix: any, callback: any) => {
           if (session !== undefined) {
-            // Get current token
+            // Get current token with 'start' and 'index' property assigned at the edit position
             let currentToken = session.getTokenAt(pos.row, pos.column);
 
             // If current token is the 'dot' and this dot token is not the first,
             // we can continue to check previous token
             // Since the token might contain leading space, we use 'endsWith' to compare
             if (currentToken !== null && currentToken.index !== undefined && currentToken.index > 0) {
+              // tokens in the list does not contain the 'start' and 'index' property, the behavior is strange
               const tokenList = session.getTokens(pos.row);
 
               // Find backward until it's a non-space token
@@ -603,45 +604,36 @@ SELECT * FROM (
   public getTableCompleters(): Ace.Completer[] {
     return [
       {
-        id: "clickhouse-table-mention",
+        id: "table-suggestion",
         triggerCharacters: ["@"],
-        
+
         getCompletions: (editor: Ace.Editor, session: Ace.EditSession, pos: Ace.Point, prefix: string, callback: (error: Error | null, completions: CompletionItem[]) => void) => {
-          const currentToken = session.getTokenAt(pos.row, pos.column);
-          const line = session.getLine(pos.row);
-          const beforeCursor = line.substring(0, pos.column);
-          
-          console.log("Table completer getCompletions:", { 
-            prefix, 
-            currentToken: currentToken?.value,
-            beforeCursor: beforeCursor.slice(-10)
-          });
-          
+          const tokenList = session.getTokens(pos.row);
+
           // Check if we're in a context where '@' was typed
           // Look for '@' in the prefix or check if the character before cursor is '@'
-          if (prefix.includes("@") || beforeCursor.endsWith("@") || (currentToken && currentToken.value.includes("@"))) {
-            // Remove the '@' from the prefix for filtering
+          if (tokenList.length > 0 && tokenList[tokenList.length - 1].value.startsWith("@")) {
             const searchPrefix = prefix.replace("@", "").toLowerCase();
-            
+
             // Filter completions based on the search prefix (after @)
             const tableCompletions = searchPrefix
-              ? this.qualifiedTableCompletions.filter(c => 
-                  c.value && c.value.toLowerCase().includes(searchPrefix)
-                )
+              ? this.qualifiedTableCompletions.filter(c =>
+                c.value && c.value.toLowerCase().includes(searchPrefix)
+              )
               : this.qualifiedTableCompletions;
-            
+
             // Add custom insertMatch to each completion item
             const finalCompletionItems = tableCompletions.map(tableCompletion => ({
               ...tableCompletion,
               completer: {
-                insertMatch: QuerySuggestionManager.insertTableMatch
+                insertMatch: QuerySuggestionManager.insertTableCompletion
               }
             })) as CompletionItem[];
-            
+
             callback(null, finalCompletionItems);
             return;
           }
-          
+
           // No completions if '@' not found
           callback(null, []);
         },

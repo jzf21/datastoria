@@ -121,6 +121,19 @@ export async function POST(req: Request) {
       const stream = result.toUIMessageStream({
         originalMessages: appMessages,
         generateMessageId: () => uuidv7(),
+        // Extract message metadata (usage) and send it to the client
+        messageMetadata: ({ part }) => {
+          // Only add metadata on finish events
+          if (part.type === "finish") {
+            return {
+              usage: {
+                inputTokens: part.totalUsage.inputTokens || 0,
+                outputTokens: part.totalUsage.outputTokens || 0,
+                totalTokens: part.totalUsage.totalTokens || 0,
+              },
+            };
+          }
+        },
         onFinish: async () => {
           // Stream completed successfully
         },

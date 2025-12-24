@@ -3,7 +3,6 @@
  */
 
 import { isAIChatMessage, removeAIChatPrefix } from '@/lib/ai/config';
-import type { ChatRequest } from '@/lib/chat/types';
 
 export interface ChatRequestEventDetail {
   message: string; // The user's message (without @ai prefix)

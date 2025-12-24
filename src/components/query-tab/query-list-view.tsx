@@ -157,6 +157,21 @@ function QueryListViewContent({
       let role = m.role as string;
       if (role === 'data') role = 'system';
 
+      // Extract usage from metadata, usage property, or finish part
+      let usage = (m as any).metadata?.usage || (m as any).usage;
+
+      if (!usage && parts) {
+        const finishPart = parts.find((p: any) => p.type === 'finish');
+        if (finishPart) {
+          const partMetadata = (finishPart as any).messageMetadata;
+          if (partMetadata?.usage) {
+            usage = partMetadata.usage;
+          } else if ((finishPart as any).usage) {
+            usage = (finishPart as any).usage;
+          }
+        }
+      }
+
       return {
         type: 'chat',
         id: m.id,
@@ -164,7 +179,8 @@ function QueryListViewContent({
         content: content,
         parts: parts,
         isLoading: false,
-        timestamp: ts
+        timestamp: ts,
+        usage: usage
       };
     });
 
@@ -345,8 +361,9 @@ function QueryListViewContent({
                         messages={[{
                           id: msg.id,
                           role: msg.role,
-                          parts: msg.parts
-                        }]}
+                          parts: msg.parts,
+                          usage: (msg as any).usage
+                        } as AppUIMessage]}
                         isLoading={msg.isLoading}
                         error={msg.error}
                       />

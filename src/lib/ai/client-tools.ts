@@ -9,21 +9,14 @@ import type { InferToolInput, InferToolOutput, InferUITools, UIDataTypes, UIMess
 import { tool } from "ai";
 import * as z from "zod";
 
-// SQL operators for ClickHouse
-export const SQL_OPERATORS = [
-  "=",
-  "!=",
-  ">",
-  "<",
-  ">=",
-  "<=",
-  "LIKE",
-  "NOT LIKE",
-  "IN",
-  "NOT IN",
-  "IS NULL",
-  "IS NOT NULL",
-] as const;
+export type ValidateSqlToolInput = {
+  sql: string;
+};
+
+export type ValidateSqlToolOutput = {
+  success: boolean;
+  error?: string;
+};
 
 export const tools = {
   get_table_columns: tool({
@@ -88,11 +81,11 @@ export const tools = {
     description: "Validate ClickHouse SQL query syntax without executing it. Returns error message if invalid.",
     inputSchema: z.object({
       sql: z.string().describe("The SQL query to validate"),
-    }),
+    }) satisfies z.ZodType<ValidateSqlToolInput>,
     outputSchema: z.object({
       success: z.boolean(),
       error: z.string().optional(),
-    }),
+    }) satisfies z.ZodType<ValidateSqlToolOutput>,
   }),
 };
 
@@ -111,19 +104,24 @@ export const CLIENT_TOOL_NAMES = {
   VALIDATE_SQL: "validate_sql",
 } as const;
 
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  reasoningTokens: number;
+  cachedInputTokens: number;
+};
+
 export type AppUIMessage = UIMessage<
   {
     updatedAt?: Date;
     createdAt?: Date;
-    usage?: {
-      inputTokens: number;
-      outputTokens: number;
-      totalTokens: number;
-    };
   },
   UIDataTypes,
   InferUITools<typeof tools>
->;
+> & {
+  usage?: TokenUsage
+};
 
 export function convertToAppUIMessage(message: UIMessage): AppUIMessage {
   return message as AppUIMessage;
@@ -191,19 +189,19 @@ ORDER BY database, table`;
       }
 
       const data = apiResponse.data.data;
-      
+
       // Group columns by database and table
       const columnsByTable = new Map<string, { database: string; table: string; columns: Array<{ name: string; type: string }> }>();
-      
+
       for (const row of data) {
         const rowArray = row as unknown[];
         const database = String(rowArray[0] || "");
         const table = String(rowArray[1] || "");
         const name = String(rowArray[2] || "");
         const type = String(rowArray[3] || "");
-        
+
         const key = `${database}.${table}`;
-        
+
         if (!columnsByTable.has(key)) {
           columnsByTable.set(key, {
             database,
@@ -211,12 +209,12 @@ ORDER BY database, table`;
             columns: [],
           });
         }
-        
+
         columnsByTable.get(key)!.columns.push({ name, type });
       }
 
       const result = Array.from(columnsByTable.values());
-      
+
       // Log the result size for monitoring
       const totalColumns = result.reduce((sum, t) => sum + t.columns.length, 0);
       console.log(`✅ get_table_columns returned ${result.length} table(s) with ${totalColumns} total columns`);

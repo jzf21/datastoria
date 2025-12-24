@@ -54,10 +54,42 @@ function ChatContent({
     const msgWithMetadata = msg as AppUIMessage & {
       metadata?: { usage?: { inputTokens: number; outputTokens: number; totalTokens: number } };
     };
-    const usage = msgWithMetadata.metadata?.usage;
+    // usage might be in metadata OR in a 'finish' part depending on the SDK version
+    // Let's check both
+    let usage = msgWithMetadata.metadata?.usage;
+
+    if (!usage) {
+      // Look for usage in parts
+      const finishPart = msg.parts.find(p => (p as any).type === 'finish');
+      if (finishPart) {
+        // Check for messageMetadata in the finish part
+        const partMetadata = (finishPart as any).messageMetadata;
+        if (partMetadata?.usage) {
+          usage = partMetadata.usage;
+        } else if ((finishPart as any).usage) {
+          // Direct usage on finish part?
+          usage = (finishPart as any).usage;
+        }
+      }
+    }
+
+    if (!usage) {
+      // Look for usage in parts
+      const finishPart = msg.parts.find(p => (p as any).type === 'finish');
+      if (finishPart) {
+        // Check for messageMetadata in the finish part
+        const partMetadata = (finishPart as any).messageMetadata;
+        if (partMetadata?.usage) {
+          usage = partMetadata.usage;
+        } else if ((finishPart as any).usage) {
+          // Direct usage on finish part?
+          usage = (finishPart as any).usage;
+        }
+      }
+    }
 
     if (usage) {
-      console.log("Found usage in message metadata:", { id: msg.id, role: msg.role, usage });
+      console.log("Found usage:", { id: msg.id, role: msg.role, usage });
     }
 
     return {
@@ -236,8 +268,8 @@ export function ChatListItemView({
   return (
     <div
       className={`pb-4 mb-4 ${isLast ? "" : "border-b"}`}
-      // onMouseEnter={() => setShowDelete(true)}
-      // onMouseLeave={() => setShowDelete(false)}
+    // onMouseEnter={() => setShowDelete(true)}
+    // onMouseLeave={() => setShowDelete(false)}
     >
       <div className="flex items-center gap-2 mb-2">
         <h4 className="text-sm font-semibold">{timestamp}</h4>
