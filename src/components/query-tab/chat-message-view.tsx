@@ -29,16 +29,18 @@ const sessionColorGenerator = new ColorGenerator();
  */
 const TokenUsageDisplay = memo(function TokenUsageDisplay({ usage }: { usage: TokenUsage }) {
   return (
-    <div className="flex items-center mt-2 gap-1 bg-muted/30 rounded-md text-[10px] text-muted-foreground">
-      <Info className="h-3 w-3" />
+    <div className="flex gap-1 items-center mt-1 gap-1 bg-muted/30 rounded-md text-[10px] text-muted-foreground">
+      <div className="flex-shrink-0 h-6 w-6 flex items-center justify-center">
+        <Info className="h-3 w-3" />
+      </div>
       <div className="flex items-center gap-1">
         <span className="font-medium">Total Tokens:</span>
-        <span className="">{usage.totalTokens.toLocaleString()}</span>
+        <span className="">{usage.totalTokens.toLocaleString()}, </span>
 
-        <span className="font-medium">| Input Tokens:</span>
-        <span className="">{usage.inputTokens.toLocaleString()}</span>
+        <span className="font-medium">Input Tokens:</span>
+        <span className="">{usage.inputTokens.toLocaleString()}, </span>
 
-        <span className="font-medium">| Output Tokens:</span>
+        <span className="font-medium">Output Tokens:</span>
         <span className="">{usage.outputTokens.toLocaleString()}</span>
 
         {usage.reasoningTokens != null && usage.reasoningTokens > 0 && (

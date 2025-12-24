@@ -159,6 +159,7 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
           onNewConversation={handleNewConversation}
           sessionMessageCount={sessionMessageCount}
           sessionStartTime={sessionStartTimeRef.current}
+          currentSessionId={currentSessionId}
         />
       </Panel>
     </PanelGroup>

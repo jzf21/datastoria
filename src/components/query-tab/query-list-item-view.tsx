@@ -250,7 +250,7 @@ export function QueryListItemView({
 
   return (
     <div
-      className={`pb-4 mb-4 ${isLast ? "" : "border-b"}`}
+      className={`pl-2 pt-1 pb-4 mb-4 ${isLast ? "" : "border-b"}`}
       onMouseEnter={() => setShowDelete(true)}
       onMouseLeave={() => setShowDelete(false)}
     >

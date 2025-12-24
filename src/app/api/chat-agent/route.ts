@@ -1,5 +1,5 @@
 import { CLIENT_TOOL_NAMES, tools as clientTools } from "@/lib/ai/client-tools";
-import { getLanguageModel } from "@/lib/ai/provider";
+import { LanguageModelProviderFactory } from "@/lib/ai/llm-provider-factory";
 import { generateSqlTool, generateVisualizationTool } from "@/lib/ai/server-tools";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import type { ChatContext } from "@/lib/chat/types";
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     // Get the appropriate model (mock or real based on USE_MOCK_LLM env var)
     let model;
     try {
-      model = getLanguageModel();
+      model = LanguageModelProviderFactory.createProvider();
     } catch (error) {
       return new Response(
         error instanceof Error

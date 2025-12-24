@@ -2,79 +2,16 @@ import type { LanguageModel } from "ai";
 import { simulateReadableStream } from "ai";
 
 /**
- * Mock tool call responses for sequential tool execution
- */
-const MOCK_TOOL_RESPONSES = {
-  get_tables: {
-    database: "system",
-    result: [
-      { database: "system", table: "metric_log", engine: "MergeTree", comment: "System metrics log" },
-      { database: "system", table: "query_log", engine: "MergeTree", comment: "Query execution log" },
-      { database: "system", table: "trace_log", engine: "MergeTree", comment: "Trace log" },
-    ],
-  },
-  get_table_columns: {
-    tablesAndSchemas: [{ database: "system", table: "metric_log" }],
-    result: [
-      { database: "system", table: "metric_log", name: "event_date", type: "Date", comment: "Event date" },
-      { database: "system", table: "metric_log", name: "event_time", type: "DateTime", comment: "Event timestamp" },
-      { database: "system", table: "metric_log", name: "ProfileEvent_Query", type: "UInt64", comment: "Query count metric" },
-      { database: "system", table: "metric_log", name: "CurrentMetric_Query", type: "UInt64", comment: "Current query count" },
-    ],
-  },
-  generate_sql: {
-    sql: `SELECT
-  toStartOfInterval(event_time, INTERVAL 60 SECOND)::INT as t,
-  avg(ProfileEvent_Query) AS query_qps
-FROM system.metric_log
-WHERE event_date >= toDate(now() - 3600)
-  AND event_time >= now() - 3600
-GROUP BY t
-ORDER BY t WITH FILL STEP 60`,
-    notes: "Query calculates average queries per second over 1-minute intervals for the last hour",
-    assumptions: ["Using ProfileEvent_Query metric for QPS calculation", "Aggregating to 60-second intervals"],
-    needs_clarification: false,
-    questions: [],
-  },
-  validate_sql: {
-    valid: true,
-    error: undefined,
-  },
-  generate_visualization: {
-    type: "line",
-    titleOption: {
-      title: "Queries/second",
-      align: "center",
-    },
-    width: 6,
-    legendOption: {
-      placement: "none",
-      values: ["min", "max", "last"],
-    },
-    query: {
-      sql: `SELECT
-  toStartOfInterval(event_time, INTERVAL 60 SECOND)::INT as t,
-  avg(ProfileEvent_Query) AS query_qps
-FROM system.metric_log
-WHERE event_date >= toDate(now() - 3600)
-  AND event_time >= now() - 3600
-GROUP BY t
-ORDER BY t WITH FILL STEP 60`,
-    },
-  },
-};
-
-/**
  * Creates a mock language model that simulates LLM responses without making API calls.
  * Useful for development and testing to avoid API costs.
  * 
  * Implemented manually to avoid importing from 'ai/test' which depends on MSW/Vitest.
  */
-const createMockModel = (modelName: string): LanguageModel => {
+const createMockModel = (): LanguageModel => {
   return {
     specificationVersion: "v2",
     provider: "mock",
-    modelId: modelName,
+    modelId: "mock-model",
     supportedUrls: {},
     doGenerate: async () => ({
       rawCall: { rawPrompt: null, rawSettings: {} },
@@ -83,7 +20,7 @@ const createMockModel = (modelName: string): LanguageModel => {
       content: [
         {
           type: "text",
-          text: `[MOCK RESPONSE] This is a mock response from ${modelName}. \n\`\`\`sql\nSELECT version();\n\`\`\`\nIn production, this would be a real AI response. You can customize this in src/lib/ai/models.mock.ts`,
+          text: `[MOCK RESPONSE] This is a mock response. \n\`\`\`sql\nSELECT version();\n\`\`\`\nIn production, this would be a real AI response. You can customize this in src/lib/ai/models.mock.ts`,
         },
       ],
       warnings: [],
@@ -182,7 +119,7 @@ const createMockModel = (modelName: string): LanguageModel => {
       } else {
         // Regular chat response (no tools available)
         const mockText =
-          `[MOCK] This is a streaming mock response from ${modelName}. \n\`\`\`sql\nSELECT version();\n\`\`\`\nThe response is simulated and doesn't make real API calls. Set USE_MOCK_LLM=false in your .env to use real providers.\n` +
+          `[MOCK] This is a streaming mock response. \n\`\`\`sql\nSELECT version();\n\`\`\`\nThe response is simulated and doesn't make real API calls. Set USE_MOCK_LLM=false in your .env to use real providers.\n` +
           " mock_token".repeat(Math.floor(Math.random() * 200) + 50);
 
         const words = mockText.split(" ");
@@ -217,6 +154,4 @@ const createMockModel = (modelName: string): LanguageModel => {
   } as LanguageModel;
 };
 
-export const mockOpenAIModel: LanguageModel = createMockModel("gpt-4o");
-export const mockGoogleModel: LanguageModel = createMockModel("gemini-2.5-pro");
-export const mockAnthropicModel: LanguageModel = createMockModel("claude-sonnet-4-20250514");
+export const mockModel: LanguageModel = createMockModel();

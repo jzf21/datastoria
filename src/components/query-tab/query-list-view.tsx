@@ -355,7 +355,7 @@ function QueryListViewContent({
       <ContextMenuTrigger asChild>
         <div
           ref={responseScrollContainerRef}
-          className="h-full w-full overflow-auto p-2"
+          className="h-full w-full overflow-auto"
           style={{ scrollBehavior: "smooth" }}
         >
           {mergedMessageList.length === 0 ? (

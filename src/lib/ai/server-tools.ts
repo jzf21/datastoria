@@ -5,7 +5,7 @@ import { vizSubAgent } from './sub-agents/viz-sub-agent';
 import { mockSqlSubAgent } from './sub-agents/sql-sub-agent.mock';
 import { mockVizSubAgent } from './sub-agents/viz-sub-agent.mock';
 import { runSQLResultSchema } from './sub-agents/types';
-import { isMockMode } from './provider';
+import { isMockMode } from './llm-provider-factory';
 
 /**
  * Server-Side Tools

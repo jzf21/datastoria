@@ -5,19 +5,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ColorGenerator } from "@/lib/color-generator";
 import { toastManager } from "@/lib/toast";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, Database, MessageSquare, MessageSquarePlus, Play, Sparkles } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { QueryExecutor } from "../query-execution/query-executor";
 import { useQueryEditor } from "./use-query-editor";
+
+// Create a singleton instance for session colors (same as in chat-message-view)
+const sessionColorGenerator = new ColorGenerator();
 
 export interface QueryControlProps {
   mode: "sql" | "chat";
@@ -28,21 +28,28 @@ export interface QueryControlProps {
   onNewConversation?: () => void;
   sessionMessageCount?: number;
   sessionStartTime?: Date;
+  currentSessionId?: string;
 }
 
-export function QueryControl({ 
-  mode, 
-  onModeChange, 
-  isExecuting = false, 
-  onRun, 
-  onExplain, 
+export function QueryControl({
+  mode,
+  onModeChange,
+  isExecuting = false,
+  onRun,
+  onExplain,
   onNewConversation,
   sessionMessageCount = 0,
-  sessionStartTime
+  sessionStartTime,
+  currentSessionId,
 }: QueryControlProps) {
   const { selectedText, text } = useQueryEditor();
   const [isExplainOpen, setIsExplainOpen] = useState(false);
   const [isSessionPopoverOpen, setIsSessionPopoverOpen] = useState(false);
+
+  // Get session color for the button (same as visual bar in message list)
+  const sessionColor = useMemo(() => {
+    return currentSessionId ? sessionColorGenerator.getColor(currentSessionId) : null;
+  }, [currentSessionId]);
 
   const handleQuery = useCallback(() => {
     const queryText = selectedText || text;
@@ -106,20 +113,25 @@ export function QueryControl({
 
   return (
     <div className="flex h-8 w-full gap-2 rounded-sm items-center px-2 text-xs transition-colors">
-      <ToggleGroup type="single" value={mode} onValueChange={(val) => val && onModeChange(val as "sql" | "chat")} className="h-7 p-[2px] bg-muted/50 rounded-md">
-        <ToggleGroupItem 
-          value="sql" 
-          size="sm" 
-          className="h-6 px-2 text-[10px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground rounded-sm" 
+      <ToggleGroup
+        type="single"
+        value={mode}
+        onValueChange={(val) => val && onModeChange(val as "sql" | "chat")}
+        className="h-7 p-[2px] bg-muted/50 rounded-md"
+      >
+        <ToggleGroupItem
+          value="sql"
+          size="sm"
+          className="h-6 px-2 text-[10px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground rounded-sm"
           title="Switch to SQL Editor (Cmd+I)"
         >
           <Database className="h-3 w-3 mr-1" />
           SQL{mode === "chat" ? "(Cmd + I)" : ""}
         </ToggleGroupItem>
-        <ToggleGroupItem 
-          value="chat" 
-          size="sm" 
-          className="h-6 px-2 text-[10px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground rounded-sm" 
+        <ToggleGroupItem
+          value="chat"
+          size="sm"
+          className="h-6 px-2 text-[10px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm data-[state=off]:text-muted-foreground rounded-sm"
           title="Switch to AI Chat (Cmd+I)"
         >
           <Sparkles className="h-3 w-3 mr-1" />
@@ -151,10 +163,17 @@ export function QueryControl({
                 variant="ghost"
                 disabled={sessionMessageCount === 0}
                 className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                style={
+                  sessionColor
+                    ? {
+                        color: `${sessionColor.foreground}`,
+                      }
+                    : undefined
+                }
                 title={sessionMessageCount === 0 ? "No messages yet" : "View conversation info"}
               >
                 <MessageSquare className="h-3 w-3" />
-                {sessionMessageCount} {sessionMessageCount === 1 ? 'message' : 'messages'}
+                {sessionMessageCount} {sessionMessageCount === 1 ? "message" : "messages"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-3" align="start">

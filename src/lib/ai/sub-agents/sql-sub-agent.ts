@@ -1,5 +1,5 @@
 import { generateObject, generateText } from "ai";
-import { getLanguageModel } from "../provider";
+import { LanguageModelProviderFactory } from "../llm-provider-factory";
 import { sqlSubAgentOutputSchema, type SQLSubAgentInput, type SQLSubAgentOutput } from "./types";
 import { tools as clientTools, type ValidateSqlToolInput } from "../client-tools";
 
@@ -71,7 +71,7 @@ ${schemaContext.length > 0 ? schemaContext.join("\n") : "No schema context provi
 2. Don't wrap the JSON in any additional text or formatting.`;
 
   try {
-    const model = getLanguageModel();
+    const model = LanguageModelProviderFactory.createProvider();
 
     // Build base messages for processing
     // If history is provided, we assume it contains the full context (including previous tool results)

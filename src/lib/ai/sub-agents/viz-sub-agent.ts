@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { getLanguageModel } from "../provider";
+import { LanguageModelProviderFactory } from "../llm-provider-factory";
 import { vizSubAgentOutputSchema, type VizSubAgentInput, type VizSubAgentOutput } from "./types";
 
 /**
@@ -73,7 +73,7 @@ For timeseries, you can optionally add:
 `;
 
   try {
-    const model = getLanguageModel();
+    const model = LanguageModelProviderFactory.createProvider();
 
     const { object: validated } = await generateObject({
       model,
