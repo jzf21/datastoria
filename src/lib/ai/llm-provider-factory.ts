@@ -1,18 +1,18 @@
-import type { LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import type { LanguageModel } from "ai";
 import { mockModel } from "./models.mock";
 
-type ModelCreator = (modelId: string) => LanguageModel;
+type ModelCreator = (modelId: string, apiKey: string) => LanguageModel;
 
-interface ModelConfig {
-  disabled?: boolean;
+interface Model {
   creator: ModelCreator;
+  free?: boolean;
 }
 
-type ModelCreatorMap = Record<string, ModelConfig>;
+type ModelsType = Record<string, Record<string, Model>>;
 
 /**
  * Get and validate API key from environment variable
@@ -37,26 +37,42 @@ export const isMockMode = process.env.USE_MOCK_LLM === "true";
 /**
  * Auto-select a provider model based on available API keys
  * Priority: OpenAI > Google > Anthropic > OpenRouter
- * @returns The selected model ID
+ * @returns An object with provider name, model ID, and API key
  * @throws Error if no API key is configured
  */
-function autoSelectProvider(): string {
+function autoSelectProvider(): { provider: string; modelId: string; apiKey: string } {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   const openrouterApiKey = process.env.OPENROUTER_API_KEY;
 
   if (openaiApiKey) {
-    return "gpt-4o";
+    return {
+      provider: "OpenAI",
+      modelId: "gpt-4o",
+      apiKey: getAndValidateApiKey("OpenAI", openaiApiKey),
+    };
   }
   if (googleApiKey) {
-    return "gemini-2.5-pro";
+    return {
+      provider: "Google",
+      modelId: "gemini-2.5-pro",
+      apiKey: getAndValidateApiKey("Google", googleApiKey),
+    };
   }
   if (anthropicApiKey) {
-    return "claude-sonnet-4-20250514";
+    return {
+      provider: "Anthropic",
+      modelId: "claude-sonnet-4-20250514",
+      apiKey: getAndValidateApiKey("Anthropic", anthropicApiKey),
+    };
   }
   if (openrouterApiKey) {
-    return "x-ai/grok-code-fast-1";
+    return {
+      provider: "OpenRouter",
+      modelId: "qwen/qwen3-coder:free",
+      apiKey: getAndValidateApiKey("OpenRouter", openrouterApiKey),
+    };
   }
   throw new Error(
     "No AI API key configured. Set OPENAI_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY"
@@ -65,130 +81,161 @@ function autoSelectProvider(): string {
 
 /**
  * Global model creator map
- * Key: model ID
- * Value: configuration object with optional disabled flag and creator function
+ * First level key: provider name (e.g., "OpenAI", "Google", "Anthropic", "OpenRouter")
+ * Second level key: model ID
+ * Value: Model object containing creator function and free flag
  */
-export const modelCreator: ModelCreatorMap = {
-  // OpenAI models
-  "gpt-4o": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-  "gpt-4o-mini": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-  "gpt-4-turbo": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-  "gpt-4": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-  "gpt-3.5-turbo": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-  "o1-preview": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-  "o1-mini": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-  "o3-mini": {
-    creator: (modelId) =>
-      createOpenAI({
-        apiKey: getAndValidateApiKey("OpenAI", process.env.OPENAI_API_KEY),
-      }).chat(modelId),
-  },
-
-  // Google models
-  "gemini-2.5-pro": {
-    creator: (modelId) =>
-      createGoogleGenerativeAI({
-        apiKey: getAndValidateApiKey("Google", process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-      }).chat(modelId),
-  },
-  "gemini-2.0-flash-exp": {
-    creator: (modelId) =>
-      createGoogleGenerativeAI({
-        apiKey: getAndValidateApiKey("Google", process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-      }).chat(modelId),
-  },
-  "gemini-1.5-pro": {
-    creator: (modelId) =>
-      createGoogleGenerativeAI({
-        apiKey: getAndValidateApiKey("Google", process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-      }).chat(modelId),
-  },
-  "gemini-1.5-flash": {
-    creator: (modelId) =>
-      createGoogleGenerativeAI({
-        apiKey: getAndValidateApiKey("Google", process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-      }).chat(modelId),
-  },
-  "gemini-pro": {
-    creator: (modelId) =>
-      createGoogleGenerativeAI({
-        apiKey: getAndValidateApiKey("Google", process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-      }).chat(modelId),
+export const MODELS: ModelsType = {
+  OpenAI: {
+    "gpt-4o": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gpt-4o-mini": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gpt-4-turbo": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gpt-4": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gpt-3.5-turbo": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "o1-preview": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "o1-mini": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "o3-mini": {
+      creator: (modelId, apiKey) =>
+        createOpenAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
   },
 
-  // Anthropic models
-  "claude-sonnet-4-20250514": {
-    creator: (modelId) =>
-      createAnthropic({
-        apiKey: getAndValidateApiKey("Anthropic", process.env.ANTHROPIC_API_KEY),
-      }).chat(modelId),
-  },
-  "claude-3-5-sonnet-20241022": {
-    creator: (modelId) =>
-      createAnthropic({
-        apiKey: getAndValidateApiKey("Anthropic", process.env.ANTHROPIC_API_KEY),
-      }).chat(modelId),
-  },
-  "claude-3-opus-20240229": {
-    creator: (modelId) =>
-      createAnthropic({
-        apiKey: getAndValidateApiKey("Anthropic", process.env.ANTHROPIC_API_KEY),
-      }).chat(modelId),
-  },
-  "claude-3-sonnet-20240229": {
-    creator: (modelId) =>
-      createAnthropic({
-        apiKey: getAndValidateApiKey("Anthropic", process.env.ANTHROPIC_API_KEY),
-      }).chat(modelId),
-  },
-  "claude-3-haiku-20240307": {
-    creator: (modelId) =>
-      createAnthropic({
-        apiKey: getAndValidateApiKey("Anthropic", process.env.ANTHROPIC_API_KEY),
-      }).chat(modelId),
+  Google: {
+    "gemini-2.5-pro": {
+      creator: (modelId, apiKey) =>
+        createGoogleGenerativeAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gemini-2.0-flash-exp": {
+      creator: (modelId, apiKey) =>
+        createGoogleGenerativeAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gemini-1.5-pro": {
+      creator: (modelId, apiKey) =>
+        createGoogleGenerativeAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gemini-1.5-flash": {
+      creator: (modelId, apiKey) =>
+        createGoogleGenerativeAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "gemini-pro": {
+      creator: (modelId, apiKey) =>
+        createGoogleGenerativeAI({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
   },
 
-  // OpenRouter models
-  "x-ai/grok-code-fast-1": {
-    creator: (modelId) =>
-      createOpenRouter({
-        apiKey: getAndValidateApiKey("OpenRouter", process.env.OPENROUTER_API_KEY),
-      }).chat(modelId),
+  Anthropic: {
+    "claude-sonnet-4-20250514": {
+      creator: (modelId, apiKey) =>
+        createAnthropic({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "claude-3-5-sonnet-20241022": {
+      creator: (modelId, apiKey) =>
+        createAnthropic({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "claude-3-opus-20240229": {
+      creator: (modelId, apiKey) =>
+        createAnthropic({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "claude-3-sonnet-20240229": {
+      creator: (modelId, apiKey) =>
+        createAnthropic({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "claude-3-haiku-20240307": {
+      creator: (modelId, apiKey) =>
+        createAnthropic({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+  },
+
+  OpenRouter: {
+    "x-ai/grok-code-fast-1": {
+      creator: (modelId, apiKey) =>
+        createOpenRouter({
+          apiKey,
+        }).chat(modelId),
+      free: false,
+    },
+    "qwen/qwen3-coder:free": {
+      creator: (modelId, apiKey) =>
+        createOpenRouter({
+          apiKey,
+        }).chat(modelId),
+      free: true,
+    },
   },
 };
 
@@ -202,32 +249,47 @@ export class LanguageModelProviderFactory {
    *
    * Priority:
    * 1. If USE_MOCK_LLM=true, returns mock models
-   * 2. If modelId is provided, uses that model with the appropriate provider
-   * 3. Otherwise, returns real models based on available API keys
+   * 2. If provider, modelId, and apiKey are provided, uses those values
+   * 3. Otherwise, returns real models based on available API keys (auto-select)
    *
+   * @param provider - Optional provider name (e.g., "OpenAI", "Google", "Anthropic", "OpenRouter"). If not provided, will auto-select.
    * @param modelId - Optional model ID to use. If not provided, will auto-select based on available API keys.
+   * @param apiKey - Optional API key to use. If not provided, will use environment variable or auto-select.
    * @returns A LanguageModel instance
    */
-  static createProvider(modelId?: string): LanguageModel {
+  static createProvider(provider?: string, modelId?: string, apiKey?: string): LanguageModel {
     if (isMockMode) {
       console.log("🤖 Using MOCK LLM models (no API costs)");
       return mockModel;
     }
 
-    // Determine final modelId - use provided modelId or auto-select based on available API keys
-    const finalModelId = modelId ?? autoSelectProvider();
+    // Determine final provider, modelId, and apiKey - use provided values or auto-select
+    let finalProvider: string;
+    let finalModelId: string;
+    let finalApiKey: string;
+
+    if (provider && modelId && apiKey) {
+      finalProvider = provider;
+      finalModelId = modelId;
+      finalApiKey = apiKey;
+    } else {
+      const autoSelected = autoSelectProvider();
+      finalProvider = provider ?? autoSelected.provider;
+      finalModelId = modelId ?? autoSelected.modelId;
+      finalApiKey = apiKey ?? autoSelected.apiKey;
+    }
 
     // Look up model in the global model creator map
-    const modelConfig = modelCreator[finalModelId];
-    if (!modelConfig) {
-      throw new Error(`Model ${finalModelId} is not supported`);
+    const providerModels = MODELS[finalProvider];
+    if (!providerModels) {
+      throw new Error(`Provider ${finalProvider} is not supported`);
     }
 
-    if (modelConfig.disabled) {
-      throw new Error(`Model ${finalModelId} is disabled`);
+    const model = providerModels[finalModelId];
+    if (!model) {
+      throw new Error(`Model ${finalModelId} is not supported for provider ${finalProvider}`);
     }
 
-    return modelConfig.creator(finalModelId);
+    return model.creator(finalModelId, finalApiKey);
   }
 }
-

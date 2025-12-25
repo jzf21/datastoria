@@ -81,7 +81,7 @@ export function CollapsiblePart({
         </div>
       </div>
       {isExpanded && (
-        <div className="pl-3 border-l ml-2.5 border-muted/50 transition-all">
+        <div className="pl-3 border-l ml-1.5 border-muted/50 transition-all">
           {isComplete ? children : children ? children : "running..."}
         </div>
       )}

@@ -1,5 +1,5 @@
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
-import type { AppUIMessage } from "@/lib/ai/common-types";
+import type { AppUIMessage, TokenUsage } from "@/lib/ai/common-types";
 import { createChat, setChatContextBuilder } from "@/lib/chat";
 import { useConnection } from "@/lib/connection/connection-context";
 import { toastManager } from "@/lib/toast";
@@ -14,11 +14,17 @@ import { QueryExecutor } from "./query-execution/query-executor";
 import { QueryListItemView } from "./query-list-item-view";
 import type { QueryRequestViewModel } from "./query-view-model";
 
+export interface ChatSessionStats {
+  messageCount: number;
+  tokens: TokenUsage;
+  startTime?: Date;
+}
+
 export interface QueryListViewProps {
   tabId?: string; // Optional tab ID for multi-tab support
   currentSessionId?: string; // Current session ID for chat messages
   onExecutionStateChange?: (isExecuting: boolean) => void;
-  onSessionMessageCountChange?: (count: number) => void; // Callback to update parent with message count
+  onChatSessionStatsChanged?: (stats: ChatSessionStats) => void; // Callback to update parent with session stats
 }
 
 const MAX_MESSAGE_LIST_SIZE = 100;
@@ -58,7 +64,7 @@ function QueryListViewContent({
   tabId,
   currentSessionId,
   onExecutionStateChange,
-  onSessionMessageCountChange,
+  onChatSessionStatsChanged,
   chatInstance,
   messageIdToSessionIdRef,
 }: QueryListViewProps & {
@@ -272,15 +278,51 @@ function QueryListViewContent({
     return all.sort((a, b) => a.timestamp - b.timestamp);
   }, [sqlMessages, rawMessages, isChatExecuting, currentSessionId, messageIdToSessionIdRef]);
 
-  // Update parent with current session message count
+  // Update parent with current session stats (message count, token usage, and start time)
   useEffect(() => {
-    if (onSessionMessageCountChange && currentSessionId) {
+    if (onChatSessionStatsChanged && currentSessionId) {
       const currentSessionMessages = mergedMessageList.filter(
         (msg) => msg.type === "chat" && msg.sessionId === currentSessionId
+      ) as ChatMessage[];
+
+      const messageCount = currentSessionMessages.length;
+
+      // Find the first message timestamp as the session start time
+      const startTime =
+        currentSessionMessages.length > 0
+          ? new Date(Math.min(...currentSessionMessages.map((msg) => msg.timestamp)))
+          : undefined;
+
+      // Sum all token usages from messages in the current session
+      const totalTokens: TokenUsage = currentSessionMessages.reduce(
+        (acc, msg) => {
+          if (msg.usage) {
+            return {
+              inputTokens: (acc.inputTokens || 0) + (msg.usage.inputTokens || 0),
+              outputTokens: (acc.outputTokens || 0) + (msg.usage.outputTokens || 0),
+              totalTokens: (acc.totalTokens || 0) + (msg.usage.totalTokens || 0),
+              reasoningTokens: (acc.reasoningTokens || 0) + (msg.usage.reasoningTokens || 0),
+              cachedInputTokens: (acc.cachedInputTokens || 0) + (msg.usage.cachedInputTokens || 0),
+            };
+          }
+          return acc;
+        },
+        {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          reasoningTokens: 0,
+          cachedInputTokens: 0,
+        } as TokenUsage
       );
-      onSessionMessageCountChange(currentSessionMessages.length);
+
+      onChatSessionStatsChanged({
+        messageCount,
+        tokens: totalTokens,
+        startTime,
+      });
     }
-  }, [mergedMessageList, currentSessionId, onSessionMessageCountChange]);
+  }, [mergedMessageList, currentSessionId, onChatSessionStatsChanged]);
 
   const addQuery = useCallback(
     (

@@ -26,7 +26,7 @@ const APP_COLORS = [
 // Export the number of available colors for use in session ID generation
 export const NUM_COLORS = APP_COLORS.length;
 
-export class ColorGenerator {
+class ColorGenerator {
   private cache: Map<string, number>;
 
   constructor() {
@@ -46,3 +46,6 @@ export class ColorGenerator {
     this.cache.clear();
   }
 }
+
+// Export a global colorGenerator instance
+export const colorGenerator = new ColorGenerator();

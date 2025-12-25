@@ -1,26 +1,23 @@
 import { UserProfileImage } from "@/components/user-profile-image";
 import { CLIENT_TOOL_NAMES } from "@/lib/ai/client-tools";
 import type { AppUIMessage, TokenUsage, ToolPart } from "@/lib/ai/common-types";
-import { ColorGenerator } from "@/lib/color-generator";
+import { colorGenerator } from "@/lib/color-generator";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { Info, Sparkles } from "lucide-react";
 import { memo } from "react";
 import type { ChatMessage } from "../query-list-view";
-import { ExecuteSqlPart } from "./execute-sql-tool-part";
-import { GeneralToolPart } from "./general-tool-part";
-import { GenerateSqlPart } from "./generate-sql-tool-part";
-import { GenerateVisualizationPart } from "./generate-visualization-tool-part";
-import { GetTableColumnsPart } from "./get-table-columns-tool-part";
-import { GetTablesPart } from "./get-tables-tool-part";
-import { MarkdownPart } from "./markdown-part";
-import { ReasoningPart } from "./reasoning-part";
-import { ValidateSqlPart } from "./validate-sql-tool-part";
-
-// Create a singleton instance for session colors
-const sessionColorGenerator = new ColorGenerator();
+import { MessageMarkdown } from "./message-markdown";
+import { MessageReasoning } from "./message-reasoning";
+import { MessageToolExecuteSql } from "./message-tool-execute-sql";
+import { MessageToolGeneral } from "./message-tool-general";
+import { MessageToolGenerateSql } from "./message-tool-generate-sql";
+import { MessageToolGenerateVisualization } from "./message-tool-generate-visualization";
+import { MessageToolGetTableColumns } from "./message-tool-get-table-columns";
+import { MessageToolGetTables } from "./message-tool-get-tables";
+import { MessageToolValidateSql } from "./message-tool-validate-sql";
 
 /**
- * Display token usage information
+ * Display token usage information per message
  */
 const TokenUsageDisplay = memo(function TokenUsageDisplay({ usage }: { usage: TokenUsage }) {
   return (
@@ -29,7 +26,7 @@ const TokenUsageDisplay = memo(function TokenUsageDisplay({ usage }: { usage: To
         <Info className="h-3 w-3" />
       </div>
       <div className="flex items-center gap-1">
-        <span className="font-medium">Total Tokens:</span>
+        <span className="font-medium">Tokens:</span>
         <span className="">{usage.totalTokens.toLocaleString()}, </span>
 
         <span className="font-medium">Input Tokens:</span>
@@ -61,10 +58,10 @@ const TokenUsageDisplay = memo(function TokenUsageDisplay({ usage }: { usage: To
  */
 function ChatMessagePart({ part }: { part: AppUIMessage["parts"][0] }) {
   if (part.type === "text") {
-    return <MarkdownPart text={part.text} />;
+    return <MessageMarkdown text={part.text} />;
   }
   if (part.type === "reasoning") {
-    return <ReasoningPart part={part} />;
+    return <MessageReasoning part={part} />;
   }
 
   // Handle tool calls and responses
@@ -76,19 +73,19 @@ function ChatMessagePart({ part }: { part: AppUIMessage["parts"][0] }) {
   }
 
   if (toolName === CLIENT_TOOL_NAMES.GENERATE_SQL) {
-    return <GenerateSqlPart part={part} />;
+    return <MessageToolGenerateSql part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.GENEREATE_VISUALIZATION) {
-    return <GenerateVisualizationPart part={part} />;
+    return <MessageToolGenerateVisualization part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.EXECUTE_SQL) {
-    return <ExecuteSqlPart part={part} />;
+    return <MessageToolExecuteSql part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.VALIDATE_SQL) {
-    return <ValidateSqlPart part={part} />;
+    return <MessageToolValidateSql part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.GET_TABLE_COLUMNS) {
-    return <GetTableColumnsPart part={part} />;
+    return <MessageToolGetTableColumns part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.GET_TABLES) {
-    return <GetTablesPart part={part} />;
+    return <MessageToolGetTables part={part} />;
   } else if (toolName) {
-    return <GeneralToolPart toolName={toolName} part={part} />;
+    return <MessageToolGeneral toolName={toolName} part={part} />;
   }
 
   return null;
@@ -108,7 +105,7 @@ export const ChatMessageView = memo(function ChatMessageView({
   isLast = false,
 }: ChatMessageViewProps) {
   // Get session colors from color generator
-  const sessionColor = message.sessionId ? sessionColorGenerator.getColor(message.sessionId) : null;
+  const sessionColor = message.sessionId ? colorGenerator.getColor(message.sessionId) : null;
   const sessionStyles = sessionColor
     ? {
         borderLeftColor: sessionColor.foreground,
@@ -135,7 +132,7 @@ export const ChatMessageView = memo(function ChatMessageView({
         )}
 
         {/* Profile and message row - aligned at top */}
-        <div className="flex gap-1 items-start">
+        <div className="flex gap-1">
           <div className="flex-shrink-0">
             {isUser ? (
               <UserProfileImage />

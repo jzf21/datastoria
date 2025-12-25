@@ -11,7 +11,7 @@ type TableOutput = Array<{
   comment: string | null;
 }>;
 
-export const GetTablesPart = memo(function GetTablesPart({ part }: { part: AppUIMessage["parts"][0] }) {
+export const MessageToolGetTables = memo(function MessageToolGetTables({ part }: { part: AppUIMessage["parts"][0] }) {
   const toolPart = part as ToolPart & {
     input?: { database?: string };
     output?: TableOutput;
@@ -63,4 +63,3 @@ export const GetTablesPart = memo(function GetTablesPart({ part }: { part: AppUI
     </CollapsiblePart>
   );
 });
-

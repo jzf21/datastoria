@@ -6,9 +6,9 @@ import { SqlCodeBlock } from "../sql-code-block";
 /**
  * Render text message with markdown support
  */
-export const MarkdownPart = memo(function MarkdownPart({ text }: { text: string }) {
+export const MessageMarkdown = memo(function MessageMarkdown({ text }: { text: string }) {
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none mt-1 text-sm">
+    <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

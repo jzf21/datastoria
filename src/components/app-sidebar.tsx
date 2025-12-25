@@ -25,7 +25,7 @@ import { signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ConnectionSelectorPopover } from "./connection/connection-selector-popover";
-import { showQueryContextEditDialog } from "./query-tab/query-control/query-context-edit-dialog";
+import { showSettingsDialog } from "./settings/settings-dialog";
 import { TabManager } from "./tab-manager";
 import { useTheme } from "./theme-provider";
 
@@ -91,10 +91,10 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip="Query Context"
+                    tooltip="Settings"
                     size="lg"
                     className="justify-center"
-                    onClick={() => showQueryContextEditDialog()}
+                    onClick={() => showSettingsDialog()}
                   >
                     <Settings className="h-5 w-5" />
                   </SidebarMenuButton>

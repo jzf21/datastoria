@@ -4,7 +4,7 @@ import { memo } from "react";
 import { SqlCodeBlock } from "../sql-code-block";
 import { CollapsiblePart } from "./collapsible-part";
 
-export const GenerateSqlPart = memo(function GenerateSqlPart({ part }: { part: AppUIMessage["parts"][0] }) {
+export const MessageToolGenerateSql = memo(function GenerateSqlPart({ part }: { part: AppUIMessage["parts"][0] }) {
   const toolPart = part as ToolPart & { output?: { sql?: string; notes?: string } };
   const output = toolPart.output;
   const state = toolPart.state;

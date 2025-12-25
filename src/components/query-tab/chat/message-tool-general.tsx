@@ -2,7 +2,7 @@ import type { AppUIMessage, ToolPart } from "@/lib/ai/common-types";
 import { memo } from "react";
 import { CollapsiblePart } from "./collapsible-part";
 
-export const GeneralToolPart = memo(function GeneralToolPart({
+export const MessageToolGeneral = memo(function MessageToolGeneral({
   toolName,
   part,
 }: {

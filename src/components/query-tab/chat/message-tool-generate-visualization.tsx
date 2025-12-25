@@ -6,7 +6,7 @@ import DashboardPanelTable from "../../shared/dashboard/dashboard-panel-table";
 import DashboardPanelTimeseries from "../../shared/dashboard/dashboard-panel-timeseries";
 import { CollapsiblePart } from "./collapsible-part";
 
-export const GenerateVisualizationPart = memo(function GenerateVisualizationPart({ part }: { part: AppUIMessage["parts"][0] }) {
+export const MessageToolGenerateVisualization = memo(function MessageToolGenerateVisualization({ part }: { part: AppUIMessage["parts"][0] }) {
   const toolPart = part as ToolPart & { output?: PanelDescriptor };
   const panelDescriptor = toolPart.output;
   const state = toolPart.state;

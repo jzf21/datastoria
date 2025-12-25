@@ -5,7 +5,7 @@ import { CollapsiblePart } from "./collapsible-part";
 /**
  * Render reasoning part with collapsible display
  */
-export const ReasoningPart = memo(function ReasoningPart({
+export const MessageReasoning = memo(function MessageReasoning({
   part,
 }: {
   part: AppUIMessage["parts"][0] & { state?: string; text: string };

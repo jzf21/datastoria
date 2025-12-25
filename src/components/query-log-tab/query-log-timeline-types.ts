@@ -1,5 +1,5 @@
 import type { Color } from "@/lib/color-generator";
-import { ColorGenerator } from "@/lib/color-generator";
+import { colorGenerator } from "@/lib/color-generator";
 
 // Query log tree node structure for timeline
 export interface QueryLogTreeNode {
@@ -37,9 +37,6 @@ export interface TimelineStats {
     minTimestamp: number;
     maxTimestamp: number;
 }
-
-// Color generator for hosts
-const hostColorGenerator = new ColorGenerator();
 
 /**
  * Transform query logs into a tree structure based on query_id relationships
@@ -80,7 +77,7 @@ export function transformQueryLogsToTree(queryLogs: any[]): {
         const queryType = log.type || "Unknown";
         const queryId = log.query_id || "";
         const displayName = `${host}`;
-        const color = hostColorGenerator.getColor(host);
+        const color = colorGenerator.getColor(host);
 
         const node: QueryLogTreeNode = {
             id: `node-${nodeIndex++}`,

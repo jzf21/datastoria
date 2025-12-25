@@ -15,7 +15,7 @@ type TableColumnOutput = Array<{
   columns: Array<{ name: string; type: string }>;
 }>;
 
-export const GetTableColumnsPart = memo(function GetTableColumnsPart({ part }: { part: AppUIMessage["parts"][0] }) {
+export const MessageToolGetTableColumns = memo(function MessageToolGetTableColumns({ part }: { part: AppUIMessage["parts"][0] }) {
   const toolPart = part as ToolPart & {
     input?: { tablesAndSchemas: TableInput[] };
     output?: TableColumnOutput;

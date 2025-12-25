@@ -25,12 +25,12 @@ import { TabManager } from "@/components/tab-manager";
 import { useTheme } from "@/components/theme-provider";
 import { useConnection } from "@/lib/connection/connection-context";
 import { useDebouncedCallback } from "use-debounce";
-import { updateQueryEditorState } from "../query-control/use-query-editor";
 import { QueryInputLocalStorage } from "../query-input/query-input-local-storage";
-import { QuerySuggestionManager } from "./completion/query-suggestion-manager";
 import { defineChatMode, updateChatModeTableNames } from "./completion/chat-mode";
+import { QuerySuggestionManager } from "./completion/query-suggestion-manager";
 import "./query-input-view.css";
 import { QuerySnippetManager } from "./snippet/QuerySnippetManager";
+import { updateQueryInputState } from "./use-query-input";
 
 type ExtendedEditor = {
   completer?: Ace.Autocomplete;
@@ -313,7 +313,7 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
         });
 
         // When editor is ready, update the editor state
-        updateQueryEditorState({
+        updateQueryInputState({
           text: extendedEditor.getValue().trim(),
           selectedText: "",
         });
@@ -387,7 +387,7 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
       // Update global state with full text
       if (editorRef.current) {
         const selected = editorRef.current.getSelectedText().trim();
-        updateQueryEditorState({
+        updateQueryInputState({
           text: text.trim(),
           selectedText: selected,
         });
@@ -398,7 +398,7 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
       if (editorRef.current) {
         const selected = editorRef.current.getSelectedText().trim();
         const allText = editorRef.current.getValue().trim();
-        updateQueryEditorState({
+        updateQueryInputState({
           selectedText: selected,
           text: allText,
         });
