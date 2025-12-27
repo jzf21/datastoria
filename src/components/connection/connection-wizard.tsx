@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { ConnectionEditComponent } from "./connection-edit-component";
+import Link from "next/link";
 
 export function ConnectionWizard() {
   const { switchConnection } = useConnection();
@@ -47,7 +48,7 @@ export function ConnectionWizard() {
                 You'll be able to query data, monitor server performance and chat with your data.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               <div className="space-y-4">
                 <div className="grid gap-3 text-sm text-muted-foreground">
                   <div className="flex items-start gap-3">
@@ -77,35 +78,54 @@ export function ConnectionWizard() {
                       <p>Query your data, browse schemas, and monitor your ClickHouse cluster</p>
                     </div>
                   </div>
+                  <div className="flex items-start gap-3">
+                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs font-semibold text-primary">4</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Ask AI</p>
+                      <p>
+                        Ask AI questions about your cluster data in natural language and get instant answers,
+                        visualizations, and more
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center justify-center gap-4 pt-2">
-                <Button size="lg" onClick={handleCreateConnection} className="px-4">
+              <div className="flex flex-col items-center justify-center gap-2 pt-2">
+                <Button size="lg" onClick={handleCreateConnection} className="px-4 w-64">
                   Create Your First Connection
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => {
-                    const playgroundConnection: ConnectionConfig = {
-                      name: "ClickHouse Playground",
-                      url: "https://play.clickhouse.com",
-                      user: "play",
-                      password: "",
-                      cluster: "",
-                      editable: true,
-                    };
-                    // Save to ConnectionManager
-                    const connectionManager = ConnectionManager.getInstance();
-                    if (!connectionManager.contains(playgroundConnection.name)) {
-                      connectionManager.add(playgroundConnection);
-                    }
-                    handleSave(playgroundConnection);
-                  }}
-                  className="px-4"
-                >
-                  Try ClickHouse Playground
-                </Button>
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <span className="text-sm text-muted-foreground">
+                    don't have a ClickHouse server? Try{" "}
+                    <Link href="https://play.clickhouse.com" target="_blank">
+                      ClickHouse Playground
+                    </Link>
+                  </span>
+                  <Button
+                    variant="outline"
+                    className="w-64"
+                    onClick={() => {
+                      const playgroundConnection: ConnectionConfig = {
+                        name: "ClickHouse Playground",
+                        url: "https://play.clickhouse.com",
+                        user: "play",
+                        password: "",
+                        cluster: "",
+                        editable: true,
+                      };
+                      // Save to ConnectionManager
+                      const connectionManager = ConnectionManager.getInstance();
+                      if (!connectionManager.contains(playgroundConnection.name)) {
+                        connectionManager.add(playgroundConnection);
+                      }
+                      handleSave(playgroundConnection);
+                    }}
+                  >
+                    Connect to play.clickhouse.com
+                  </Button>
+                </div>
               </div>
             </CardContent>
             {/* Spacer to match the height of ConnectionEditDialogContent's bottom section */}
@@ -115,17 +135,12 @@ export function ConnectionWizard() {
             <Button variant="ghost" size="icon" onClick={handleCancel} className="absolute top-2 right-2 h-8 w-8 z-10">
               <X className="h-4 w-4" />
             </Button>
-            <CardHeader>
+            <CardHeader className="pb-4">
               <CardTitle>Create a new connection</CardTitle>
               <CardDescription>Configure your ClickHouse connection settings.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ConnectionEditComponent
-                connection={null}
-                onSave={handleSave}
-                onCancel={handleCancel}
-                isAddMode={true}
-              />
+              <ConnectionEditComponent connection={null} onSave={handleSave} onCancel={handleCancel} isAddMode={true} />
             </CardContent>
           </Card>
         )}

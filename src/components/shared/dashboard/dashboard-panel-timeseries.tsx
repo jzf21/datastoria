@@ -676,7 +676,7 @@ const DashboardPanelTimeseries = forwardRef<DashboardPanelComponent, DashboardPa
             minInterval: yAxisOption.minInterval,
             interval: yAxisOption.interval,
             inverse: yAxisOption.inverse,
-            splitLine: { show: true },
+            splitLine: { show: false },
             axisLine: { show: false },
             axisTick: { show: false },
             axisLabel: {

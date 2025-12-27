@@ -479,7 +479,7 @@ function QueryListViewContent({
         // Set context builder for this request
         // Ensure context includes clickHouseUser from connection
         if (event.detail.context) {
-          const clickHouseUser = connection?.session?.internalUser || connection?.user;
+          const clickHouseUser = connection?.metadata.internalUser || connection?.user;
           const contextWithUser: DatabaseContext = {
             ...event.detail.context,
             clickHouseUser: (event.detail.context as DatabaseContext).clickHouseUser || clickHouseUser,
@@ -487,7 +487,7 @@ function QueryListViewContent({
           setChatContextBuilder(() => contextWithUser);
         } else {
           // If no context provided, create one with clickHouseUser
-          const clickHouseUser = connection?.session?.internalUser || connection?.user;
+          const clickHouseUser = connection?.metadata.internalUser || connection?.user;
           if (clickHouseUser) {
             setChatContextBuilder(() => ({ clickHouseUser }));
           }
@@ -515,6 +515,8 @@ function QueryListViewContent({
           }
         }
 
+        // TODO: generated messageId, so that we can associate errors to the latest message id
+
         sendMessage({
           text: messageText,
         });
@@ -539,21 +541,21 @@ function QueryListViewContent({
     // Clear SQL messages
     setSqlMessages([]);
     executingQueriesRef.current.clear();
-    
+
     // Clear chat messages
     chatInstance.messages = [];
-    
+
     // Clear all refs related to chat messages
     messageIdToSessionIdRef.current.clear();
     pendingSessionIdsRef.current.clear();
     messageTimestampsRef.current.clear();
     messageErrorsRef.current.clear();
-    
+
     // Generate a new session ID so new messages are treated as a new session
     if (onNewSession) {
       onNewSession();
     }
-    
+
     if (onExecutionStateChange) onExecutionStateChange(false);
   }, [onExecutionStateChange, onNewSession, chatInstance, messageIdToSessionIdRef]);
 
@@ -653,7 +655,7 @@ export function QueryListView(props: QueryListViewProps) {
         // Use a stable ID for the tab, or a new random one if tabId is missing (unlikely for views)
         const id = props.tabId || uuid();
         // Set up context builder with clickHouseUser from connection
-        const clickHouseUser = connection?.session?.internalUser || connection?.user;
+        const clickHouseUser = connection?.metadata.internalUser || connection?.user;
         if (clickHouseUser) {
           setChatContextBuilder(() => ({ clickHouseUser }));
         }

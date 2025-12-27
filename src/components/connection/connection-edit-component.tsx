@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { FieldDescription } from "@/components/ui/field-description";
@@ -602,9 +602,9 @@ export function ConnectionEditComponent({
           />
           <div></div>
           {fieldErrors.url ? (
-            <FieldDescription className="text-destructive">{fieldErrors.url}</FieldDescription>
+            <FieldDescription className="text-destructive text-xs">{fieldErrors.url}</FieldDescription>
           ) : (
-            <FieldDescription>The HTTP(s) URL of the ClickHouse server</FieldDescription>
+            <FieldDescription className="text-xs">The HTTP(s) URL of the ClickHouse server</FieldDescription>
           )}
         </Field>
 
@@ -620,9 +620,9 @@ export function ConnectionEditComponent({
           />
           <div></div>
           {fieldErrors.user ? (
-            <FieldDescription className="text-destructive">{fieldErrors.user}</FieldDescription>
+            <FieldDescription className="text-destructive text-xs">{fieldErrors.user}</FieldDescription>
           ) : (
-            <FieldDescription>The user name to access the ClickHouse server</FieldDescription>
+            <FieldDescription className="text-xs">The user name to access the ClickHouse server</FieldDescription>
           )}
         </Field>
 
@@ -650,7 +650,7 @@ export function ConnectionEditComponent({
             </Button>
           </div>
           <div></div>
-          <FieldDescription>
+          <FieldDescription className="text-xs">
             The password to access the ClickHouse server. Leave it blank if password is not needed.
           </FieldDescription>
         </Field>
@@ -661,7 +661,7 @@ export function ConnectionEditComponent({
           </FieldLabel>
           <Input id="cluster" value={cluster} disabled={!editable} onChange={handleClusterChange} />
           <div></div>
-          <FieldDescription>
+          <FieldDescription className="text-xs">
             Configure the cluster name to access full features of this console if the ClickHouse server is deployed as
             cluster
           </FieldDescription>
@@ -679,15 +679,15 @@ export function ConnectionEditComponent({
           />
           <div></div>
           {fieldErrors.name ? (
-            <FieldDescription className="text-destructive">{fieldErrors.name}</FieldDescription>
+            <FieldDescription className="text-destructive text-xs">{fieldErrors.name}</FieldDescription>
           ) : (
-            <FieldDescription>Name of the connection</FieldDescription>
+            <FieldDescription className="text-xs">Name of the connection</FieldDescription>
           )}
         </Field>
 
-        <FieldGroup>
+        <FieldGroup className="pt-1">
           <Field>
-            <div className="flex items-center justify-end gap-2 pt-4 border-t">
+            <div className="flex items-center justify-end gap-2 pt-6 border-t">
               <StatusPopover
                 open={testStatus !== null}
                 onOpenChange={(open) => !open && setTestStatus(null)}

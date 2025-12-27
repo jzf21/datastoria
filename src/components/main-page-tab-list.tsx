@@ -5,13 +5,7 @@ import { QueryTab } from "@/components/query-tab/query-tab";
 import { TabManager, type TabInfo } from "@/components/tab-manager";
 import { TableTab } from "@/components/table-tab/table-tab";
 import { Button } from "@/components/ui/button";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Connection } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
@@ -551,7 +545,7 @@ const MainPageTabListComponent = ({ selectedConnection }: MainPageTabListProps) 
                       <div className="relative inline-flex items-center flex-shrink-0">
                         <TabsTrigger
                           value={tab.id}
-                          className="rounded-none border-t-[1px] border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent pr-8"
+                          className="rounded-none border-t-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-muted data-[state=active]:font-semibold pr-8"
                           onClick={() => setActiveTab(tab.id)}
                         >
                           <TabIcon className="h-4 w-4 mr-1.5" />
