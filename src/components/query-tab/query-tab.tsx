@@ -93,7 +93,7 @@ const QueryTabComponent = ({ tabId, initialQuery, initialMode, active }: QueryTa
 
       // Build context for chat
       // Get ClickHouse user from connection (use internalUser if available, fallback to user)
-      const clickHouseUser = connection?.metadata.internalUser || connection?.user;
+      const clickHouseUser = connection?.user;
       const context = {
         currentQuery: backgroundSql, // The SQL context "behind" the chat
         database: (connection as any)?.database,

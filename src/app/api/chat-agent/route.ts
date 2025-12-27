@@ -14,6 +14,19 @@ export const dynamic = "force-dynamic";
 // This is needed when get_table_columns returns 1500+ columns (e.g., system.metric_log)
 export const maxDuration = 60; // 60 seconds timeout
 
+interface ChatAgentRequest {
+  messages?: unknown[];
+  context?: DatabaseContext;
+  user?: {
+    id?: string | null;
+  };
+  model?: {
+    provider: string;
+    modelId: string;
+    apiKey: string;
+  };
+}
+
 /**
  * Extracts error message from response body.
  * Tries to extract the raw message from metadata, falls back to error message.
@@ -104,15 +117,7 @@ function extractErrorMessage(error: unknown): string {
 export async function POST(req: Request) {
   try {
     // Parse request body with size validation
-    let apiRequest: {
-      messages?: unknown[];
-      context?: DatabaseContext;
-      model?: {
-        provider: string;
-        modelId: string;
-        apiKey: string;
-      };
-    };
+    let apiRequest: ChatAgentRequest;
     try {
       const text = await req.text();
       const sizeInMB = (text.length / 1024 / 1024).toFixed(2);
@@ -127,7 +132,7 @@ export async function POST(req: Request) {
         });
       }
 
-      apiRequest = JSON.parse(text) as typeof apiRequest;
+      apiRequest = JSON.parse(text) as ChatAgentRequest;
     } catch (error) {
       console.error("Failed to parse request body:", error);
       return new Response("Invalid JSON in request body", { status: 400 });

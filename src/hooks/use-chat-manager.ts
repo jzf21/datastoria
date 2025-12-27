@@ -1,10 +1,10 @@
+import type { ChatRequestEventDetail } from "@/components/query-tab/query-execution/chat-executor";
 import type { AppUIMessage } from "@/lib/ai/common-types";
 import { createChat, setChatContextBuilder } from "@/lib/chat";
-import { Connection } from "@/lib/connection/connection";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
 import type { Chat } from "@ai-sdk/react";
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatRequestEventDetail } from "@/components/query-tab/query-execution/chat-executor";
 
 interface ChatInstance {
   chat: Chat<AppUIMessage>;
@@ -16,7 +16,11 @@ interface ChatInstance {
  * Hook to manage multiple Chat instances at the parent level
  * Pre-creates Chat instances and passes them down to child components
  */
-export function useChatManager(chatList: Array<{ id: string; chatRequest: ChatRequestEventDetail }>, databaseId?: string) {
+export function useChatManager(
+  chatList: Array<{ id: string; chatRequest: ChatRequestEventDetail }>,
+  databaseId?: string
+) {
+  const { data: session } = useSession();
   const [chatInstances, setChatInstances] = useState<Map<string, ChatInstance>>(new Map());
   const initializingRef = useRef<Set<string>>(new Set());
 
@@ -45,9 +49,7 @@ export function useChatManager(chatList: Array<{ id: string; chatRequest: ChatRe
         try {
           // Get ClickHouse user from connection
           const config = ConnectionManager.getInstance().getLastSelectedOrFirst();
-          const clickHouseUser = config
-            ? (Connection.create(config).session?.internalUser || Connection.create(config).user)
-            : undefined;
+          const clickHouseUser = config ? config.user : undefined;
 
           // Set context builder for this specific chat, ensuring clickHouseUser is included
           setChatContextBuilder(() => {
@@ -63,6 +65,11 @@ export function useChatManager(chatList: Array<{ id: string; chatRequest: ChatRe
             id: chatId,
             databaseId,
             skipStorage: true, // Skip storage for single-use chats
+            user: session?.user?.email
+              ? {
+                  id: session.user.email,
+                }
+              : undefined,
           });
 
           setChatInstances((prev) => {
@@ -122,4 +129,3 @@ export function useChatManager(chatList: Array<{ id: string; chatRequest: ChatRe
     removeChatInstance,
   };
 }
-

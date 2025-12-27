@@ -7,6 +7,7 @@ import { toastManager } from "@/lib/toast";
 import type { Chat } from "@ai-sdk/react";
 import { useChat } from "@ai-sdk/react";
 import { Loader2, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuid } from "uuid";
 import { ChatMessageView } from "./chat/chat-message-view";
@@ -479,7 +480,7 @@ function QueryListViewContent({
         // Set context builder for this request
         // Ensure context includes clickHouseUser from connection
         if (event.detail.context) {
-          const clickHouseUser = connection?.metadata.internalUser || connection?.user;
+          const clickHouseUser = connection?.user;
           const contextWithUser: DatabaseContext = {
             ...event.detail.context,
             clickHouseUser: (event.detail.context as DatabaseContext).clickHouseUser || clickHouseUser,
@@ -487,7 +488,7 @@ function QueryListViewContent({
           setChatContextBuilder(() => contextWithUser);
         } else {
           // If no context provided, create one with clickHouseUser
-          const clickHouseUser = connection?.metadata.internalUser || connection?.user;
+          const clickHouseUser = connection?.user;
           if (clickHouseUser) {
             setChatContextBuilder(() => ({ clickHouseUser }));
           }
@@ -635,6 +636,7 @@ function QueryListViewContent({
 }
 
 export function QueryListView(props: QueryListViewProps) {
+  const { data: session } = useSession();
   const [chatInstance, setChatInstance] = useState<Chat<AppUIMessage> | null>(null);
   // Use a ref to store currentSessionId so the getter function always has the latest value
   const currentSessionIdRef = useRef<string | undefined>(props.currentSessionId);
@@ -655,13 +657,18 @@ export function QueryListView(props: QueryListViewProps) {
         // Use a stable ID for the tab, or a new random one if tabId is missing (unlikely for views)
         const id = props.tabId || uuid();
         // Set up context builder with clickHouseUser from connection
-        const clickHouseUser = connection?.metadata.internalUser || connection?.user;
+        const clickHouseUser = connection?.user;
         if (clickHouseUser) {
           setChatContextBuilder(() => ({ clickHouseUser }));
         }
         const chat = await createChat({
           id,
           skipStorage: false,
+          user: session?.user?.email
+            ? {
+                id: session.user.email,
+              }
+            : undefined,
           getCurrentSessionId: () => currentSessionIdRef.current,
           getMessageSessionId: (messageId: string) => messageIdToSessionIdRef.current.get(messageId),
         });
