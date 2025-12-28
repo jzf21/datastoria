@@ -20,6 +20,7 @@ export interface ModelProps {
   free?: boolean;
   autoSelectable?: boolean;
   disabled?: boolean;
+  description?: string;
 }
 
 /**
@@ -56,40 +57,156 @@ export const CREATORS: Record<string, ModelCreator> = {
  */
 export const MODELS: ModelProps[] = [
   // OpenAI models
-  { provider: "OpenAI", modelId: "gpt-4o", free: false, autoSelectable: true },
-  { provider: "OpenAI", modelId: "gpt-4o-mini", free: false },
-  { provider: "OpenAI", modelId: "gpt-4-turbo", free: false },
-  { provider: "OpenAI", modelId: "gpt-4", free: false },
-  { provider: "OpenAI", modelId: "gpt-3.5-turbo", free: false },
-  { provider: "OpenAI", modelId: "o1-preview", free: false },
-  { provider: "OpenAI", modelId: "o1-mini", free: false },
-  { provider: "OpenAI", modelId: "o3-mini", free: false },
+  // https://platform.openai.com/chat/edit
+  {
+    provider: "OpenAI",
+    modelId: "gpt-5",
+    free: false,
+    autoSelectable: false,
+    description: "Next-generation frontier model from OpenAI.",
+  },
+  {
+    provider: "OpenAI",
+    modelId: "gpt-5.2",
+    free: false,
+    autoSelectable: false,
+    description: "Enhanced version of GPT-5 with improved reasoning capabilities.",
+  },
+  {
+    provider: "OpenAI",
+    modelId: "gpt-4.1",
+    free: false,
+    description: "Updated GPT-4 model with improved performance and accuracy.",
+  },
+  {
+    provider: "OpenAI",
+    modelId: "gpt-4o",
+    free: false,
+    description: "Omni model from OpenAI, designed for speed and multimodal interaction.",
+  },
+  {
+    provider: "OpenAI",
+    modelId: "gpt-4o-mini",
+    free: false,
+    description: "Lighter version of GPT-4o for faster, cost-effective tasks.",
+  },
+  {
+    provider: "OpenAI",
+    modelId: "gpt-4",
+    free: false,
+    description: "Robust high-capability model for complex reasoning and tasks.",
+  },
+  {
+    provider: "OpenAI",
+    modelId: "o1",
+    free: false,
+    description: "OpenAI's latest reasoning model, optimized for chain-of-thought.",
+  },
+  {
+    provider: "OpenAI",
+    modelId: "o3-mini",
+    free: false,
+    description: "Optimized version of OpenAI's reasoning models for fast responses.",
+  },
 
   // Google models
-  { provider: "Google", modelId: "gemini-2.5-pro", free: false, autoSelectable: true },
-  { provider: "Google", modelId: "gemini-2.0-flash-exp", free: false },
-  { provider: "Google", modelId: "gemini-1.5-pro", free: false },
-  { provider: "Google", modelId: "gemini-1.5-flash", free: false },
-  { provider: "Google", modelId: "gemini-pro", free: false },
+  // https://ai.google.dev/gemini-api/docs/models
+  {
+    provider: "Google",
+    modelId: "gemini-3-pro-preview",
+    free: false,
+    autoSelectable: false,
+    description: "Google's most capable model for complex tasks and multimodal inputs.",
+  },
+  {
+    provider: "Google",
+    modelId: "gemini-3-flash-preview",
+    free: false,
+    autoSelectable: false,
+    description: "Fast and efficient model from Google for rapid interactions.",
+  },
+  {
+    provider: "Google",
+    modelId: "gemini-2.5-flash",
+    free: false,
+    description: "Google's flash model optimized for speed and large context windows.",
+  },
+  {
+    provider: "Google",
+    modelId: "gemini-2.5-pro",
+    free: false,
+    description: "Google's pro model with high intelligence and broad knowledge.",
+  },
+  {
+    provider: "Google",
+    modelId: "gemini-2.0-flash",
+    free: false,
+    description: "Legacy flash model from Google, efficient for simple tasks.",
+  },
 
   // Anthropic models
-  { provider: "Anthropic", modelId: "claude-sonnet-4-20250514", free: false, autoSelectable: true },
-  { provider: "Anthropic", modelId: "claude-3-5-sonnet-20241022", free: false },
-  { provider: "Anthropic", modelId: "claude-3-opus-20240229", free: false },
-  { provider: "Anthropic", modelId: "claude-3-sonnet-20240229", free: false },
-  { provider: "Anthropic", modelId: "claude-3-haiku-20240307", free: false },
+  // https://platform.claude.com/docs/en/about-claude/models/overview
+  {
+    provider: "Anthropic",
+    modelId: "claude-sonnet-4-5",
+    free: false,
+    autoSelectable: false,
+    description: "Anthropic's latest Sonnet model with extreme intelligence and reliability.",
+  },
+  {
+    provider: "Anthropic",
+    modelId: "claude-haiku-4-5",
+    free: false,
+    description: "Anthropic's fast and lightweight model for near-instant responses.",
+  },
+  {
+    provider: "Anthropic",
+    modelId: "claude-opus-4-5",
+    free: false,
+    description: "Anthropic's most powerful model for highly complex analysis.",
+  },
 
   // OpenRouter models
-  { provider: "OpenRouter", modelId: "x-ai/grok-code-fast-1", free: false },
-  { provider: "OpenRouter", modelId: "qwen/qwen3-coder:free", free: true, autoSelectable: true },
+  {
+    provider: "OpenRouter",
+    modelId: "x-ai/grok-code-fast-1",
+    free: false,
+    description: "Grok code model optimized for fast and accurate code generation.",
+  },
+  {
+    provider: "OpenRouter",
+    modelId: "qwen/qwen3-coder:free",
+    free: true,
+    autoSelectable: true,
+    description: "Qwen 3 coder model, highly capable at writing and explaining SQL.",
+  },
+  {
+    provider: "OpenRouter",
+    modelId: "openai/gpt-oss-120b:free",
+    free: true,
+    autoSelectable: true,
+    description: "Open-source GPT model with large parameter count for general tasks.",
+  },
 
   // Groq models
-  // https://console.groq.com/home
-  { provider: "Groq", modelId: "openai/gpt-oss-20b", free: false, autoSelectable: true },
+  // https://console.groq.com/docs/models
+  {
+    provider: "Groq",
+    modelId: "openai/gpt-oss-20b",
+    free: false,
+    autoSelectable: true,
+    description: "Fast-inference open-source model running on Groq hardware.",
+  },
   // qwen is DISABLE 'cause it internally does NOT handle tool call correctly
-  { provider: "Groq", modelId: "qwen/qwen3-32b", free: false, disabled: true, autoSelectable: true },
+  {
+    provider: "Groq",
+    modelId: "qwen/qwen3-32b",
+    free: false,
+    disabled: true,
+    autoSelectable: false,
+    description: "High-performance Qwen 3 model, currently disabled due to tool call issues.",
+  },
 ];
-
 
 /**
  * Language Model Provider Factory

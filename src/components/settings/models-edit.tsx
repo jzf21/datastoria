@@ -1,21 +1,28 @@
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MODELS } from "@/lib/ai/llm-provider-factory";
-import { ModelManager, type ModelSetting } from "@/lib/models/model-manager";
+import { ModelManager, type ModelSetting, type ProviderSetting } from "@/lib/models/model-manager";
 import { TextHighlighter } from "@/lib/text-highlighter";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, ExternalLink, Search } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+const PROVIDER_LINKS: Record<string, string> = {
+  OpenAI: "https://platform.openai.com/api-keys",
+  Google: "https://aistudio.google.com/app/apikey",
+  Anthropic: "https://console.anthropic.com/settings/keys",
+  OpenRouter: "https://openrouter.ai/settings/keys",
+  Groq: "https://console.groq.com/keys",
+};
+
 export function ModelsEdit() {
-  const [models, setModels] = useState<ModelSetting[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
   const modelManager = ModelManager.getInstance();
 
-  // Load models from localStorage on mount
-  useEffect(() => {
+  // Load models and provider settings from localStorage on mount
+  const initialState = useMemo(() => {
     const storedModels = modelManager.getModelSettings();
+    const storedProviderSettings = modelManager.getProviderSettings();
 
     // Get all available models from the flattened MODELS array
     const availableModels: ModelSetting[] = [];
@@ -33,13 +40,24 @@ export function ModelsEdit() {
               provider: model.provider,
               disabled: false,
               free: model.free ?? false,
-              apiKey: "",
             }
       );
     }
-
-    setModels(availableModels);
+    return { models: availableModels, providerSettings: storedProviderSettings };
   }, [modelManager]);
+
+  const [models, setModels] = useState<ModelSetting[]>(initialState.models);
+  const [providerSettings, setProviderSettings] = useState<ProviderSetting[]>(initialState.providerSettings);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Group models by provider for initial expansion state
+  const initialGroupedProviders = useMemo(() => {
+    const providers = new Set<string>();
+    initialState.models.forEach((m) => providers.add(m.provider));
+    return providers;
+  }, [initialState.models]);
+
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(initialGroupedProviders);
 
   const handleDisabledChange = useCallback(
     (modelId: string, disabled: boolean) => {
@@ -52,11 +70,17 @@ export function ModelsEdit() {
     [modelManager]
   );
 
-  const handleApiKeyChange = useCallback(
-    (modelId: string, apiKey: string) => {
-      setModels((prev) => {
-        const updated = prev.map((m) => (m.modelId === modelId ? { ...m, apiKey } : m));
-        modelManager.setModelSettings(updated);
+  const handleProviderApiKeyChange = useCallback(
+    (provider: string, apiKey: string) => {
+      setProviderSettings((prev) => {
+        const index = prev.findIndex((p) => p.provider === provider);
+        let updated: ProviderSetting[];
+        if (index >= 0) {
+          updated = prev.map((p) => (p.provider === provider ? { ...p, apiKey } : p));
+        } else {
+          updated = [...prev, { provider, apiKey }];
+        }
+        modelManager.setProviderSettings(updated);
         return updated;
       });
     },
@@ -87,13 +111,19 @@ export function ModelsEdit() {
     );
   }, [filteredModels]);
 
-  // Expand all providers by default, and auto-expand providers that have matching models when searching
+  // Expand all providers when searching
   useEffect(() => {
-    const allProviders = Object.keys(groupedModels);
-    if (allProviders.length > 0) {
-      setExpandedProviders(new Set(allProviders));
+    if (searchQuery.trim()) {
+      const allProviders = Object.keys(groupedModels);
+      if (allProviders.length > 0) {
+        setExpandedProviders((prev) => {
+          const next = new Set(prev);
+          allProviders.forEach((p) => next.add(p));
+          return next;
+        });
+      }
     }
-  }, [groupedModels]);
+  }, [groupedModels, searchQuery]);
 
   const toggleProvider = useCallback((provider: string) => {
     setExpandedProviders((prev) => {
@@ -135,11 +165,13 @@ export function ModelsEdit() {
             <TableBody>
               {Object.entries(groupedModels).map(([provider, providerModels]) => {
                 const isExpanded = expandedProviders.has(provider);
+                const providerSetting = providerSettings.find((p) => p.provider === provider);
+
                 return (
                   <React.Fragment key={provider}>
                     {/* Provider Group Header */}
                     <TableRow className="h-10 bg-muted/50 hover:bg-muted/70">
-                      <TableCell colSpan={4} className="px-1 py-2">
+                      <TableCell colSpan={3} className="px-1 py-2">
                         <button
                           type="button"
                           onClick={() => toggleProvider(provider)}
@@ -155,6 +187,27 @@ export function ModelsEdit() {
                             ({providerModels.length} {providerModels.length === 1 ? "model" : "models"})
                           </span>
                         </button>
+                      </TableCell>
+                      <TableCell className="py-1.5 pr-4">
+                        <div className="flex items-center gap-2">
+                          {PROVIDER_LINKS[provider] && (
+                            <a
+                              href={PROVIDER_LINKS[provider]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                              title={`Get ${provider} API key`}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          )}
+                          <Input
+                            value={providerSetting?.apiKey || ""}
+                            onChange={(e) => handleProviderApiKeyChange(provider, e.target.value)}
+                            placeholder={`Enter ${provider} API key`}
+                            className="w-full h-8 border-0 border-b border-muted-foreground/20 rounded-none pl-0 bg-transparent focus-visible:ring-0"
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                     {/* Provider Models */}
@@ -173,7 +226,16 @@ export function ModelsEdit() {
                             </div>
                           </TableCell>
                           <TableCell className="py-1.5">
-                            <div className="text-sm text-muted-foreground">{model.free ? "Yes" : "No"}</div>
+                            {model.free ? (
+                              <Badge
+                                variant="secondary"
+                                className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-none hover:bg-green-100 dark:hover:bg-green-900/30"
+                              >
+                                Yes
+                              </Badge>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">No</div>
+                            )}
                           </TableCell>
                           <TableCell className="py-1.5">
                             <Switch
@@ -181,15 +243,7 @@ export function ModelsEdit() {
                               onCheckedChange={(checked) => handleDisabledChange(model.modelId, !checked)}
                             />
                           </TableCell>
-                          <TableCell className="py-1.5 min-w-[200px]">
-                            <Input
-                              type="password"
-                              value={model.apiKey}
-                              onChange={(e) => handleApiKeyChange(model.modelId, e.target.value)}
-                              placeholder="Enter API key"
-                              className="w-full h-8 border-none pl-0"
-                            />
-                          </TableCell>
+                          <TableCell className="py-1.5" />
                         </TableRow>
                       ))}
                   </React.Fragment>

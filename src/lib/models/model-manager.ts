@@ -1,14 +1,23 @@
-import { LocalStorage } from '@/lib/connection/LocalStorage';
+import { LocalStorage } from "@/lib/connection/LocalStorage";
+import { MODELS, type ModelProps } from "@/lib/ai/llm-provider-factory";
 
 export interface ModelSetting {
   modelId: string;
   provider: string;
   disabled: boolean;
   free: boolean;
+}
+
+export interface ProviderSetting {
+  provider: string;
   apiKey: string;
 }
 
-const MODEL_SETTINGS_STORAGE_KEY = 'model-settings';
+const MODEL_SETTINGS_STORAGE_KEY = "settings/ai/model-settings";
+const PROVIDER_SETTINGS_STORAGE_KEY = "settings/ai/provider-settings";
+const SELECTED_MODEL_ID_STORAGE_KEY = "settings/ai/selected-model-id";
+
+export const MODEL_CONFIG_UPDATED_EVENT = "MODEL_CONFIG_UPDATED";
 
 class ModelManager {
   private static instance: ModelManager;
@@ -21,14 +30,37 @@ class ModelManager {
   }
 
   /**
+   * Notify listeners that the model configuration has changed
+   */
+  private notify() {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(MODEL_CONFIG_UPDATED_EVENT));
+    }
+  }
+
+  /**
+   * Get the currently selected model ID from localStorage
+   * @returns The selected model ID or undefined
+   */
+  public getSelectedModelId(): string | undefined {
+    return LocalStorage.getInstance().getString(SELECTED_MODEL_ID_STORAGE_KEY) || undefined;
+  }
+
+  /**
+   * Save the selected model ID to localStorage
+   * @param modelId - The model ID to select
+   */
+  public setSelectedModelId(modelId: string): void {
+    LocalStorage.getInstance().setString(SELECTED_MODEL_ID_STORAGE_KEY, modelId);
+    this.notify();
+  }
+
+  /**
    * Get all model settings from localStorage
    * @returns Array of model settings
    */
   public getModelSettings(): ModelSetting[] {
-    return LocalStorage.getInstance().getAsJSON<ModelSetting[]>(
-      MODEL_SETTINGS_STORAGE_KEY,
-      () => []
-    );
+    return LocalStorage.getInstance().getAsJSON<ModelSetting[]>(MODEL_SETTINGS_STORAGE_KEY, () => []);
   }
 
   /**
@@ -37,6 +69,24 @@ class ModelManager {
    */
   public setModelSettings(settings: ModelSetting[]): void {
     LocalStorage.getInstance().setJSON(MODEL_SETTINGS_STORAGE_KEY, settings);
+    this.notify();
+  }
+
+  /**
+   * Get all provider settings from localStorage
+   * @returns Array of provider settings
+   */
+  public getProviderSettings(): ProviderSetting[] {
+    return LocalStorage.getInstance().getAsJSON<ProviderSetting[]>(PROVIDER_SETTINGS_STORAGE_KEY, () => []);
+  }
+
+  /**
+   * Save provider settings to localStorage
+   * @param settings - Array of provider settings to save
+   */
+  public setProviderSettings(settings: ProviderSetting[]): void {
+    LocalStorage.getInstance().setJSON(PROVIDER_SETTINGS_STORAGE_KEY, settings);
+    this.notify();
   }
 
   /**
@@ -54,25 +104,47 @@ class ModelManager {
    * @param modelId - The model ID to update
    * @param updates - Partial updates to apply
    */
-  public updateModelSetting(modelId: string, updates: Partial<Omit<ModelSetting, 'modelId'>>): void {
+  public updateModelSetting(modelId: string, updates: Partial<Omit<ModelSetting, "modelId">>): void {
     const settings = this.getModelSettings();
     const index = settings.findIndex((s) => s.modelId === modelId);
-    
+
     if (index >= 0) {
       settings[index] = { ...settings[index], ...updates };
     } else {
       // If model doesn't exist, create a new one
       settings.push({
         modelId,
-        provider: '',
+        provider: "",
         disabled: false,
         free: false,
-        apiKey: '',
         ...updates,
       });
     }
-    
+
     this.setModelSettings(settings);
+  }
+
+  /**
+   * Update a specific provider setting
+   * @param provider - The provider name to update
+   * @param updates - Partial updates to apply
+   */
+  public updateProviderSetting(provider: string, updates: Partial<Omit<ProviderSetting, "provider">>): void {
+    const settings = this.getProviderSettings();
+    const index = settings.findIndex((s) => s.provider === provider);
+
+    if (index >= 0) {
+      settings[index] = { ...settings[index], ...updates };
+    } else {
+      // If provider doesn't exist, create a new one
+      settings.push({
+        provider,
+        apiKey: "",
+        ...updates,
+      });
+    }
+
+    this.setProviderSettings(settings);
   }
 
   /**
@@ -84,7 +156,39 @@ class ModelManager {
     const filtered = settings.filter((s) => s.modelId !== modelId);
     this.setModelSettings(filtered);
   }
+
+  /**
+   * Get all available models that are enabled and have an API key configured.
+   * Includes a special 'Auto' model representing the server-side default.
+   * @returns Array of available models
+   */
+  public getAvailableModels(): ModelProps[] {
+    const modelSettings = this.getModelSettings();
+    const providerSettings = this.getProviderSettings();
+
+    const userModels = MODELS.filter((model) => {
+      // Filter out models that are disabled in settings
+      const setting = modelSettings.find((s) => s.modelId === model.modelId && s.provider === model.provider);
+      if (setting ? setting.disabled : model.disabled) return false;
+
+      // Filter out models whose provider doesn't have an API key
+      const providerSetting = providerSettings.find((p) => p.provider === model.provider);
+      if (!providerSetting?.apiKey) return false;
+
+      return true;
+    });
+
+    // Add the special 'Auto' model at the beginning
+    const autoModel: ModelProps = {
+      provider: "System",
+      modelId: "Auto",
+      description: `Use the server-side default model configuration. 
+Rate limit on request/token will apply.
+If you have your API keys, you can configure your models in the settings.`,
+    };
+
+    return [autoModel, ...userModels];
+  }
 }
 
 export { ModelManager };
-

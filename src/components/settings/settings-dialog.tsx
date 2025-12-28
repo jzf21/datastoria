@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -7,22 +8,32 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { QueryContextEdit } from "./query-context-edit";
 import { ModelsEdit } from "./models-edit";
+import { QueryContextEdit } from "./query-context-edit";
 
 type SettingsSection = "query-context" | "models";
 
 export interface ShowSettingsDialogOptions {
+  initialSection?: SettingsSection;
   onCancel?: () => void;
 }
 
-function SettingsDialogWrapper({ onCancel }: { onCancel?: () => void }) {
-  const [activeSection, setActiveSection] = useState<SettingsSection>("query-context");
+function SettingsDialogWrapper({
+  onCancel,
+  initialSection = "query-context",
+}: {
+  onCancel?: () => void;
+  initialSection?: SettingsSection;
+}) {
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
 
   const handleClose = useCallback(() => {
     if (onCancel) {
@@ -54,18 +65,54 @@ function SettingsDialogWrapper({ onCancel }: { onCancel?: () => void }) {
               <SidebarGroup>
                 <SidebarGroupLabel>Settings</SidebarGroupLabel>
                 <SidebarMenu>
+                  {/* SQL Section */}
                   <SidebarMenuItem>
-                    <SidebarMenuButton
-                      onClick={() => setActiveSection("query-context")}
-                      isActive={activeSection === "query-context"}
-                    >
-                      Query Context
-                    </SidebarMenuButton>
+                    <Collapsible defaultOpen className="group/collapsible">
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton>
+                          <ChevronRight className="transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                          <span>SQL</span>
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton
+                              className="cursor-pointer"
+                              onClick={() => setActiveSection("query-context")}
+                              isActive={activeSection === "query-context"}
+                            >
+                              <span>Query Context</span>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </SidebarMenuItem>
+
+                  {/* AI Section */}
                   <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => setActiveSection("models")} isActive={activeSection === "models"}>
-                      Models
-                    </SidebarMenuButton>
+                    <Collapsible defaultOpen className="group/collapsible">
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton>
+                          <ChevronRight className="transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                          <span>AI</span>
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton
+                              className="cursor-pointer"
+                              onClick={() => setActiveSection("models")}
+                              isActive={activeSection === "models"}
+                            >
+                              <span>Models</span>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroup>
@@ -76,10 +123,15 @@ function SettingsDialogWrapper({ onCancel }: { onCancel?: () => void }) {
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex-shrink-0 border-b px-4 py-2 flex items-center justify-between">
-              <div className="text-sm ">
-                {activeSection === "query-context"
-                  ? "Configure query execution settings and parameters."
-                  : "Configure AI model settings and API keys."}
+              <div className="flex flex-col">
+                <div className="text-sm">
+                  {activeSection === "query-context"
+                    ? "Configure query execution settings and parameters."
+                    : "Configure AI model settings and API keys."}
+                </div>
+                {activeSection === "models" && (
+                  <div className="text-[11px] text-muted-foreground">API keys are only stored at your client side.</div>
+                )}
               </div>
               <Button variant="ghost" size="icon" onClick={handleClose} className="h-8 w-8">
                 <X className="h-4 w-4" />
@@ -99,7 +151,7 @@ function SettingsDialogWrapper({ onCancel }: { onCancel?: () => void }) {
 }
 
 export function showSettingsDialog(options: ShowSettingsDialogOptions = {}) {
-  const { onCancel } = options;
+  const { onCancel, initialSection } = options;
 
   // Create a container div to mount the full-screen component
   const container = document.createElement("div");
@@ -120,5 +172,5 @@ export function showSettingsDialog(options: ShowSettingsDialogOptions = {}) {
   };
 
   // Render the full-screen component
-  root.render(<SettingsDialogWrapper onCancel={cleanup} />);
+  root.render(<SettingsDialogWrapper onCancel={cleanup} initialSection={initialSection} />);
 }

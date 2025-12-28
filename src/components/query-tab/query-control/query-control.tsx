@@ -12,12 +12,22 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toastManager } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { AlertCircle, ChevronDown, Database, Info, MessageSquarePlus, Play, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronDown,
+  Database,
+  Info,
+  MessageSquare,
+  MessageSquarePlus,
+  Play,
+  Sparkles,
+} from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import { QueryExecutor } from "../query-execution/query-executor";
 import { useQueryInput } from "../query-input/use-query-input";
 import type { ChatSessionStats } from "../query-list-view";
 import { ChatSessionStatus } from "./chat-session-status";
+import { ModelSelector } from "./model-selector";
 
 interface NewConversationButtonProps {
   onNewConversation?: () => void;
@@ -49,7 +59,13 @@ const NewConversationButton = memo(function NewConversationButton({ onNewConvers
             <div className="font-semibold text-sm mb-1">Start New Conversation</div>
             <div className="text-xs mb-3">Are you sure you want to start a new conversation?</div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowConfirm(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setShowConfirm(false)}
+              >
                 Cancel
               </Button>
               <Button type="button" variant="default" size="sm" className="h-7 text-xs" onClick={handleConfirm}>
@@ -194,7 +210,7 @@ export function QueryControl({
           variant="ghost"
           className={`h-6 gap-1 px-2 text-xs`}
         >
-          {mode === "sql" ? <Play className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+          {mode === "sql" ? <Play className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
           {mode === "sql"
             ? selectedText
               ? "Run Selected SQL(Cmd+Enter)"
@@ -203,6 +219,13 @@ export function QueryControl({
         </Button>
 
         <Separator orientation="vertical" className="h-4" />
+
+        {mode === "chat" && (
+          <>
+            <ModelSelector />
+            <Separator orientation="vertical" className="h-4" />
+          </>
+        )}
 
         {mode === "chat" && sessionStats && sessionStats.messageCount > 0 && (
           <>

@@ -3,6 +3,8 @@ import { SERVER_TOOL_NAMES } from "@/lib/ai/server-tools";
 import type { AppUIMessage } from "@/lib/ai/common-types";
 import { Connection } from "@/lib/connection/connection";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
+import { ModelManager } from "@/lib/models/model-manager";
+import { MODELS } from "@/lib/ai/llm-provider-factory";
 import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { v7 as uuidv7 } from "uuid";
@@ -59,6 +61,28 @@ import type { DatabaseContext, Message } from "./types";
  * }))
  * ```
  */
+
+/**
+ * Get the current model configuration based on user settings
+ */
+function getCurrentModelConfig(): { provider: string; modelId: string; apiKey: string } | undefined {
+  const modelManager = ModelManager.getInstance();
+  const selectedModelId = modelManager.getSelectedModelId();
+  if (!selectedModelId) return undefined;
+
+  const modelProps = MODELS.find((m) => m.modelId === selectedModelId);
+  if (!modelProps) return undefined;
+
+  const providerSettings = modelManager.getProviderSettings();
+  const providerSetting = providerSettings.find((p) => p.provider === modelProps.provider);
+  if (!providerSetting?.apiKey) return undefined;
+
+  return {
+    provider: modelProps.provider,
+    modelId: modelProps.modelId,
+    apiKey: providerSetting.apiKey,
+  };
+}
 
 // Cache chat instances to avoid recreating them
 const chatsMap = new Map<string, Chat<AppUIMessage>>();
@@ -147,78 +171,63 @@ export async function createChat(options?: {
     // Configure custom API endpoint with message filtering by sessionId
     transport: new DefaultChatTransport({
       api: apiEndpoint,
-      prepareSendMessagesRequest: getCurrentSessionId
-        ? ({ messages, trigger, messageId, body, headers, credentials }) => {
-            // Filter messages to only include those from the current session
-            const currentSessionId = getCurrentSessionId();
-            if (!currentSessionId) {
-              // If no sessionId, send all messages (fallback behavior)
-              return {
-                body: {
-                  ...body,
-                  messages,
-                  trigger,
-                  messageId,
-                },
-                headers,
-                credentials,
-              };
-            }
+      prepareSendMessagesRequest: ({ messages, trigger, messageId, body, headers, credentials }) => {
+        // Get current model config dynamically if not provided in options
+        const currentModel = modelConfig || getCurrentModelConfig();
 
-            // Filter messages by sessionId
-            // Messages without sessionId metadata will be excluded from new sessions
-            const filteredMessages = messages.filter((msg) => {
-              // Try to get sessionId from message metadata first
-              let msgSessionId = (msg as { sessionId?: string }).sessionId;
+        // Filter messages to only include those from the current session
+        const currentSessionId = getCurrentSessionId?.();
+        if (!currentSessionId) {
+          // If no sessionId, send all messages (fallback behavior)
+          return {
+            body: {
+              ...body,
+              messages,
+              trigger,
+              messageId,
+              ...(options?.user && { user: options.user }),
+              ...(contextBuilder?.() && { context: contextBuilder() }),
+              ...(currentModel && { model: currentModel }),
+            },
+            headers,
+            credentials,
+          };
+        }
 
-              // If not found in metadata, try to look it up by message ID
-              if (!msgSessionId && getMessageSessionId) {
-                msgSessionId = getMessageSessionId(msg.id);
-              }
+        // Filter messages by sessionId
+        // Messages without sessionId metadata will be excluded from new sessions
+        const filteredMessages = messages.filter((msg) => {
+          // Try to get sessionId from message metadata first
+          let msgSessionId = (msg as { sessionId?: string }).sessionId;
 
-              // Include message if it has the current sessionId
-              // For new conversations, we only want messages with the current sessionId
-              return msgSessionId === currentSessionId;
-            });
-
-            // Get context from context builder and ensure clickHouseUser is included
-            const currentContext = contextBuilder?.();
-            const contextWithUser = currentContext ? { ...currentContext } : undefined;
-
-            return {
-              body: {
-                ...body,
-                messages: filteredMessages,
-                trigger,
-                messageId,
-                ...(options?.user && { user: options.user }),
-                ...(contextWithUser && { context: contextWithUser }),
-                ...(modelConfig && { model: modelConfig }),
-              },
-              headers,
-              credentials,
-            };
+          // If not found in metadata, try to look it up by message ID
+          if (!msgSessionId && getMessageSessionId) {
+            msgSessionId = getMessageSessionId(msg.id);
           }
-        : ({ messages, trigger, messageId, body, headers, credentials }) => {
-            // Fallback when no sessionId filtering is needed
-            // Get context from context builder and ensure clickHouseUser is included
-            const currentContext = contextBuilder?.();
-            const contextWithUser = currentContext ? { ...currentContext } : undefined;
 
-            return {
-              body: {
-                ...body,
-                messages,
-                trigger,
-                messageId,
-                ...(options?.user && { user: options.user }),
-                ...(contextWithUser && { context: contextWithUser }),
-                ...(modelConfig && { model: modelConfig }),
-              },
-              headers,
-              credentials,
-            };
+          // Include message if it has the current sessionId
+          // For new conversations, we only want messages with the current sessionId
+          return msgSessionId === currentSessionId;
+        });
+
+        // Get context from context builder and ensure clickHouseUser is included
+        const currentContext = contextBuilder?.();
+        const contextWithUser = currentContext ? { ...currentContext } : undefined;
+
+        return {
+          body: {
+            ...body,
+            messages: filteredMessages,
+            trigger,
+            messageId,
+            ...(options?.user && { user: options.user }),
+            ...(contextWithUser && { context: contextWithUser }),
+            ...(currentModel && { model: currentModel }),
           },
+          headers,
+          credentials,
+        };
+      },
     }),
 
     // Initial messages from storage
