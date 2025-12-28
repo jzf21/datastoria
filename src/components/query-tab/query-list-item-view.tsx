@@ -252,7 +252,7 @@ export function QueryListItemView({
     >
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
-        <h4 className="text-sm font-semibold">{timestamp}</h4>
+        <h4 className="text-sm font-semibold text-muted-foreground">{timestamp}</h4>
         {!isExecuting && onQueryDelete && (
           <Button
             ref={deleteButtonRef}

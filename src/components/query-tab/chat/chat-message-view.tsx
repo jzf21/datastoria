@@ -120,7 +120,8 @@ export const ChatMessageView = memo(function ChatMessageView({
   return (
     <div
       className={cn(
-        "py-3 border-l-4 transition-colors",
+        "border-l-4 transition-colors",
+        isUser ? "pt-3" : "py-1",
         // Add border as separator, the SAME style as it's in the query-list-item-view.tsx
         isUser && !isFirst ? "border-t" : ""
       )}
@@ -129,9 +130,12 @@ export const ChatMessageView = memo(function ChatMessageView({
       <div className="pl-2 py-1">
         {/* Timestamp above profile for user messages - reserve space for alignment */}
         {isUser && message.timestamp && (
-          <div className="text-[10px] text-muted-foreground font-medium whitespace-nowrap pl-1">
+          // <div className="text-[10px] text-muted-foreground font-medium whitespace-nowrap pl-1">
+          //   {DateTimeExtension.toYYYYMMddHHmmss(new Date(message.timestamp))}
+          // </div>
+          <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
             {DateTimeExtension.toYYYYMMddHHmmss(new Date(message.timestamp))}
-          </div>
+          </h4>
         )}
 
         {/* Profile and message row - aligned at top */}
