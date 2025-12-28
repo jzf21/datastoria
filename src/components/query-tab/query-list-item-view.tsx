@@ -13,7 +13,7 @@ import { QueryResponseView } from "./query-response/query-response-view";
 import type { QueryResponseViewModel, QueryViewProps } from "./query-view-model";
 
 interface QueryListItemViewProps extends QueryViewProps {
-  isLast?: boolean;
+  isFirst?: boolean;
   onExecutionStateChange?: (queryId: string, isExecuting: boolean) => void;
 }
 
@@ -22,7 +22,7 @@ export function QueryListItemView({
   view,
   queryRequest,
   viewArgs,
-  isLast,
+  isFirst,
   onExecutionStateChange,
 }: QueryListItemViewProps) {
   const { connection } = useConnection();
@@ -61,7 +61,6 @@ export function QueryListItemView({
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
-
     // Use JSON format for dependency view, TabSeparated for others
     // But if params are provided in viewArgs, use those instead (they override defaults)
     const defaultFormat = view === "dependency" ? "JSON" : "TabSeparated";
@@ -71,18 +70,15 @@ export function QueryListItemView({
     const params = viewArgs?.params
       ? { ...viewArgs.params, query_id: viewArgs.params.query_id ?? queryRequest.queryId }
       : {
-        query_id: queryRequest.queryId,
-        default_format: defaultFormat,
-        output_format_json_quote_64bit_integers: view === "dependency" ? 0 : undefined,
-      };
+          query_id: queryRequest.queryId,
+          default_format: defaultFormat,
+          output_format_json_quote_64bit_integers: view === "dependency" ? 0 : undefined,
+        };
 
     // Execute query asynchronously
     (async () => {
       try {
-        const { response, abortController: apiAbortController } = connection.query(
-          queryRequest.sql,
-          params
-        );
+        const { response, abortController: apiAbortController } = connection.query(queryRequest.sql, params);
 
         // Update the abort controller reference
         abortControllerRef.current = apiAbortController;
@@ -127,7 +123,7 @@ export function QueryListItemView({
 
         if (view === "dependency") {
           // Dependency view data logic if applicable
-        } else if (typeof responseData === 'string') {
+        } else if (typeof responseData === "string") {
           // Basic TAB separated parsing or specific format parsing could happen here
           // For now, we trust the ChatExecutor context builder to handle raw strings or
           // we implement a basic parser if needed.
@@ -250,7 +246,7 @@ export function QueryListItemView({
 
   return (
     <div
-      className={`pl-2 pt-1 pb-4 mb-4 ${isLast ? "" : "border-b"}`}
+      className={`pl-2 py-3 ${isFirst ? "" : "border-t"}`}
       onMouseEnter={() => setShowDelete(true)}
       onMouseLeave={() => setShowDelete(false)}
     >
@@ -296,10 +292,7 @@ export function QueryListItemView({
       {/* Query Status */}
       <div ref={scrollPlaceholderRef} className="flex flex-col mt-1">
         {queryResponse && (queryResponse.queryId || queryRequest.queryId) && (
-          <QueryIdButton
-            queryId={queryResponse.queryId || queryRequest.queryId}
-            traceId={queryRequest.traceId}
-          />
+          <QueryIdButton queryId={queryResponse.queryId || queryRequest.queryId} traceId={queryRequest.traceId} />
         )}
         {/* <div className="text-xs text-muted-foreground">Request Server: {queryRequest.requestServer}</div> */}
         {queryResponse?.httpHeaders?.["x-clickhouse-server-display-name"] && (
@@ -327,7 +320,6 @@ export function QueryListItemView({
           )}
         </div>
       </div>
-
     </div>
   );
 }

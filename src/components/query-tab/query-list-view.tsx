@@ -593,7 +593,7 @@ function QueryListViewContent({
                       key={msg.id}
                       {...msg}
                       onQueryDelete={handleQueryDelete}
-                      isLast={index === mergedMessageList.length - 1}
+                      isFirst={index === 0}
                       onExecutionStateChange={(qid, isExec) => {
                         if (isExec) executingQueriesRef.current.add(qid);
                         else executingQueriesRef.current.delete(qid);
