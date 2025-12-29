@@ -48,6 +48,8 @@ export interface ConnectionMetadata {
   databaseNames?: Map<string, DatabaseInfo>;
 }
 
+const USER_CANCELLED_ERROR_MESSAGE = "User cancelled";
+
 export class Connection {
   // Static config
   readonly name: string;
@@ -106,9 +108,7 @@ export class Connection {
   ): { response: Promise<QueryResponse>; abortController: AbortController } {
     // Validate connection is properly initialized
     if (!this.host || !this.path) {
-      throw new QueryError(
-        `Connection not properly initialized. Host: ${this.host}, Path: ${this.path}`
-      );
+      throw new QueryError(`Connection not properly initialized. Host: ${this.host}, Path: ${this.path}`);
     }
 
     if (this.cluster && this.cluster.length > 0 && sql.includes("{cluster}")) {
@@ -178,7 +178,7 @@ export class Connection {
     const combined = new AbortController();
     abortController.signal.addEventListener("abort", () => {
       // Always set reason before aborting
-      const reason = "user_cancelled";
+      const reason = USER_CANCELLED_ERROR_MESSAGE;
       abortReason = reason;
       abortWithReason(combined, reason);
     });
@@ -194,7 +194,7 @@ export class Connection {
         const fetchUrl = url.toString();
 
         // Validate URL before making request
-        if (!fetchUrl || !(fetchUrl.startsWith('http://') || fetchUrl.startsWith('https://'))) {
+        if (!fetchUrl || !(fetchUrl.startsWith("http://") || fetchUrl.startsWith("https://"))) {
           throw new QueryError(`Invalid URL: ${fetchUrl}. Connection may not be properly initialized.`);
         }
 
@@ -265,7 +265,7 @@ export class Connection {
           if (isTimeout) {
             reason = "timeout";
           } else if (isUserCancelled) {
-            reason = "user_cancelled";
+            reason = USER_CANCELLED_ERROR_MESSAGE;
           } else {
             // Fallback to tracked reason or check signal reason if available
             reason = abortReason || (combined.signal as { reason?: string }).reason || "unknown";
@@ -283,7 +283,7 @@ export class Connection {
           if (reason === "timeout" || isTimeout) {
             throw new QueryError(`${timeout / 1000}s timeout to wait for response from ClickHouse server.`);
           }
-          if (reason === "user_cancelled" || isUserCancelled) {
+          if (reason === USER_CANCELLED_ERROR_MESSAGE || isUserCancelled) {
             throw new QueryError("Request was cancelled by user");
           }
 
@@ -298,11 +298,16 @@ export class Connection {
           throw new QueryError(errorMsg);
         }
 
+        if (error === USER_CANCELLED_ERROR_MESSAGE) {
+          throw new QueryError(error as string);
+        }
+
         // Re-throw as QueryError-like error
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         if (errorMessage === "Failed to fetch") {
           // This could be CORS, network error, or invalid URL
-          const errorDetails = `Failed to connect to ${this.host}${this.path}. \n` +
+          const errorDetails =
+            `Failed to connect to ${this.host}${this.path}. \n` +
             `Possible causes: CORS issue, network error, or invalid server URL. ` +
             `Please check the connection configuration and ensure the server allows requests from this origin.`;
           throw new QueryError(errorDetails);

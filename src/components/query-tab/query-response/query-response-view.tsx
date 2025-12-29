@@ -97,7 +97,7 @@ export function ApiErrorView({ error, sql }: { error: QueryErrorDisplay; sql?: s
   );
 
   return (
-    <Alert variant="destructive" className="border-0 p-3 text-yellow-900 dark:text-yellow-600">
+    <Alert variant="destructive" className="border-0 p-1 text-yellow-900 dark:text-yellow-600">
       <div className="flex items-center gap-2">
         <AlertCircleIcon />
         <AlertTitle>{error.message}</AlertTitle>
@@ -138,7 +138,13 @@ export function ApiErrorView({ error, sql }: { error: QueryErrorDisplay; sql?: s
   );
 }
 
-export function QueryResponseView({ queryResponse, queryRequest, isLoading = false, sql, view = "query" }: QueryResponseViewProps) {
+export function QueryResponseView({
+  queryResponse,
+  queryRequest,
+  isLoading = false,
+  sql,
+  view = "query",
+}: QueryResponseViewProps) {
   const [selectedTab, setSelectedTab] = useState("result");
 
   // Memoize error object creation
@@ -147,16 +153,17 @@ export function QueryResponseView({ queryResponse, queryRequest, isLoading = fal
       queryResponse.message === null
         ? undefined
         : {
-          message: queryResponse.message as string,
-          data: queryResponse.data,
-          httpHeaders: queryResponse.httpHeaders,
-        },
+            message: queryResponse.message as string,
+            data: queryResponse.data,
+            httpHeaders: queryResponse.httpHeaders,
+          },
     [queryResponse.message, queryResponse.data, queryResponse.httpHeaders]
   );
 
   // Memoize response text computation
   const responseText = useMemo(
-    () => (typeof queryResponse.data === "string" ? queryResponse.data : (JSON.stringify(queryResponse.data, null, 2) || "")),
+    () =>
+      typeof queryResponse.data === "string" ? queryResponse.data : JSON.stringify(queryResponse.data, null, 2) || "",
     [queryResponse.data]
   );
 

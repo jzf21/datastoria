@@ -2,11 +2,12 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { type QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
+import { Formatter } from "@/lib/formatter";
 import { format } from "date-fns";
-import { ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { QueryExecutor } from "./query-execution/query-executor";
+import { ChevronDown, ChevronUp, Square, X } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
 import { QueryExecutionTimer } from "./query-execution-timer";
+import { QueryExecutor } from "./query-execution/query-executor";
 import { QueryIdButton } from "./query-id-button";
 import { QueryRequestView } from "./query-request-view";
 import { QueryResponseView } from "./query-response/query-response-view";
@@ -16,6 +17,34 @@ interface QueryListItemViewProps extends QueryViewProps {
   isFirst?: boolean;
   onExecutionStateChange?: (queryId: string, isExecuting: boolean) => void;
 }
+
+const QuerySummary = memo(({ summaryText }: { summaryText: string | undefined }) => {
+  if (!summaryText) {
+    return null;
+  }
+
+  try {
+    const summary = JSON.parse(summaryText);
+    const parts: string[] = [];
+    Object.entries(summary).forEach(([key, value]) => {
+      const numValue = typeof value === "number" ? value : Number(value);
+      if (!isNaN(numValue) && numValue !== 0) {
+        const formattedKey = key.replace(/_/g, " ");
+        const formattedValue = Formatter.getInstance().getFormatter("comma_number")(numValue);
+        parts.push(`${formattedKey}: ${formattedValue}`);
+      }
+    });
+    return parts.length > 0 ? (
+      <div className="text-xs text-muted-foreground">
+        <span>Summary: {parts.join(", ")}</span>
+      </div>
+    ) : null;
+  } catch {
+    return null;
+  }
+});
+
+QuerySummary.displayName = "QuerySummary";
 
 export function QueryListItemView({
   onQueryDelete,
@@ -114,13 +143,6 @@ export function QueryListItemView({
         onExecutionStateChange?.(queryRequest.uuid, false);
         abortControllerRef.current = null;
 
-        // Broadcast success event
-        // Attempt to parse columns and row count if data is in a structured format
-        // This is a simplified extraction relative to the full data shape knowledge
-        let columns: string[] = [];
-        let rowCount = 0;
-        let sampleData: any[][] = [];
-
         if (view === "dependency") {
           // Dependency view data logic if applicable
         } else if (typeof responseData === "string") {
@@ -141,43 +163,34 @@ export function QueryListItemView({
           sampleData: [], // Placeholder, will be enhanced if we parse `data`
         });
       } catch (error) {
-        // Check if request was aborted
-        if (abortControllerRef.current?.signal.aborted) {
-          // Cancellation - don't update state here, let cleanup handle it
-          // This prevents the loader from flickering in StrictMode
-          abortControllerRef.current = null;
-          hasExecutedRef.current = null;
-          return;
-        }
-
         // Only set error response if it's not a cancellation
         const apiError = error as QueryError;
-        if (
-          apiError.message &&
-          !apiError.message.toLowerCase().includes("cancel") &&
-          !apiError.message.toLowerCase().includes("abort")
-        ) {
-          const queryResponse: QueryResponseViewModel = {
-            formatter: viewArgs?.formatter,
-            displayFormat: viewArgs?.displayFormat || "text",
-            queryId: queryRequest.queryId,
-            traceId: queryRequest.traceId,
-            message: apiError.message || "Unknown error occurred",
-            httpStatus: apiError.httpStatus,
-            httpHeaders: apiError.httpHeaders,
-            data: apiError.data,
-          };
+        // if (
+        //   apiError.message &&
+        //   !apiError.message.toLowerCase().includes("cancel") &&
+        //   !apiError.message.toLowerCase().includes("abort")
+        // ) {
+        const queryResponse: QueryResponseViewModel = {
+          formatter: viewArgs?.formatter,
+          displayFormat: viewArgs?.displayFormat || "text",
+          queryId: queryRequest.queryId,
+          traceId: queryRequest.traceId,
+          message: apiError.message || "Unknown error occurred",
+          httpStatus: apiError.httpStatus,
+          httpHeaders: apiError.httpHeaders,
+          data: apiError.data,
+        };
 
-          setQueryResponse(queryResponse);
-          setIsExecuting(false);
-          onExecutionStateChange?.(queryRequest.uuid, false);
-          abortControllerRef.current = null;
-        } else {
-          // Cancellation - don't update state here, let cleanup handle it
-          // This prevents the loader from flickering in StrictMode
-          abortControllerRef.current = null;
-          hasExecutedRef.current = null;
-        }
+        setQueryResponse(queryResponse);
+        setIsExecuting(false);
+        onExecutionStateChange?.(queryRequest.uuid, false);
+        abortControllerRef.current = null;
+        // } else {
+        //   // Cancellation - don't update state here, let cleanup handle it
+        //   // This prevents the loader from flickering in StrictMode
+        //   abortControllerRef.current = null;
+        //   hasExecutedRef.current = null;
+        // }
       }
     })();
 
@@ -279,18 +292,27 @@ export function QueryListItemView({
         />
       )}
 
-      {isExecuting && (
-        <div className="flex items-center gap-2 mt-2 mb-2">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            Executing query...
-            <QueryExecutionTimer isExecuting={isExecuting} />
-          </span>
-        </div>
-      )}
+      <div className="flex items-center gap-2 mt-1">
+        <QueryExecutionTimer isExecuting={isExecuting} />
+        {isExecuting && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs rounded-sm text-destructive"
+            onClick={() => {
+              // Abort the request - the error handler will pick up the flag
+              if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+              }
+            }}
+          >
+            <Square className="!h-3 !w-3" /> Click to cancel execution
+          </Button>
+        )}
+      </div>
 
       {/* Query Status */}
-      <div ref={scrollPlaceholderRef} className="flex flex-col mt-1">
+      <div ref={scrollPlaceholderRef} className="flex flex-col">
         {queryResponse && (queryResponse.queryId || queryRequest.queryId) && (
           <QueryIdButton queryId={queryResponse.queryId || queryRequest.queryId} traceId={queryRequest.traceId} />
         )}
@@ -300,25 +322,7 @@ export function QueryListItemView({
             Response Server: {queryResponse.httpHeaders["x-clickhouse-server-display-name"]}
           </div>
         )}
-        <div className="text-xs text-muted-foreground">
-          {queryResponse?.httpHeaders?.["x-clickhouse-summary"] && (
-            <span>
-              {(() => {
-                try {
-                  const summary = JSON.parse(queryResponse.httpHeaders["x-clickhouse-summary"]);
-                  const parts: string[] = [];
-                  if (summary.read_rows > 0) parts.push(`Read rows: ${summary.read_rows}`);
-                  if (summary.read_bytes > 0) parts.push(`Read bytes: ${summary.read_bytes}`);
-                  if (summary.written_rows > 0) parts.push(`Written rows: ${summary.written_rows}`);
-                  if (summary.written_bytes > 0) parts.push(`Written bytes: ${summary.written_bytes}`);
-                  return parts.length > 0 ? `${parts.join(", ")}` : "";
-                } catch {
-                  return "";
-                }
-              })()}
-            </span>
-          )}
-        </div>
+        <QuerySummary summaryText={queryResponse?.httpHeaders?.["x-clickhouse-summary"]} />
       </div>
     </div>
   );
