@@ -121,9 +121,6 @@ export async function createChat(options?: {
   databaseId?: string;
   skipStorage?: boolean;
   apiEndpoint?: string;
-  user?: {
-    id?: string | null;
-  };
   getCurrentSessionId?: () => string | undefined;
   getMessageSessionId?: (messageId: string) => string | undefined;
   model?: {
@@ -185,7 +182,6 @@ export async function createChat(options?: {
               messages,
               trigger,
               messageId,
-              ...(options?.user && { user: options.user }),
               ...(contextBuilder?.() && { context: contextBuilder() }),
               ...(currentModel && { model: currentModel }),
             },
@@ -220,7 +216,6 @@ export async function createChat(options?: {
             messages: filteredMessages,
             trigger,
             messageId,
-            ...(options?.user && { user: options.user }),
             ...(contextWithUser && { context: contextWithUser }),
             ...(currentModel && { model: currentModel }),
           },

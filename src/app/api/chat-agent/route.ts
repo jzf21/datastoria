@@ -6,6 +6,7 @@ import type { DatabaseContext } from "@/lib/chat/types";
 import { APICallError } from "@ai-sdk/provider";
 import { convertToModelMessages, RetryError, streamText } from "ai";
 import { v7 as uuidv7 } from "uuid";
+import { auth } from "@/auth";
 
 // Force dynamic rendering (no static generation)
 export const dynamic = "force-dynamic";
@@ -17,9 +18,6 @@ export const maxDuration = 60; // 60 seconds timeout
 interface ChatAgentRequest {
   messages?: unknown[];
   context?: DatabaseContext;
-  user?: {
-    id?: string | null;
-  };
   model?: {
     provider: string;
     modelId: string;
@@ -116,6 +114,17 @@ function extractErrorMessage(error: unknown): string {
  */
 export async function POST(req: Request) {
   try {
+    // Get user ID from next-auth session cookie
+    let userId: string | undefined;
+    try {
+      const session = await auth();
+      // Extract user ID from session (email is stored in token subject)
+      userId = session?.user?.email || undefined;
+    } catch (error) {
+      // If auth is not enabled or session is invalid, userId will be undefined
+      console.log("Could not get user from session:", error);
+    }
+
     // Parse request body with size validation
     let apiRequest: ChatAgentRequest;
     try {

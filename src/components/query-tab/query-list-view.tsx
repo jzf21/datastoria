@@ -7,7 +7,6 @@ import { toastManager } from "@/lib/toast";
 import type { Chat } from "@ai-sdk/react";
 import { useChat } from "@ai-sdk/react";
 import { Loader2, Trash2 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuid } from "uuid";
 import { ChatMessageView } from "./chat/chat-message-view";
@@ -636,7 +635,6 @@ function QueryListViewContent({
 }
 
 export function QueryListView(props: QueryListViewProps) {
-  const { data: session } = useSession();
   const [chatInstance, setChatInstance] = useState<Chat<AppUIMessage> | null>(null);
   // Use a ref to store currentSessionId so the getter function always has the latest value
   const currentSessionIdRef = useRef<string | undefined>(props.currentSessionId);
@@ -664,11 +662,6 @@ export function QueryListView(props: QueryListViewProps) {
         const chat = await createChat({
           id,
           skipStorage: false,
-          user: session?.user?.email
-            ? {
-                id: session.user.email,
-              }
-            : undefined,
           getCurrentSessionId: () => currentSessionIdRef.current,
           getMessageSessionId: (messageId: string) => messageIdToSessionIdRef.current.get(messageId),
         });

@@ -3,7 +3,6 @@ import type { AppUIMessage } from "@/lib/ai/common-types";
 import { createChat, setChatContextBuilder } from "@/lib/chat";
 import { ConnectionManager } from "@/lib/connection/connection-manager";
 import type { Chat } from "@ai-sdk/react";
-import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface ChatInstance {
@@ -20,7 +19,6 @@ export function useChatManager(
   chatList: Array<{ id: string; chatRequest: ChatRequestEventDetail }>,
   databaseId?: string
 ) {
-  const { data: session } = useSession();
   const [chatInstances, setChatInstances] = useState<Map<string, ChatInstance>>(new Map());
   const initializingRef = useRef<Set<string>>(new Set());
 
@@ -65,11 +63,6 @@ export function useChatManager(
             id: chatId,
             databaseId,
             skipStorage: true, // Skip storage for single-use chats
-            user: session?.user?.email
-              ? {
-                  id: session.user.email,
-                }
-              : undefined,
           });
 
           setChatInstances((prev) => {
