@@ -111,6 +111,11 @@ export class Connection {
       );
     }
 
+    if (this.cluster && this.cluster.length > 0 && sql.includes("{cluster}")) {
+      // Do replacement
+      sql = sql.replaceAll("{cluster}", this.cluster);
+    }
+
     const requestHeaders: Record<string, string> = headers || {};
 
     // Set default ClickHouse headers if not provided
