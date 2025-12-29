@@ -1,11 +1,11 @@
 import React from "react";
 import type {
-    PanelDescriptor,
-    PieDescriptor,
-    StatDescriptor,
-    TableDescriptor,
-    TimeseriesDescriptor,
-    TransposeTableDescriptor,
+  PanelDescriptor,
+  PieDescriptor,
+  StatDescriptor,
+  TableDescriptor,
+  TimeseriesDescriptor,
+  TransposeTableDescriptor,
 } from "./dashboard-model";
 import type { DashboardPanelComponent } from "./dashboard-panel-layout";
 import DashboardPanelPie from "./dashboard-panel-pie";
@@ -34,6 +34,11 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
   onRef,
   onCollapsedChange,
 }) => {
+  // Defensive check: ensure descriptor exists and has a type property
+  if (!descriptor || !descriptor.type) {
+    return <pre>Invalid descriptor: JSON.stringify(descriptor, null, 2)</pre>;
+  }
+
   if (descriptor.type === "stat") {
     return (
       <DashboardPanelStat
@@ -96,4 +101,3 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
 
   return null;
 };
-
