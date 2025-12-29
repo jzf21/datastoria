@@ -5,8 +5,13 @@ import type { PanelDescriptor, TableDescriptor, TimeseriesDescriptor } from "../
 import DashboardPanelTable from "../../shared/dashboard/dashboard-panel-table";
 import DashboardPanelTimeseries from "../../shared/dashboard/dashboard-panel-timeseries";
 import { CollapsiblePart } from "./collapsible-part";
+import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
 
-export const MessageToolGenerateVisualization = memo(function MessageToolGenerateVisualization({ part }: { part: AppUIMessage["parts"][0] }) {
+export const MessageToolGenerateVisualization = memo(function MessageToolGenerateVisualization({
+  part,
+}: {
+  part: AppUIMessage["parts"][0];
+}) {
   const toolPart = part as ToolPart & { output?: PanelDescriptor };
   const panelDescriptor = toolPart.output;
   const state = toolPart.state;
@@ -33,17 +38,9 @@ export const MessageToolGenerateVisualization = memo(function MessageToolGenerat
         state={state}
         defaultExpanded={false}
       ></CollapsiblePart>
-      {panelDescriptor?.type === "table" ? (
-        // The height is hard coded here, and in future we can optimize it
-        <div className="h-[300px]">
-          <DashboardPanelTable className="mt-1" descriptor={panelDescriptor as TableDescriptor} />
-        </div>
-      ) : panelDescriptor?.type === "line" || panelDescriptor?.type === "bar" || panelDescriptor?.type === "area" ? (
-        <div className="h-[300px]">
-          <DashboardPanelTimeseries className="mt-1" descriptor={panelDescriptor as TimeseriesDescriptor} />
-        </div>
-      ) : null}
+      <div className="h-[300px]">
+        <DashboardPanel descriptor={panelDescriptor as PanelDescriptor} />
+      </div>
     </>
   );
 });
-

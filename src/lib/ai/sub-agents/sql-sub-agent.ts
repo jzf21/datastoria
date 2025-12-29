@@ -14,7 +14,7 @@ import { sqlSubAgentOutputSchema, type SQLSubAgentInput, type SQLSubAgentOutput 
  */
 export async function sqlSubAgent(input: SQLSubAgentInput): Promise<SQLSubAgentOutput> {
   const { userQuestion, schemaHints, context, history, modelConfig } = input;
-  
+
   if (!modelConfig) {
     throw new Error("modelConfig is required for sqlSubAgent");
   }
@@ -23,7 +23,7 @@ export async function sqlSubAgent(input: SQLSubAgentInput): Promise<SQLSubAgentO
   const schemaContext = [];
   const database = schemaHints?.database || context?.database;
   const tables = schemaHints?.tables || context?.tables;
-  
+
   if (database) {
     schemaContext.push(`Current database: ${database}`);
   }
@@ -66,7 +66,7 @@ Consider this query when generating the new SQL.`
 
 ## Requirements
 - Generate ONLY valid ClickHouse SQL syntax
-- Always use LIMIT clauses (default: LIMIT 100)
+- Always use LIMIT clauses for SQL queries which will be executed to fetch data.
 - Use bounded time windows for time-series queries (e.g., last 24 hours, last 7 days)
 - For performance queries, use system tables: system.query_log, system.processes, system.metrics, etc.
 ${userContextSection}${currentQuerySection}
@@ -98,7 +98,7 @@ ${userContextSection}${currentQuerySection}
 ## Output Format
 1. Return ONLY valid JSON matching this schema:
 {
-  "sql": "SELECT ... FROM ... LIMIT 100",
+  "sql": "SELECT ... FROM ...",
   "notes": "Explanation of the query logic and what it returns",
   "assumptions": ["assumption 1", "assumption 2"],
   "needs_clarification": false,

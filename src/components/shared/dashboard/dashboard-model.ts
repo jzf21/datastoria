@@ -118,7 +118,7 @@ export interface GridPos {
 
 // Panel Descriptor base interface
 export interface PanelDescriptor {
-  type: string; // "line" | "bar" | "pie" | "scatter" | "heatmap" | "table" | "map" | "custom" | "stat"
+  type: string; // "line" | "bar" | "area" | "pie" | "scatter" | "heatmap" | "table" | "transpose-table" | "stat" | "custom"
 
   titleOption?: TitleOption;
 
@@ -298,6 +298,32 @@ export interface TimeseriesDescriptor extends PanelDescriptor {
   tooltipOption?: {
     sortValue: "asc" | "desc" | "none";
   };
+}
+
+// Pie Descriptor interface
+export interface PieDescriptor extends PanelDescriptor {
+  type: "pie";
+
+  // Field options as Map or Record, where key is the field name
+  // If not provided, all fields from data will be shown with default options
+  fieldOptions?: Map<string, FieldOption> | Record<string, FieldOption>;
+
+  // Legend configuration
+  legendOption?: {
+    // If not given, it defaults to the 'inside'. Use 'none' to hide the legend.
+    placement: "bottom" | "inside" | "right" | "none";
+  };
+
+  // Label configuration
+  labelOption?: {
+    // Show labels on the pie chart
+    show?: boolean;
+    // Label format: "name", "value", "percent", "name-value", "name-percent"
+    format?: "name" | "value" | "percent" | "name-value" | "name-percent";
+  };
+
+  // Value format for the pie chart
+  valueFormat?: FormatName;
 }
 
 export type DashboardFilter = {

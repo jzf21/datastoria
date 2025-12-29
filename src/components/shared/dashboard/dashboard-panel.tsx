@@ -1,12 +1,14 @@
 import React from "react";
 import type {
     PanelDescriptor,
+    PieDescriptor,
     StatDescriptor,
     TableDescriptor,
     TimeseriesDescriptor,
     TransposeTableDescriptor,
 } from "./dashboard-model";
 import type { DashboardPanelComponent } from "./dashboard-panel-layout";
+import DashboardPanelPie from "./dashboard-panel-pie";
 import DashboardPanelStat from "./dashboard-panel-stat";
 import DashboardPanelTable from "./dashboard-panel-table";
 import DashboardPanelTimeseries from "./dashboard-panel-timeseries";
@@ -73,6 +75,18 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
       <DashboardPanelTransposedTable
         ref={onRef}
         descriptor={descriptor as TransposeTableDescriptor}
+        selectedTimeSpan={selectedTimeSpan}
+        initialLoading={initialLoading}
+        onCollapsedChange={onCollapsedChange}
+      />
+    );
+  }
+
+  if (descriptor.type === "pie") {
+    return (
+      <DashboardPanelPie
+        ref={onRef}
+        descriptor={descriptor as PieDescriptor}
         selectedTimeSpan={selectedTimeSpan}
         initialLoading={initialLoading}
         onCollapsedChange={onCollapsedChange}

@@ -9,7 +9,7 @@ import { vizSubAgentOutputSchema, type VizSubAgentInput, type VizSubAgentOutput 
  */
 export async function vizSubAgent(input: VizSubAgentInput): Promise<VizSubAgentOutput> {
   const { userQuestion, sql, modelConfig } = input;
-  
+
   if (!modelConfig) {
     throw new Error("modelConfig is required for vizSubAgent");
   }
@@ -26,6 +26,7 @@ When legendOption.placement is "bottom" or "right", you MUST include a "values" 
 Examples:
 - "commits by day" → type: "line", placement: "none"
 - "commits by day and author" → type: "line", placement: "bottom", values: ["min", "max", "count", "sum"]
+- "query distribution by type" → type: "pie", placement: "right"
 
 ## Visualization Type Selection
 **Priority: Always prefer charts over tables when data has numeric metrics.**
@@ -39,32 +40,78 @@ Examples:
 - SQL groups by categories or discrete time periods
 - User says: "bar chart", "compare", "by category", "distribution"
 
+**"pie"** - Categorical distribution or composition
+- SQL groups by a single categorical dimension (status, type, category, region, etc.)
+- Shows proportions or percentages of a whole
+- User says: "pie chart", "distribution", "breakdown", "composition", "proportion", "share"
+- Query returns 2 columns: category name + numeric value (count/sum)
+- Best for 3-15 categories (not too few, not too many)
+- Examples:
+  * "query distribution by type" → pie chart
+  * "database size by table" → pie chart
+  * "error breakdown by code" → pie chart
+  * "traffic by region" → pie chart
+
 **"table"** - Only when charts don't fit
 - No numeric aggregations (SUM/COUNT/AVG)
 - User explicitly asks for "table" or "list"
 - More than 4-5 non-metric columns
 
 ## Legend Rules
-- Use "bottom": GROUP BY with non-time dimensions (status, category, region, etc.)
-- Use "none": Single metric or time-only grouping
+- **Line/Bar charts**: Use "bottom" for GROUP BY with non-time dimensions, "none" for single metric
+- **Pie charts**: Use "right" for many categories (>8), "bottom" for few categories (3-8), "inside" for very few (2-3)
 
+## Pie Chart Specific Rules
+When type is "pie":
+- legendOption.placement: "right" | "bottom" | "inside" (no "none" for pie)
+- legendOption.values: NOT NEEDED for pie charts (omit this field)
+- labelOption: Configure slice labels
+  * show: true (default, show labels on slices)
+  * format: "name-percent" (default), "name-value", "percent", "value", or "name"
+- valueFormat: Format for values in tooltips and labels
+  * "short_number" (default): 1.2K, 3.4M
+  * "comma_number": 1,234,567
+  * "binary_size": 1.2 KB, 3.4 MB (for bytes)
+  * "percentage": 25.5%
 
-## Output Format
+## Output Format Examples
+
+### Line/Bar Chart:
 {
-  "type": "line" | "bar" | "table",  // If user says "line chart", use "line" regardless of dimensions
+  "type": "line" | "bar",
   "titleOption": {
     "title": "Descriptive chart title",
-    "align": "center"  // Default to center
+    "align": "center"
   },
-  "width": 6,  // Default to half-width
+  "width": 6,
   "legendOption": {
-    "placement": "bottom" | "none",  // Use "bottom" when GROUP BY has dimensions
+    "placement": "bottom" | "none",
     "values": ["min", "max", "sum"]  // REQUIRED when placement="bottom"
   },
   "query": { "sql": "..." }
 }
 
-Legend values rules:
+### Pie Chart:
+{
+  "type": "pie",
+  "titleOption": {
+    "title": "Distribution by Category",
+    "align": "center"
+  },
+  "width": 6,
+  "legendOption": {
+    "placement": "right"  // or "bottom" or "inside"
+    // NO "values" field for pie charts
+  },
+  "labelOption": {
+    "show": true,
+    "format": "name-percent"  // or "name-value", "percent", "value", "name"
+  },
+  "valueFormat": "short_number",  // or "comma_number", "binary_size", etc.
+  "query": { "sql": "..." }
+}
+
+Legend values rules (for line/bar only):
 - Always include: ["min", "max"]
 - SUM() or COUNT() → add "sum"
 - AVG() → add "avg"
