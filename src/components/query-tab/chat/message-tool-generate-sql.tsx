@@ -12,18 +12,20 @@ export const MessageToolGenerateSql = memo(function GenerateSqlPart({ part }: { 
   return (
     <CollapsiblePart toolName={SERVER_TOOL_NAMES.GENERATE_SQL} state={state}>
       {output?.sql && (
-        <MessageMarkdownSql
-          code={output.sql}
-          showExecuteButton={false}
-          customStyle={{
-            margin: 0,
-            borderRadius: "0.375rem",
-            fontSize: "10px",
-          }}
-        />
+        <>
+          <div className="text-[10px] text-muted-foreground">output:</div>
+          <MessageMarkdownSql
+            code={output.sql}
+            showExecuteButton={false}
+            customStyle={{
+              marginLeft: "0.5rem",
+              borderRadius: "0.375rem",
+              fontSize: "10px",
+            }}
+          />
+        </>
       )}
       {output?.notes && <div className="text-xs text-muted-foreground leading-relaxed px-1">{output.notes}</div>}
     </CollapsiblePart>
   );
 });
-

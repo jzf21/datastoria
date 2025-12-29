@@ -5,7 +5,8 @@ import { SERVER_TOOL_NAMES } from "@/lib/ai/server-tools";
 import { colorGenerator } from "@/lib/color-generator";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { cn } from "@/lib/utils";
-import { Info, Sparkles } from "lucide-react";
+import NumberFlow from "@number-flow/react";
+import { Info, Loader2, Sparkles } from "lucide-react";
 import { memo } from "react";
 import type { ChatMessage } from "../query-list-view";
 import { ErrorMessageDisplay } from "./message-error";
@@ -22,33 +23,40 @@ import { MessageToolValidateSql } from "./message-tool-validate-sql";
 /**
  * Display token usage information per message
  */
-const TokenUsageDisplay = memo(function TokenUsageDisplay({ usage }: { usage: TokenUsage }) {
+const TokenUsageDisplay = memo(function TokenUsageDisplay({ id, usage }: { id: string; usage: TokenUsage }) {
+  const show =
+    usage.totalTokens > 0 ||
+    usage.inputTokens > 0 ||
+    usage.outputTokens > 0 ||
+    usage.reasoningTokens > 0 ||
+    usage.cachedInputTokens > 0;
+  if (!show) return null;
   return (
-    <div className="flex gap-1 items-center mt-1 gap-1 bg-muted/30 rounded-md text-[10px] text-muted-foreground">
+    <div data-message-id={id} className="flex gap-1 items-center mt-1 gap-1 bg-muted/30 rounded-md text-[10px] text-muted-foreground">
       <div className="flex-shrink-0 h-6 w-6 flex items-center justify-center">
         <Info className="h-3 w-3" />
       </div>
       <div className="flex items-center gap-1">
         <span className="font-medium">Tokens:</span>
-        <span className="">{usage.totalTokens.toLocaleString()}, </span>
+        <span className=""><NumberFlow value={usage.totalTokens} /></span>
 
-        <span className="font-medium">Input Tokens:</span>
-        <span className="">{usage.inputTokens.toLocaleString()}, </span>
+        <span className="font-medium">; Input Tokens:</span>
+        <span className=""><NumberFlow value={usage.inputTokens} /></span>
 
-        <span className="font-medium">Output Tokens:</span>
-        <span className="">{usage.outputTokens.toLocaleString()}</span>
+        <span className="font-medium">; Output Tokens:</span>
+        <span className=""><NumberFlow value={usage.outputTokens} /></span>
 
         {usage.reasoningTokens != null && usage.reasoningTokens > 0 && (
           <>
-            <span className="font-medium">| Reasoning Tokens:</span>
-            <span className="">{usage.reasoningTokens.toLocaleString()}</span>
+            <span className="font-medium">; Reasoning Tokens:</span>
+            <span className=""><NumberFlow value={usage.reasoningTokens} /></span>
           </>
         )}
 
         {usage.cachedInputTokens != null && usage.cachedInputTokens > 0 && (
           <>
-            <span className="font-medium">| Cached Input Tokens:</span>
-            <span className="">{usage.cachedInputTokens.toLocaleString()}</span>
+            <span className="font-medium">; Cached Input Tokens:</span>
+            <span className=""><NumberFlow value={usage.cachedInputTokens} /></span>
           </>
         )}
       </div>
@@ -74,7 +82,7 @@ function ChatMessagePart({ part }: { part: AppUIMessage["parts"][0] }) {
   } else if (typeof part.type === "string" && part.type.startsWith("tool-")) {
     toolName = part.type.replace("tool-", "");
   }
-
+  
   if (toolName === SERVER_TOOL_NAMES.GENERATE_SQL) {
     return <MessageToolGenerateSql part={part} />;
   } else if (toolName === SERVER_TOOL_NAMES.GENEREATE_VISUALIZATION) {
@@ -117,6 +125,8 @@ export const ChatMessageView = memo(function ChatMessageView({
 
   const isUser = message.role === "user";
 
+  const showLoading = !isUser && message.isLoading;
+
   return (
     <div
       className={cn(
@@ -145,27 +155,24 @@ export const ChatMessageView = memo(function ChatMessageView({
               <UserProfileImage />
             ) : (
               <div className="h-6 w-6 flex items-center justify-center">
-                <Sparkles
-                  className={`h-4 w-4 ${isLast && message.isLoading ? "animate-spin" : ""}`}
-                  style={isLast && message.isLoading ? { animationDuration: "2s" } : undefined}
-                />
+                <Sparkles className={`h-4 w-4 }`} />
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-hidden min-w-0 mt-1">
-            <div className="text-sm">
-              {message.parts.length === 0 && message.isLoading && "Thinking..."}
-              {message.parts.length === 0 && !message.isLoading && !message.error && "Nothing returned"}
-              {message.parts.map((part, i) => (
-                <ChatMessagePart key={i} part={part} />
-              ))}
-              {message.error && <ErrorMessageDisplay errorText={message.error.message || String(message.error)} />}
-            </div>
+          <div className="flex-1 overflow-hidden min-w-0 mt-1 text-sm">
+            {message.parts.length === 0 && message.isLoading && "Thinking..."}
+            {message.parts.length === 0 && !message.isLoading && !message.error && "Nothing returned"}
+            {message.parts.map((part, i) => (
+              <ChatMessagePart key={i} part={part} />
+            ))}
+            {message.error && <ErrorMessageDisplay errorText={message.error.message || String(message.error)} />}
+            {showLoading && <Loader2 className="mt-2 h-3 w-3 animate-spin" />}
           </div>
         </div>
 
-        {!isUser && message.usage && !message.isLoading && <TokenUsageDisplay usage={message.usage} />}
+        {/* Show the token even when it's loading */}
+        {!isUser && message.usage && <TokenUsageDisplay id={message.id + "-usage"} usage={message.usage} />}
       </div>
     </div>
   );

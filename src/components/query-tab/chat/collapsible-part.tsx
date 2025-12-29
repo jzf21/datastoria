@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Check, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CircleX, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "../../ui/badge";
 
@@ -43,7 +43,8 @@ export function CollapsiblePart({
   }, [state]);
 
   // Determine if tool is complete
-  const isComplete = state === "output-available" || state === "done";
+  const isError = state?.includes("error") || state === "output-error";
+  const isComplete = state === "output-available" || state === "done" || isError;
 
   // Get status text based on state
   const getStatusText = () => {
@@ -72,7 +73,15 @@ export function CollapsiblePart({
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2 py-0.5 text-[10px]">
-          {isComplete ? <Check className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+          {isComplete ? (
+            isError ? (
+              <CircleX className="h-3 w-3 text-destructive" />
+            ) : (
+              <Check className="h-3 w-3" />
+            )
+          ) : (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          )}
           <Badge className="flex items-center gap-0.5 rounded-sm border-none pl-1 pr-2 h-4 py-0 font-normal text-[10px]">
             {children && (isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
             {toolName}

@@ -26,7 +26,7 @@ export const MessageToolValidateSql = memo(function MessageToolValidateSql({ par
             code={input.sql}
             showExecuteButton={false}
             customStyle={{
-              margin: 0,
+              marginLeft: "0.5rem",
               borderRadius: "0.375rem",
               fontSize: "10px",
             }}

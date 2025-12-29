@@ -80,36 +80,32 @@ export const MessageMarkdown = memo(function MessageMarkdown({ text }: { text: s
             // Check if inline code is a table name or database name
             if (isInline) {
               const codeText = String(children).trim();
-              
+
               // First check if it's a table name
               const tableInfo = getTableInfo(codeText);
               if (tableInfo) {
                 return (
-                  <code className={`${className || ""} inline-flex items-center`} {...props}>
-                    <OpenTableTabButton
-                      database={tableInfo.database}
-                      table={tableInfo.table}
-                      showDatabase={true}
-                      variant="link"
-                      className="underline decoration-dotted underline-offset-2 font-normal text-sm"
-                      showLinkIcon={false}
-                    />
-                  </code>
+                  <OpenTableTabButton
+                    database={tableInfo.database}
+                    table={tableInfo.table}
+                    showDatabase={true}
+                    variant="link"
+                    className="underline decoration-dotted underline-offset-2 font-normal text-sm"
+                    showLinkIcon={false}
+                  />
                 );
               }
-              
+
               // Then check if it's a database name
               const databaseInfo = getDatabaseInfo(codeText);
               if (databaseInfo) {
                 return (
-                  <code className={`${className || ""} inline-flex items-center`} {...props}>
-                    <OpenDatabaseTabButton
-                      database={databaseInfo.name}
-                      variant="link"
-                      className="underline decoration-dotted underline-offset-2 font-normal text-sm"
-                      showLinkIcon={false}
-                    />
-                  </code>
+                  <OpenDatabaseTabButton
+                    database={databaseInfo.name}
+                    variant="link"
+                    className="underline decoration-dotted underline-offset-2 font-normal text-sm"
+                    showLinkIcon={false}
+                  />
                 );
               }
             }
@@ -122,7 +118,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({ text }: { text: s
             );
           },
           table: ({ children, ...props }) => (
-            <div className="my-4 overflow-x-auto border rounded-lg">
+            <div className="my-2 overflow-x-auto border rounded-sm">
               <table className="w-full border-collapse text-sm" {...props}>
                 {children}
               </table>
