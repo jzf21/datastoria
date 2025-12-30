@@ -82,16 +82,12 @@ SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'
               h: 12
             },
             query: {
-              sql: `DESCRIBE TABLE ${database}.${table}`,
+              sql: `SELECT * FROM system.columns WHERE database = '${database}' AND table = '${table}'`,
             },
             fieldOptions: {
-              name: { title: "Name", sortable: true, align: "left" },
-              type: { title: "Type", sortable: true, align: "left" },
-              default_type: { title: "Default Type", sortable: true, align: "center" },
-              default_expression: { title: "Default Expression", sortable: true, align: "center" },
-              comment: { title: "Comment", align: "left" },
-              codec_expression: { title: "Codec Expression", sortable: true, align: "center" },
-              ttl_expression: { title: "TTL Expression", sortable: true, align: "center" },
+              // Hide database and table columns
+              database: { position: -1 },
+              table: { position: -1 },
             },
           } as TableDescriptor,
         ],
