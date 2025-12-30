@@ -133,8 +133,6 @@ export class Connection {
       requestParams["default_format"] = "JSONCompact";
     }
 
-    const maxExecutionTime = requestParams["max_execution_time"];
-    const timeout = (typeof maxExecutionTime === "number" ? maxExecutionTime : 60) * 1000;
 
     // Build URL with query parameters
     const url = new URL(this.path, this.host);
@@ -151,43 +149,7 @@ export class Connection {
     // Create abort controller for the caller to use
     const abortController = new AbortController();
 
-    // Create timeout controller
-    const timeoutController = new AbortController();
 
-    // Track which signal aborted (for error messages and abort reason)
-    let abortReason: string | undefined;
-
-    // Helper to abort with reason if supported
-    const abortWithReason = (controller: AbortController, reason: string) => {
-      abortReason = reason;
-      // Try to use reason parameter if supported (modern browsers/Node.js)
-      try {
-        // TypeScript doesn't know about the reason parameter yet, so we cast
-        (controller.abort as (reason?: unknown) => void)(reason);
-      } catch {
-        // Fallback for environments that don't support reason parameter
-        controller.abort();
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      abortWithReason(timeoutController, "timeout");
-    }, timeout);
-
-    // Combine abort signals - create a combined controller
-    const combined = new AbortController();
-    abortController.signal.addEventListener("abort", () => {
-      // Always set reason before aborting
-      const reason = USER_CANCELLED_ERROR_MESSAGE;
-      abortReason = reason;
-      abortWithReason(combined, reason);
-    });
-    timeoutController.signal.addEventListener("abort", () => {
-      // Always set reason before aborting
-      const reason = "timeout";
-      abortReason = reason;
-      abortWithReason(combined, reason);
-    });
 
     const response = (async (): Promise<QueryResponse> => {
       try {
@@ -202,10 +164,8 @@ export class Connection {
           method: "POST",
           headers: requestHeaders,
           body: sql,
-          signal: combined.signal,
+          signal: abortController.signal,
         });
-
-        clearTimeout(timeoutId);
 
         // Read response body as text first (can only be read once)
         const responseText = await response.text();
@@ -243,7 +203,6 @@ export class Connection {
           data: data,
         };
       } catch (error: unknown) {
-        clearTimeout(timeoutId);
 
         // If it's already an QueryError, re-throw it
         if (error instanceof QueryError) {
@@ -255,47 +214,7 @@ export class Connection {
           (error instanceof Error && error.name === "AbortError") ||
           (error instanceof DOMException && error.name === "AbortError")
         ) {
-          // Check which signal actually caused the abort by checking their states
-          // This is more reliable than relying on abortReason variable
-          const isTimeout = timeoutController.signal.aborted;
-          const isUserCancelled = abortController.signal.aborted && !isTimeout;
-
-          // Determine the reason from signal states or tracked reason
-          let reason: string;
-          if (isTimeout) {
-            reason = "timeout";
-          } else if (isUserCancelled) {
-            reason = USER_CANCELLED_ERROR_MESSAGE;
-          } else {
-            // Fallback to tracked reason or check signal reason if available
-            reason = abortReason || (combined.signal as { reason?: string }).reason || "unknown";
-          }
-
-          console.debug("Abort detected:", {
-            isTimeout,
-            isUserCancelled,
-            abortReason,
-            errorMessage: error.message,
-            determinedReason: reason,
-          });
-
-          // Provide appropriate error message based on the reason
-          if (reason === "timeout" || isTimeout) {
-            throw new QueryError(`${timeout / 1000}s timeout to wait for response from ClickHouse server.`);
-          }
-          if (reason === USER_CANCELLED_ERROR_MESSAGE || isUserCancelled) {
-            throw new QueryError("Request was cancelled by user");
-          }
-
-          // For any other abort reason, provide a descriptive message
-          const errorMsg = error.message || "Request aborted";
-          // Always replace "without reason" messages with our tracked reason
-          // Also provide a clear message even if the original doesn't mention "without reason"
-          if (errorMsg.includes("without reason") || reason !== "unknown") {
-            throw new QueryError(`Request aborted: ${reason}`);
-          }
-          // Fallback: use the original error message if we can't determine the reason
-          throw new QueryError(errorMsg);
+          throw new QueryError("Request was cancelled by user");
         }
 
         if (error === USER_CANCELLED_ERROR_MESSAGE) {
