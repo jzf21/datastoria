@@ -1,11 +1,12 @@
-import { CommandItemCount, HighlightableCommandItem } from "@/components/shared/cmdk/cmdk-extension";
-import { Badge } from "@/components/ui/badge";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { HighlightableCommandItem } from "@/components/shared/cmdk/cmdk-extension";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
+import { shortenHostnames } from "@/components/schema-tree/hostname-cache";
 import { useConnection } from "@/lib/connection/connection-context";
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { useCommandState } from "cmdk";
+import { Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 // Shared badge component for schema tree nodes
@@ -18,6 +19,7 @@ interface HostInfo {
   address: string;
   shard: number;
   replica: number;
+  shortName: string;
 }
 
 interface SchemaTreeHostSelectorProps {
@@ -26,17 +28,32 @@ interface SchemaTreeHostSelectorProps {
   onHostChange: (hostName: string) => void;
 }
 
+export const CommandItemTableHeader: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const filterCount = useCommandState((state: any) => state.filtered.count);
+
+  return (
+    <div className="grid grid-cols-[32px_28px_minmax(auto,200px)_100px_40px_40px] gap-1 px-2 py-2 text-[10px] font-medium text-muted-foreground bg-muted/30 border-b sticky top-0 z-10">
+      <div className="flex items-center justify-center"></div>
+      <div className="text-center">#</div>
+      <div>{filterCount} Host(s)</div>
+      <div>IP Address</div>
+      <div className="text-center">Shard</div>
+      <div className="text-center">Replica</div>
+    </div>
+  );
+};
+
 export function SchemaTreeHostSelector({ clusterName, nodeName, onHostChange }: SchemaTreeHostSelectorProps) {
   const { connection } = useConnection();
   const [isOpen, setIsOpen] = useState(false);
   const [data, setData] = useState<HostInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialSelectedValue, setInitialSelectedValue] = useState<string | null>(null);
 
   // Strip the Kubernetes cluster suffix if present for shorter name
-  const displayName = nodeName.replace(/\.svc\.cluster\.local$/, "");
+  const [initialSelectedHost, setInitialSelectedHost] = useState<string>(nodeName.replace(/\.svc\.cluster\.local$/, ""));
 
-  // Reset data when connection changes so that the useEffect below will load data
   useEffect(() => {
     setData([]);
     setLoading(false);
@@ -61,7 +78,24 @@ ORDER BY shard, replica`,
         )
         .response.then((response) => {
           try {
-            setData((response.data.data || []) as HostInfo[]);
+            const rawHosts = (response.data.data || []) as any[];
+            const hostNames = rawHosts.map((h) => h.name);
+            const shortenedMap = shortenHostnames(hostNames);
+
+            const hosts: HostInfo[] = rawHosts.map((h) => ({
+              ...h,
+              shortName: shortenedMap.get(h.name) || h.name
+            }));
+
+            setData(hosts);
+
+            const initShortName = shortenedMap.get(nodeName);
+            const initSelectedHost = hosts.find((host) => host.shortName === initShortName);
+            if (initSelectedHost) {
+              // Value is name and address combined together so filter can be performed on both
+              setInitialSelectedValue(initSelectedHost.shortName + " " + initSelectedHost.address);
+              setInitialSelectedHost(initShortName!);
+            }
             setError(null);
           } catch {
             setError("Failed to parse response");
@@ -74,11 +108,11 @@ ORDER BY shard, replica`,
           setLoading(false);
         });
     }
-  }, [isOpen, connection, clusterName, data.length, loading]);
+  }, [isOpen, connection, clusterName, data.length, loading, nodeName]);
 
   // If no cluster name (empty string), just render the display name without popover
   if (clusterName.length === 0) {
-    return <span>{displayName}</span>;
+    return <span>{initialSelectedHost}</span>;
   }
 
   return (
@@ -90,77 +124,99 @@ ORDER BY shard, replica`,
             setIsOpen(true);
           }}
         >
-          {displayName}
+          {initialSelectedHost}
         </span>
       </PopoverTrigger>
-      <PopoverContent className="w-[500px] p-0" align="start">
-        <Command
-          filter={(value: string, search: string) => {
-            if (value.toLowerCase().includes(search.toLowerCase())) return 1;
-            return 0;
-          }}
-          className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]]:!rounded-none [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5"
-        >
-          <CommandInput placeholder="Search hosts..." className="!h-10" />
-          <CommandItemCount />
-          <CommandList className="!rounded-none max-h-[400px] overflow-y-auto overflow-x-hidden">
-            {error && <CommandEmpty className="p-3 text-center">{error}</CommandEmpty>}
-            {loading ? (
-              <div className="p-4 text-sm text-center text-muted-foreground">Loading...</div>
-            ) : (
-              data.length > 0 && (
+      <PopoverContent className="w-[450px] p-0" align="start">
+        {loading ? (
+          <div className="p-4 text-sm items-center flex gap-2 justify-center text-center text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />Loading...</div>
+        ) : (
+          <Command
+            defaultValue={initialSelectedValue}
+            filter={(value: string, search: string) => {
+              if (value.toLowerCase().includes(search.toLowerCase())) return 1;
+              return 0;
+            }}
+            className="[&_[cmdk-input]]:h-10"
+          >
+            <CommandInput placeholder="Search hosts..." className="!h-10" />
+
+            <CommandItemTableHeader />
+            <CommandList className="max-h-[400px] overflow-y-auto overflow-x-hidden">
+              {error && <CommandEmpty className="p-3 text-center">{error}</CommandEmpty>}
+              {data.length > 0 && (
                 <>
-                  <CommandEmpty className="p-3 text-center">No hosts found.</CommandEmpty>
-                  <CommandGroup className="!py-1 !px-1 !rounded-none">
-                    {data.map((node, idx) => {
-                      const isSelected = node.name === nodeName || node.address === nodeName;
-                      return (
-                        <CommandItem
-                          key={idx}
-                          value={`${node.name} ${node.address}`}
-                          className={cn(
-                            "flex items-center !rounded-none cursor-pointer !py-1 mb-1 transition-colors",
-                            isSelected && "bg-muted/50"
-                          )}
-                          onSelect={() => {
-                            // Only fire onHostChange if the selected host is different from current
-                            if (node.name !== nodeName) {
-                              // Notify parent component of host change
-                              onHostChange(node.name);
-                            }
-                            setIsOpen(false);
-                          }}
-                        >
-                          <div className="flex items-center gap-2 w-full min-w-0">
-                            <div className="w-4 shrink-0 flex items-center justify-center">
-                              {isSelected && <Check className="h-3 w-3 text-primary" />}
-                            </div>
-                            <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
-                              <span className={cn("text-sm truncate block", isSelected && "text-primary font-medium")}>
-                                <HighlightableCommandItem text={node.name} />
-                              </span>
-                              <span className="text-xs text-muted-foreground truncate block">
-                                <HighlightableCommandItem text={node.address} />
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Badge variant="secondary" className="rounded-none px-1 whitespace-nowrap">
-                                Shard {String(node.shard).padStart(2, "0")}
-                              </Badge>
-                              <Badge variant="secondary" className="rounded-none px-1 whitespace-nowrap">
-                                Replica {String(node.replica).padStart(2, "0")}
-                              </Badge>
-                            </div>
-                          </div>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
+                  <CommandEmpty className="p-2 text-xs text-center">No hosts found.</CommandEmpty>
+                  {data.map((node, idx) => {
+                    const isSelected = node.shortName === initialSelectedHost || node.address === nodeName;
+
+                    return (
+                      <CommandItem
+                        key={idx}
+                        value={`${node.shortName} ${node.address}`}
+                        className={cn(
+                          "grid grid-cols-[32px_28px_minmax(auto,200px)_100px_40px_40px] gap-1 px-2 !py-1.5 cursor-pointer transition-colors border-l-2 !rounded-none",
+                          isSelected
+                            ? "border-l-primary bg-primary/10"
+                            : idx % 2 === 0
+                              ? "border-l-transparent bg-muted/20"
+                              : "border-l-transparent bg-transparent",
+                          "hover:bg-muted/40"
+                        )}
+                        onSelect={() => {
+                          // Only fire onHostChange if the selected host is different from current
+                          if (node.name !== nodeName) {
+                            // Notify parent component of host change
+                            onHostChange(node.name);
+                          }
+                          setIsOpen(false);
+                        }}
+                      >
+                        {/* Check icon column */}
+                        <div className="flex items-center justify-center">
+                          {isSelected && <Check className="h-3 w-3 text-primary" />}
+                        </div>
+
+                        {/* Index column */}
+                        <div className="flex items-center justify-center text-[10px] text-muted-foreground">
+                          {idx + 1}
+                        </div>
+
+                        {/* Hostname column */}
+                        <div className="flex items-center min-w-0">
+                          <span className={cn("text-xs truncate", isSelected && "text-primary font-medium")}>
+                            <HighlightableCommandItem text={node.shortName} />
+                          </span>
+                        </div>
+
+                        {/* IP Address column */}
+                        <div className="flex items-center min-w-0">
+                          <span className="text-[11px] text-muted-foreground truncate font-mono">
+                            <HighlightableCommandItem text={node.address} />
+                          </span>
+                        </div>
+
+                        {/* Shard column */}
+                        <div className="flex items-center justify-center">
+                          <span className="text-[11px] font-medium">
+                            {String(node.shard).padStart(2, "0")}
+                          </span>
+                        </div>
+
+                        {/* Replica column */}
+                        <div className="flex items-center justify-center">
+                          <span className="text-[11px] font-medium">
+                            {String(node.replica).padStart(2, "0")}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
                 </>
-              )
-            )}
-          </CommandList>
-        </Command>
+              )}
+            </CommandList>
+          </Command>
+        )}
       </PopoverContent>
     </Popover>
   );

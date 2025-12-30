@@ -527,7 +527,7 @@ export function buildSchemaTree(
   const [totalTables, databaseNodes] = toDatabaseTreeNodes(schemaData.rows);
 
   // Default no-op handler if not provided
-  const hostChangeHandler = onHostChange || (() => {});
+  const hostChangeHandler = onHostChange || (() => { });
 
   // Build comprehensive tooltip for host
   const hostTooltip = (
@@ -573,7 +573,7 @@ export function buildSchemaTree(
         {databaseNodes.length} DBs | {totalTables} Tables
       </SchemaTreeBadge>
     ),
-    labelTooltip: hostTooltip,
+    labelTooltip: connection.cluster ? undefined : hostTooltip,
     data: {
       type: "host",
       host: serverName,
