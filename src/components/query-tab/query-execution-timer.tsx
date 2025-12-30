@@ -57,7 +57,7 @@ export function QueryExecutionTimer({ isExecuting }: QueryExecutionTimerProps) {
   return (
     <>
       {isExecuting && <Loader2 className="!h-3 !w-3 animate-spin text-muted-foreground" />}
-      <span className="text-xs text-muted-foreground font-mono">{"Elapsed: " + formattedTime}</span>
+      <span className="text-xs text-muted-foreground">Elapsed: </span><span className="text-xs text-muted-foreground font-mono">{formattedTime}</span>
     </>
   );
 }
