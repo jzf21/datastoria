@@ -2,8 +2,8 @@ import { HighlightableCommandItem } from "@/components/shared/cmdk/cmdk-extensio
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { shortenHostnames } from "@/components/schema-tree/hostname-cache";
 import { useConnection } from "@/lib/connection/connection-context";
+import { shortenHostnames } from "@/lib/hostname-utils";
 import { cn } from "@/lib/utils";
 import { useCommandState } from "cmdk";
 import { Check, Loader2 } from "lucide-react";

@@ -64,7 +64,7 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   const baseAvailableTabs = useMemo(() => {
     return engine
       ? (ENGINE_TABS_MAP.get(engine) ??
-          new Set(["data-sample", "metadata", "overview", "partitions", "query-log", "part-log"]))
+        new Set(["data-sample", "metadata", "overview", "partitions", "query-log", "part-log"]))
       : new Set(["data-sample", "metadata", "overview", "partitions", "query-log", "part-log"]);
   }, [engine]);
 
@@ -202,7 +202,7 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
               return (
                 <div
                   key={tabValue}
-                  className={`absolute inset-0 overflow-auto px-2 ${currentTab === tabValue ? "block" : "hidden"}`}
+                  className={`absolute inset-0 overflow-auto ${currentTab === tabValue ? "block" : "hidden"}`}
                   role="tabpanel"
                   aria-hidden={currentTab !== tabValue}
                 >

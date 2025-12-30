@@ -52,7 +52,7 @@ const hostnameCache = new HostnameCache(1024);
 /**
  * Find the longest common suffix among an array of strings, treating them as dot-separated segments.
  */
-function findLongestCommonSuffix(inputList: string[]): string {
+export function findCommonSuffix(inputList: string[]): string {
     if (inputList.length <= 1) return "";
 
     const segmentedStringList = inputList.map((s) => s.split("."));
@@ -86,7 +86,7 @@ export function shortenHostnames(hostnames: string[]): Map<string, string> {
         return result;
     }
 
-    const commonSuffix = findLongestCommonSuffix(hostnames);
+    const commonSuffix = findCommonSuffix(hostnames);
 
     for (const hostname of hostnames) {
         let shortened = hostname;

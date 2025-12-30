@@ -1,4 +1,5 @@
-import DashboardTableComponent from "./system-table-dashboard";
+import SystemTableDashboards from "./system-table-dashboards";
+import SystemTableDistributedDDLQueue from "./system-table-distributed-ddl-queue";
 
 /**
  * Type definition for a system table tab entry
@@ -17,10 +18,17 @@ export const SYSTEM_TABLE_REGISTRY = new Map<string, SystemTableTabEntry[]>([
   [
     "dashboards",
     [
-      ["Dashboard", DashboardTableComponent],
+      ["Dashboard", SystemTableDashboards],
+    ],
+  ],
+  [
+    "distributed_ddl_queue",
+    [
+      ["DDL Queue", SystemTableDistributedDDLQueue],
     ],
   ],
 ]);
+
 
 /**
  * Get custom tabs for a system table

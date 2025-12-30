@@ -23,12 +23,12 @@ interface SkippedDashboard {
   reason: string;
 }
 
-interface DashboardTableComponentProps {
+interface SystemTableDashboardsProps {
   database: string;
   table: string;
 }
 
-const DashboardTableComponent = ({ database, table }: DashboardTableComponentProps) => {
+const SystemTableDashboards = ({ database, table }: SystemTableDashboardsProps) => {
   const { connection } = useConnection();
   const [dashboard, setDashboard] = useState<Dashboard>({
     filter: {},
@@ -368,5 +368,5 @@ const DashboardTableComponent = ({ database, table }: DashboardTableComponentPro
   );
 };
 
-export default memo(DashboardTableComponent);
+export default memo(SystemTableDashboards);
 

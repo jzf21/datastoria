@@ -529,9 +529,8 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
                               }}
                             >
                               <ChevronRight
-                                className={`h-4 w-4 transition-transform duration-200 shrink-0 ${
-                                  !isCollapsed ? "rotate-90" : ""
-                                }`}
+                                className={`h-4 w-4 transition-transform duration-200 shrink-0 ${!isCollapsed ? "rotate-90" : ""
+                                  }`}
                               />
                               <h3 className="text-md font-semibold">{group.title}</h3>
                             </div>
@@ -597,8 +596,6 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
                 </div>
               );
             })()}
-
-          <div className="h-[200px]">{/* Margin for scroll */}</div>
         </div>
       </div>
     );

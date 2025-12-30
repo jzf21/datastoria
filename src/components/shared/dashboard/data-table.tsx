@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Formatter, type FormatName } from "@/lib/formatter";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -38,6 +38,12 @@ export interface DataTableProps {
     enableClientSorting?: boolean;
     // Enable sticky header (default: false)
     stickyHeader?: boolean;
+    // Highlight the selected row
+    selectedRowId?: string | number | null;
+    // Field to use as unique identifier for selection (default: 'id')
+    idField?: string;
+    // Class name for the header row
+    headerClassName?: string;
 }
 
 export function DataTable({
@@ -55,6 +61,9 @@ export function DataTable({
     onRowClick,
     enableClientSorting = true,
     stickyHeader = false,
+    selectedRowId,
+    idField = "id",
+    headerClassName,
 }: DataTableProps) {
     // Virtualization constants
     const VIRTUALIZATION_THRESHOLD = 500;
@@ -368,7 +377,7 @@ export function DataTable({
     // Format cell value
     const formatCellValue = useCallback(
         (value: unknown, fieldOption: FieldOption, context?: Record<string, unknown>): React.ReactNode => {
-            if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
+            if ((value === null || value === undefined || (typeof value === "string" && value.trim() === "")) && !fieldOption.format) {
                 return <span className="text-muted-foreground">-</span>;
             }
 
@@ -503,7 +512,12 @@ export function DataTable({
                             <TableRow
                                 key={virtualRow.key}
                                 data-index={virtualRow.index}
-                                className={cn(onRowClick && "cursor-pointer hover:bg-muted/50")}
+                                className={cn(
+                                    onRowClick && "cursor-pointer",
+                                    selectedRowId !== undefined && selectedRowId !== null && row[idField] === selectedRowId
+                                        ? "bg-accent text-accent-foreground"
+                                        : "hover:bg-muted/50"
+                                )}
                                 onClick={() => onRowClick?.(row)}
                                 style={{
                                     contain: "layout style paint",
@@ -551,7 +565,12 @@ export function DataTable({
         return processedData.map((row, rowIndex) => (
             <TableRow
                 key={rowIndex}
-                className={cn(onRowClick && "cursor-pointer hover:bg-muted/50")}
+                className={cn(
+                    onRowClick && "cursor-pointer",
+                    selectedRowId !== undefined && selectedRowId !== null && row[idField] === selectedRowId
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-muted/50"
+                )}
                 onClick={() => onRowClick?.(row)}
             >
                 {showIndexColumn && (
@@ -586,17 +605,25 @@ export function DataTable({
 
     return (
         <div ref={scrollContainerRef} className={cn("w-full overflow-auto", className)}>
-            <Table>
-                <TableHeader className={cn(stickyHeader && "sticky top-0 z-10")}>
-                    <TableRow className="hover:bg-muted/50 select-none h-10">
-                        {showIndexColumn && <TableHead className={cn("w-[50px] text-center p-2", stickyHeader && "bg-background")}>#</TableHead>}
+            <table className="w-full caption-bottom text-sm">
+                <TableHeader>
+                    <TableRow className={cn("hover:bg-muted/50 select-none h-10", headerClassName)}>
+                        {showIndexColumn && (
+                            <TableHead className={cn(
+                                "w-[50px] text-center p-2",
+                                stickyHeader && "sticky top-0 z-10 bg-background shadow-[0_1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.1)]"
+                            )}>
+                                #
+                            </TableHead>
+                        )}
                         {columns.map((fieldOption) => (
                             <TableHead
                                 key={fieldOption.name}
                                 className={cn(
                                     "whitespace-nowrap p-2",
                                     getCellAlignmentClass(fieldOption),
-                                    fieldOption.sortable !== false && "cursor-pointer hover:bg-muted/50"
+                                    fieldOption.sortable !== false && "cursor-pointer hover:bg-muted/50",
+                                    stickyHeader && "sticky top-0 z-10 bg-background shadow-[0_1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.1)]"
                                 )}
                                 style={{
                                     width: fieldOption.width,
@@ -616,7 +643,7 @@ export function DataTable({
                     {renderNoData()}
                     {renderData()}
                 </TableBody>
-            </Table>
+            </table>
         </div>
     );
 }
