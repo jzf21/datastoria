@@ -85,10 +85,10 @@ const serverStatusDashboard = [
     width: 3,
     description: "How long the server has been running",
     query: {
-      sql: "SELECT toUnixTimestamp(max(last_error_time)) * 1000 FROM system.errors",
+      sql: "SELECT (toUnixTimestamp(now()) - toUnixTimestamp(max(last_error_time))) * 1000 FROM system.errors",
     },
     valueOption: {
-      format: "timeDiff",
+      format: "relativeTime",
     },
     drilldown: {
       main: {

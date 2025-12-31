@@ -148,8 +148,9 @@ export type FormatName =
   | "yyyyMMddHHmmssSSS"
   | "MMddHHmmss"
   | "MMddHHmmssSSS"
-  | "timeDuration"
-  | "timeDiff"
+  | "timeDuration" // Format to string like: 1 day, 1 hour, 1 minute, 1 second
+  | "timeDiff"  // Format the difference of given number in milliseconds and current time stamp in the format of: xxx seconds ago
+  | "relativeTime" // Format the given number in milliseconds to string like: 1 day, 1 hour, 1 minute, 1 second
   | "days"
   | "index" // For compability, SHOULD not be used
   | "binary_byte" // For compatibility only, use binary_size instead
@@ -274,6 +275,7 @@ export class Formatter {
 
     this._formatters["timeDuration"] = (v) => (v as number & { formatTimeDuration(): string }).formatTimeDuration();
     this._formatters["timeDiff"] = (v) => this.timeDifference(v);
+    this._formatters["relativeTime"] = (v) => (v as number & { formatTimeDiff(): string }).formatTimeDiff();
     this._formatters["days"] = (v) => (v as number & { formatDays(): string }).formatDays();
     this._formatters["template"] = (_v, params) => {
       // Template formatter - params[0] should be the template object
