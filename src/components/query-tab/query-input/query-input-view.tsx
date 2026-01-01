@@ -11,7 +11,7 @@ const AceEditor = dynamic(
     await initAce();
 
     await import("ace-builds/src-noconflict/ext-language_tools");
-    await import("ace-builds/src-noconflict/theme-github");
+    await import("ace-builds/src-noconflict/theme-xcode");
     await import("ace-builds/src-noconflict/theme-solarized_dark");
     await import("./completion/clickhouse-sql");
 
@@ -52,7 +52,12 @@ interface QueryInputViewProps {
 }
 
 // Logic to apply query to editor
-const applyQueryToEditor = (editor: Ace.Editor, query: string, mode: "replace" | "insert", storageKey: string = 'editing-sql') => {
+const applyQueryToEditor = (
+  editor: Ace.Editor,
+  query: string,
+  mode: "replace" | "insert",
+  storageKey: string = "editing-sql"
+) => {
   const session = editor.getSession();
 
   if (mode === "replace") {
@@ -105,7 +110,18 @@ const getKeyBindings = () => {
 };
 
 export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>(
-  ({ initialQuery, initialMode = "replace", storageKey = "editing-sql", language = "dsql", placeholder, onToggleMode, onRun }, ref) => {
+  (
+    {
+      initialQuery,
+      initialMode = "replace",
+      storageKey = "editing-sql",
+      language = "dsql",
+      placeholder,
+      onToggleMode,
+      onRun,
+    },
+    ref
+  ) => {
     const { connection } = useConnection();
     const { theme } = useTheme();
     const editorRef = useRef<ExtendedEditor | undefined>(undefined);
@@ -142,7 +158,7 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
         if (editorRef.current) {
           applyQueryToEditor(editorRef.current, query, mode, storageKey);
         }
-      }
+      },
     }));
 
     // Determine if dark mode is active
@@ -195,9 +211,9 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
       typeof window !== "undefined" ? window.document.documentElement.classList.contains("dark") : isDark;
 
     // Determine the ace editor theme based on current dark mode
-    // Use github theme for light mode (white background) and solarized_dark for dark mode
+    // Use xcode theme for light mode (better syntax highlighting) and solarized_dark for dark mode
     const aceTheme = useMemo(() => {
-      return currentDarkMode ? "solarized_dark" : "github";
+      return currentDarkMode ? "solarized_dark" : "xcode";
     }, [currentDarkMode]);
 
     // Initialize completion manager when connection changes
@@ -257,9 +273,9 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
         const session = editor.getSession();
 
         // Only valid for SQL
-        if (language === 'dsql') {
+        if (language === "dsql") {
           editor.completers = QuerySuggestionManager.getInstance().getCompleters(editor.completers);
-        } else if (language === 'chat') {
+        } else if (language === "chat") {
           // Define and set up chat mode with table name highlighting FIRST
           defineChatMode();
           session.setMode("ace/mode/chat");
@@ -344,10 +360,10 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
       editorRef.current.focus();
 
       // Update completers based on language
-      if (language === 'dsql') {
+      if (language === "dsql") {
         const extendedEditor = editorRef.current as ExtendedEditor;
         extendedEditor.completers = QuerySuggestionManager.getInstance().getCompleters(extendedEditor.completers);
-      } else if (language === 'chat') {
+      } else if (language === "chat") {
         // Update chat mode and table name highlighting FIRST
         const session = editorRef.current.getSession();
         defineChatMode();
@@ -400,7 +416,7 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
     return (
       <div ref={containerRef} className="query-editor-container h-full w-full">
         <AceEditor
-          mode={language === 'chat' ? 'ace/mode/chat' : language}
+          mode={language === "chat" ? "ace/mode/chat" : language}
           theme={aceTheme}
           className="no-background placeholder-padding h-full w-full"
           name="ace-editor"
@@ -416,14 +432,17 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
             tabSize: 4,
             newLineMode: "auto",
           }}
-          enableBasicAutocompletion={language === 'dsql' || language === 'chat'}
-          enableLiveAutocompletion={language === 'dsql' || language === 'chat'}
-          enableSnippets={language === 'dsql'}
+          enableBasicAutocompletion={language === "dsql" || language === "chat"}
+          enableLiveAutocompletion={language === "dsql" || language === "chat"}
+          enableSnippets={language === "dsql"}
           width={`${editorWidth}px`}
           height={`${editorHeight}px`}
-          placeholder={placeholder || `Input your SQL here.
+          placeholder={
+            placeholder ||
+            `Input your SQL here.
 Press ${keyBindings.execute} to execute query.
-Press ${keyBindings.autocomplete} to show suggestions.`}
+Press ${keyBindings.autocomplete} to show suggestions.`
+          }
           onLoad={handleEditorLoad}
           onChange={handleChange}
           onSelectionChange={handleSelectionChange}

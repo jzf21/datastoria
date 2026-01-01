@@ -2,7 +2,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useEffect, useMemo, useState } from "react";
 import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
 import SyntaxHighlighter from "react-syntax-highlighter";
-import { solarizedDark, solarizedLight } from "react-syntax-highlighter/dist/cjs/styles/hljs";
+import { atomOneDark, atomOneLight } from "react-syntax-highlighter/dist/cjs/styles/hljs";
 
 interface ThemedSyntaxHighlighterProps extends Omit<SyntaxHighlighterProps, "style"> {
   language?: string;
@@ -63,7 +63,14 @@ export function ThemedSyntaxHighlighter({
 
   // Use memoized style that updates when theme actually changes
   const syntaxStyle = useMemo(() => {
-    return currentDarkMode ? solarizedDark : solarizedLight;
+    const baseStyle = currentDarkMode ? atomOneDark : atomOneLight;
+    return {
+      ...baseStyle,
+      hljs: {
+        ...baseStyle.hljs,
+        background: "transparent",
+      },
+    };
   }, [currentDarkMode]);
 
   return (
