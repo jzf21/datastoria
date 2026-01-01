@@ -64,9 +64,8 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   const baseAvailableTabs = useMemo(() => {
     return engine
       ? (ENGINE_TABS_MAP.get(engine) ??
-        new Set(["data-sample", "metadata", "overview", "partitions", "query-history", "part-history"]))
+          new Set(["data-sample", "metadata", "overview", "partitions", "query-history", "part-history"]))
       : new Set(["data-sample", "metadata", "overview", "partitions", "query-history", "part-history"]);
-
   }, [engine]);
 
   // Remove overview and partitions for System tables
@@ -190,7 +189,11 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
             <div className="flex justify-between items-center gap-2 m-2">
               <TabsList>
                 {customSystemTabs.map(([displayText], index) => (
-                  <TabsTrigger key={`custom-${index}`} value={`custom-${index}`}>
+                  <TabsTrigger
+                    key={`custom-${index}`}
+                    value={`custom-${index}`}
+                    className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                  >
                     {displayText}
                   </TabsTrigger>
                 ))}
@@ -226,12 +229,54 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
         {hasMultipleTabs && (
           <div className="flex justify-between items-center gap-2 m-2">
             <TabsList>
-              {availableTabs.has("overview") && <TabsTrigger value="overview">Overview</TabsTrigger>}
-              {availableTabs.has("metadata") && <TabsTrigger value="metadata">Metadata</TabsTrigger>}
-              {availableTabs.has("data-sample") && <TabsTrigger value="data-sample">Data Sample</TabsTrigger>}
-              {availableTabs.has("partitions") && <TabsTrigger value="partitions">Partitions</TabsTrigger>}
-              {availableTabs.has("query-history") && <TabsTrigger value="query-history">Query History</TabsTrigger>}
-              {availableTabs.has("part-history") && <TabsTrigger value="part-history">Part History</TabsTrigger>}
+              {availableTabs.has("overview") && (
+                <TabsTrigger
+                  value="overview"
+                  className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                >
+                  Overview
+                </TabsTrigger>
+              )}
+              {availableTabs.has("metadata") && (
+                <TabsTrigger
+                  value="metadata"
+                  className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                >
+                  Metadata
+                </TabsTrigger>
+              )}
+              {availableTabs.has("data-sample") && (
+                <TabsTrigger
+                  value="data-sample"
+                  className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                >
+                  Data Sample
+                </TabsTrigger>
+              )}
+              {availableTabs.has("partitions") && (
+                <TabsTrigger
+                  value="partitions"
+                  className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                >
+                  Partitions
+                </TabsTrigger>
+              )}
+              {availableTabs.has("query-history") && (
+                <TabsTrigger
+                  value="query-history"
+                  className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                >
+                  Query History
+                </TabsTrigger>
+              )}
+              {availableTabs.has("part-history") && (
+                <TabsTrigger
+                  value="part-history"
+                  className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                >
+                  Part History
+                </TabsTrigger>
+              )}
             </TabsList>
             {hasRefresh ? (
               <div className="flex items-center gap-2">

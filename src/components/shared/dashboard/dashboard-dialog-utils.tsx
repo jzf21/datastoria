@@ -8,11 +8,7 @@ import type { SQLQuery } from "./dashboard-model";
 /**
  * Shows a dialog displaying the SQL query
  */
-export function showQueryDialog(
-  query: SQLQuery | undefined,
-  title?: string,
-  executedSql?: string
-): void {
+export function showQueryDialog(query: SQLQuery | undefined, title?: string, executedSql?: string): void {
   if (!query?.sql) {
     return;
   }
@@ -27,13 +23,13 @@ export function showQueryDialog(
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0 h-auto">
           <TabsTrigger
             value="executed"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:rounded-b-none px-4 py-2"
           >
             Executed Query
           </TabsTrigger>
           <TabsTrigger
             value="template"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:rounded-b-none px-4 py-2"
           >
             Query Template
           </TabsTrigger>
