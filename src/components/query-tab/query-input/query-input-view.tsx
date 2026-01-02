@@ -46,7 +46,6 @@ interface QueryInputViewProps {
   initialMode?: "replace" | "insert";
   storageKey?: string;
   language?: string;
-  placeholder?: string;
   onToggleMode?: () => void;
   onRun?: (text: string) => void;
 }
@@ -94,7 +93,11 @@ const applyQueryToEditor = (
 // Detect OS and return appropriate key bindings
 const getKeyBindings = () => {
   if (typeof window === "undefined") {
-    return { execute: "CTRL + ENTER or COMMAND + ENTER", autocomplete: "ALT + SPACE or OPTION + SPACE" };
+    return {
+      execute: "CTRL + ENTER or COMMAND + ENTER",
+      autocomplete: "ALT + SPACE or OPTION + SPACE",
+      toggle: "CTRL + I or COMMAND + I",
+    };
   }
 
   const platform = window.navigator.platform.toLowerCase();
@@ -102,11 +105,11 @@ const getKeyBindings = () => {
 
   // Check for Mac
   if (platform.includes("mac") || userAgent.includes("mac")) {
-    return { execute: "COMMAND + ENTER", autocomplete: "OPTION + SPACE" };
+    return { execute: "COMMAND + ENTER", autocomplete: "OPTION + SPACE", toggle: "COMMAND + I" };
   }
 
   // Default to Windows/Linux
-  return { execute: "CTRL + ENTER", autocomplete: "ALT + SPACE" };
+  return { execute: "CTRL + ENTER", autocomplete: "ALT + SPACE", toggle: "CTRL + I" };
 };
 
 export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>(
@@ -116,7 +119,6 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
       initialMode = "replace",
       storageKey = "editing-sql",
       language = "dsql",
-      placeholder,
       onToggleMode,
       onRun,
     },
@@ -412,6 +414,19 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
 
     // Get OS-specific key bindings
     const keyBindings = useMemo(() => getKeyBindings(), []);
+    let placeholderText = "";
+    if (language === "dsql") {
+      placeholderText = `Input your SQL here.
+Press ${keyBindings.execute} to execute query.
+Press ${keyBindings.autocomplete} to show suggestions.
+Press ${keyBindings.toggle} to switch to Chat mode.
+  `;
+    } else if (language === "chat") {
+      placeholderText = `Ask AI anything about your data...
+Press ${keyBindings.execute} to send message.
+Press ${keyBindings.toggle} to switch to SQL mode.
+  `;
+    }
 
     return (
       <div ref={containerRef} className="query-editor-container h-full w-full">
@@ -437,12 +452,7 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
           enableSnippets={language === "dsql"}
           width={`${editorWidth}px`}
           height={`${editorHeight}px`}
-          placeholder={
-            placeholder ||
-            `Input your SQL here.
-Press ${keyBindings.execute} to execute query.
-Press ${keyBindings.autocomplete} to show suggestions.`
-          }
+          placeholder={placeholderText}
           onLoad={handleEditorLoad}
           onChange={handleChange}
           onSelectionChange={handleSelectionChange}
