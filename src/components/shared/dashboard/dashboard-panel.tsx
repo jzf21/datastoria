@@ -36,7 +36,7 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
 }) => {
   // Defensive check: ensure descriptor exists and has a type property
   if (!descriptor || !descriptor.type) {
-    return <pre>Invalid descriptor: JSON.stringify(descriptor, null, 2)</pre>;
+    return <pre>Invalid descriptor: {JSON.stringify(descriptor, null, 2)}</pre>;
   }
 
   if (descriptor.type === "stat") {
