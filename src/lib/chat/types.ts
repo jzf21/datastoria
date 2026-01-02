@@ -54,6 +54,10 @@ export interface DatabaseContext {
     name: string
     columns: string[]
   }>
+
+  /**
+   * Used for SQL generation
+   */
   clickHouseUser?: string
 }
 

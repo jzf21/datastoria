@@ -45,16 +45,11 @@ export function useChatManager(
         initializingRef.current.add(chatId);
 
         try {
-          // Get ClickHouse user from connection
-          const config = ConnectionManager.getInstance().getLastSelectedOrFirst();
-          const clickHouseUser = config ? config.user : undefined;
-
           // Set context builder for this specific chat, ensuring clickHouseUser is included
           setChatContextBuilder(() => {
             const context = chatItem.chatRequest.context || {};
             return {
               ...context,
-              clickHouseUser: context.clickHouseUser || clickHouseUser,
             };
           });
 

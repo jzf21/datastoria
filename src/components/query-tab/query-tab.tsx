@@ -93,7 +93,7 @@ const QueryTabContent = ({ tabId, initialQuery, initialMode, active }: QueryTabP
 
       // Build context for chat
       // Get ClickHouse user from connection (use internalUser if available, fallback to user)
-      const clickHouseUser = connection?.user;
+      const clickHouseUser = connection?.metadata.internalUser;
       const context = {
         currentQuery: backgroundSql, // The SQL context "behind" the chat
         database: (connection as any)?.database,
@@ -224,7 +224,6 @@ const QueryTabContent = ({ tabId, initialQuery, initialMode, active }: QueryTabP
               initialMode={initialMode}
               storageKey={mode === "sql" ? "editing-sql" : "editing-chat"}
               language={mode === "sql" ? "dsql" : "chat"}
-              placeholder={mode === "chat" ? "Ask AI anything about your data..." : undefined}
               onToggleMode={() => setMode((prev) => (prev === "sql" ? "chat" : "sql"))}
               onRun={handleInputRun}
             />
