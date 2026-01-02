@@ -45,25 +45,44 @@
 
   /* Default: 400px */
   max-width: 350px;
+
+  font-size: 12px;
 }
 
 /*
  * Increase the width of the autocomplete suggestion dialog
  */
 .ace_autocomplete {
-  /* Default: 280px, increased to 400px */
+  /* Default: 280px, increased to 600px to show more content */
   width: 400px !important;
 }
 
-/*
- * Chat mode table name highlighting
- */
-.ace_table\.name {
-  color: #0969da;
-  font-weight: 500;
+/* Allow horizontal scrolling */
+.ace_autocomplete .ace_scroller {
+  overflow-x: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  font-size: 12px;
 }
 
-.dark .ace_table\.name {
-  color: #58a6ff;
-  font-weight: 500;
+/* 
+ * Force a wide content area to accommodate long function names.
+ * Since Ace uses absolute positioning, we can't easily auto-size to text width.
+ * Setting a large fixed width ensures the scrollbar allows reaching the end of long text.
+ */
+.ace_autocomplete .ace_content {
+  width: 1200px !important;
+  min-width: 100%;
 }
+
+/* Ensure the text layer fills the wide content area */
+.ace_autocomplete .ace_text-layer {
+  width: 100% !important;
+}
+
+/* Prevent text truncation */
+.ace_autocomplete .ace_line {
+  text-overflow: clip !important;
+}
+
+
