@@ -144,11 +144,6 @@ function toColumnTreeNode(column: { name: string; type: string; comment?: string
     const hasEnumPairs = enumInfo && enumInfo.pairs.length > 0;
     const hasComment = !!columnComment;
 
-    // Only show tooltip if there's enum info or comment
-    if (!hasEnumPairs && !hasComment) {
-      return undefined;
-    }
-
     return (
       <div className="text-xs space-y-1 max-w-[400px]">
         <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
