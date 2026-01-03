@@ -105,6 +105,7 @@ export function ConnectionWizard() {
                   </span>
                   <Button
                     variant="outline"
+                    size="lg"
                     className="w-64"
                     onClick={() => {
                       const playgroundConnection: ConnectionConfig = {
