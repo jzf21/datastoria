@@ -39,16 +39,36 @@ export interface DatabaseInfo {
   comment?: string | null;
 }
 
+// Dependency table information
+export interface DependencyTableInfo {
+  id: string;
+  uuid: string;
+  database: string;
+  name: string;
+  engine: string;
+  tableQuery: string;
+  dependenciesDatabase: string[];
+  dependenciesTable: string[];
+}
+
 export interface ConnectionMetadata {
   targetNode?: string;
   internalUser: string;
+
+  // Server timezone
   timezone: string;
+
+  // Capabilities
   function_table_has_description_column: boolean;
   metric_log_table_has_ProfileEvent_MergeSourceParts: boolean;
   metric_log_table_has_ProfileEvent_MutationTotalParts: boolean;
+  has_format_query_function: boolean;
 
   tableNames?: Map<string, TableInfo>;
   databaseNames?: Map<string, DatabaseInfo>;
+
+  // Cached dependency data - loaded on demand and cached here
+  dependencyTables?: Map<string, DependencyTableInfo>;
 }
 
 const USER_CANCELLED_ERROR_MESSAGE = "User cancelled";
@@ -99,6 +119,7 @@ export class Connection {
       function_table_has_description_column: false,
       metric_log_table_has_ProfileEvent_MergeSourceParts: false,
       metric_log_table_has_ProfileEvent_MutationTotalParts: false,
+      has_format_query_function: false,
     };
   }
 

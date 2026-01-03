@@ -26,9 +26,7 @@ interface TabMetadata {
 const DatabaseTabComponent = ({ database }: DatabaseTabProps) => {
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [tabsMetadata, setTabsMetadata] = useState<Map<string, TabMetadata>>(
-    new Map([
-      ["overview", { loaded: true, supportRefresh: true, supportsTimeSpan: false }],
-    ])
+    new Map([["overview", { loaded: true, supportRefresh: true, supportsTimeSpan: false }]])
   );
   const [selectedTimeSpan, setSelectedTimeSpan] = useState<DisplayTimeSpan>(
     BUILT_IN_TIME_SPAN_LIST[3] // Default to "Last 15 Mins"
@@ -59,7 +57,7 @@ const DatabaseTabComponent = ({ database }: DatabaseTabProps) => {
       setTabsMetadata((prev) => {
         const next = new Map(prev);
         const existing = next.get(activeTab);
-        
+
         // Initialize or update tab metadata
         // Keep existing supportsTimeSpan value if already set
         next.set(activeTab, {
@@ -67,7 +65,7 @@ const DatabaseTabComponent = ({ database }: DatabaseTabProps) => {
           supportRefresh: hasRefreshCap,
           supportsTimeSpan: existing?.supportsTimeSpan ?? false,
         });
-        
+
         return next;
       });
     });
@@ -80,8 +78,7 @@ const DatabaseTabComponent = ({ database }: DatabaseTabProps) => {
       const currentRef = getCurrentRef();
       if (currentRef && "refresh" in currentRef && typeof currentRef.refresh === "function") {
         const metadata = tabsMetadata.get(activeTab);
-        const timeSpan =
-          overrideTimeSpan ?? (metadata?.supportsTimeSpan ? selectedTimeSpan.getTimeSpan() : undefined);
+        const timeSpan = overrideTimeSpan ?? (metadata?.supportsTimeSpan ? selectedTimeSpan.getTimeSpan() : undefined);
         currentRef.refresh(timeSpan);
       }
     },
@@ -98,10 +95,7 @@ const DatabaseTabComponent = ({ database }: DatabaseTabProps) => {
   );
 
   // Memoize the calculated timeSpan to prevent unnecessary refreshes
-  const calculatedTimeSpan = useMemo(
-    () => selectedTimeSpan.calculateAbsoluteTimeSpan(),
-    [selectedTimeSpan]
-  );
+  const calculatedTimeSpan = useMemo(() => selectedTimeSpan.calculateAbsoluteTimeSpan(), [selectedTimeSpan]);
 
   const currentMetadata = tabsMetadata.get(activeTab);
 
@@ -135,12 +129,7 @@ const DatabaseTabComponent = ({ database }: DatabaseTabProps) => {
                   onSelectedSpanChanged={handleTimeSpanChanged}
                 />
               )}
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => handleRefresh()}
-                className="h-9 w-9"
-              >
+              <Button variant="outline" size="icon" onClick={() => handleRefresh()} className="h-9 w-9">
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
@@ -154,22 +143,16 @@ const DatabaseTabComponent = ({ database }: DatabaseTabProps) => {
             aria-hidden={activeTab !== "overview"}
           >
             {tabsMetadata.get("overview")?.loaded && (
-              <DatabaseOverview
-                ref={overviewRef}
-                database={database}
-                selectedTimeSpan={calculatedTimeSpan}
-              />
+              <DatabaseOverview ref={overviewRef} database={database} selectedTimeSpan={calculatedTimeSpan} />
             )}
           </div>
           {/* Database Dependency tab */}
           <div
-            className={`absolute inset-0 overflow-auto px-2 ${activeTab === "dependency" ? "block" : "hidden"}`}
+            className={`absolute inset-0 overflow-auto px-0 ${activeTab === "dependency" ? "block" : "hidden"}`}
             role="tabpanel"
             aria-hidden={activeTab !== "dependency"}
           >
-            {tabsMetadata.get("dependency")?.loaded && (
-              <DependencyView database={database} />
-            )}
+            {tabsMetadata.get("dependency")?.loaded && <DependencyView database={database} />}
           </div>
         </div>
       </Tabs>

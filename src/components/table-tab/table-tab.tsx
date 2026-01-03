@@ -12,6 +12,7 @@ import { PartHistoryView } from "./part-history-view";
 import { PartitionSizeView } from "./partition-view";
 import { QueryHistoryView } from "./query-history-view";
 import { getSystemTableTabs } from "./system-table/system-table-registry";
+import { TableDependenciesView } from "./table-dependencies-view";
 import { TableMetadataView } from "./table-metadata-view";
 import { TableOverviewView } from "./table-overview-view";
 
@@ -40,10 +41,10 @@ function hasRefreshCapability(ref: unknown): ref is RefreshableTabViewRef {
 
 // Map of engine types to their available tabs
 const ENGINE_TABS_MAP = new Map<string, Set<string>>([
-  ["MaterializedView", new Set(["metadata", "overview", "partitions"])],
-  ["Kafka", new Set(["metadata"])],
-  ["URL", new Set(["metadata"])],
-  ["Distributed", new Set(["data-sample", "metadata", "query-history"])],
+  ["MaterializedView", new Set(["metadata", "dependencies", "overview", "partitions"])],
+  ["Kafka", new Set(["metadata", "dependencies"])],
+  ["URL", new Set(["metadata", "dependencies"])],
+  ["Distributed", new Set(["data-sample", "metadata", "dependencies", "query-history"])],
   // Default: all tabs available
 ]);
 
@@ -64,13 +65,21 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   const baseAvailableTabs = useMemo(() => {
     return engine
       ? (ENGINE_TABS_MAP.get(engine) ??
-          new Set(["data-sample", "metadata", "overview", "partitions", "query-history", "part-history"]))
-      : new Set(["data-sample", "metadata", "overview", "partitions", "query-history", "part-history"]);
+          new Set([
+            "data-sample",
+            "metadata",
+            "dependencies",
+            "overview",
+            "partitions",
+            "query-history",
+            "part-history",
+          ]))
+      : new Set(["data-sample", "metadata", "dependencies", "overview", "partitions", "query-history", "part-history"]);
   }, [engine]);
 
   // Remove overview and partitions for System tables
   const availableTabs = useMemo(() => {
-    return isSystemTable ? new Set(["data-sample", "metadata"]) : baseAvailableTabs;
+    return isSystemTable ? new Set(["data-sample", "metadata", "dependencies"]) : baseAvailableTabs;
   }, [isSystemTable, baseAvailableTabs]);
 
   const initialTab = useMemo(() => {
@@ -96,6 +105,7 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   // Refs for each tab view
   const dataSampleRef = useRef<RefreshableTabViewRef>(null);
   const metadataRef = useRef<RefreshableTabViewRef>(null);
+  const dependenciesRef = useRef<RefreshableTabViewRef>(null);
   const tableOverviewRef = useRef<RefreshableTabViewRef>(null);
   const partitionRef = useRef<RefreshableTabViewRef>(null);
   const queryHistoryRef = useRef<RefreshableTabViewRef>(null);
@@ -109,6 +119,8 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
         return dataSampleRef.current;
       case "metadata":
         return metadataRef.current;
+      case "dependencies":
+        return dependenciesRef.current;
       case "overview":
         return tableOverviewRef.current;
       case "partitions":
@@ -245,6 +257,14 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
                   Metadata
                 </TabsTrigger>
               )}
+              {availableTabs.has("dependencies") && (
+                <TabsTrigger
+                  value="dependencies"
+                  className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
+                >
+                  Dependencies
+                </TabsTrigger>
+              )}
               {availableTabs.has("data-sample") && (
                 <TabsTrigger
                   value="data-sample"
@@ -367,6 +387,20 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
                 database={database}
                 table={table}
                 autoLoad={loadedTabs.has("metadata")}
+              />
+            </div>
+          )}
+          {availableTabs.has("dependencies") && (
+            <div
+              className={`absolute inset-0 overflow-auto ${currentTab === "dependencies" ? "block" : "hidden"}`}
+              role="tabpanel"
+              aria-hidden={currentTab !== "dependencies"}
+            >
+              <TableDependenciesView
+                ref={dependenciesRef}
+                database={database}
+                table={table}
+                autoLoad={loadedTabs.has("dependencies")}
               />
             </div>
           )}

@@ -3,7 +3,7 @@ import type { GraphEdge } from "@/components/shared/graphviz/Graph";
 import { OpenTableTabButton } from "@/components/table-tab/open-table-tab-button";
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Button } from "@/components/ui/button";
-import { type QueryError } from "@/lib/connection/connection";
+import { type DependencyTableInfo, type QueryError } from "@/lib/connection/connection";
 import { useConnection } from "@/lib/connection/connection-context";
 import { StringUtils } from "@/lib/string-utils";
 import { toastManager } from "@/lib/toast";
@@ -35,10 +35,11 @@ interface TableResponse {
 
 export interface DependencyViewProps {
   database: string;
+  table?: string; // Optional: if provided, show dependencies for this specific table
 }
 
-const DependencyViewComponent = ({ database }: DependencyViewProps) => {
-  const { connection } = useConnection();
+const DependencyViewComponent = ({ database, table }: DependencyViewProps) => {
+  const { connection, updateConnection } = useConnection();
   const [nodes, setNodes] = useState<Map<string, DependencyGraphNode>>(new Map());
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +53,7 @@ const DependencyViewComponent = ({ database }: DependencyViewProps) => {
       return;
     }
 
-    // Prevent duplicate execution - check if we already have data for this database
+    // Prevent duplicate execution
     if (hasExecutedRef.current) {
       return;
     }
@@ -60,46 +61,148 @@ const DependencyViewComponent = ({ database }: DependencyViewProps) => {
 
     setIsLoading(true);
 
-    // Execute the dependency query directly (without version)
-
+    // Load dependency data (from cache or query)
     (async () => {
       try {
-        const { response } = connection.queryOnNode(
-          `
+        let dependencyTables: Map<string, DependencyTableInfo>;
+
+        // Check if we have cached dependency data
+        if (connection.metadata.dependencyTables) {
+          // Use cached data
+          dependencyTables = connection.metadata.dependencyTables;
+        } else {
+          // Load from database and cache
+          const { response } = connection.queryOnNode(
+            `
 SELECT
     concat(database, '.', name) AS id,
     uuid,
     database,
     name,
     engine,
-    create_table_query AS tableQuery,
+    ${connection.metadata.has_format_query_function ? "formatQuery(create_table_query)" : "create_table_query"} AS tableQuery,
     dependencies_database AS dependenciesDatabase,
     dependencies_table AS dependenciesTable
 FROM system.tables
-WHERE database = '${database}' OR has(dependencies_database, '${database}')
+WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
 `,
-          {
-            default_format: "JSON",
-            output_format_json_quote_64bit_integers: 0,
+            {
+              default_format: "JSON",
+              output_format_json_quote_64bit_integers: 0,
+            }
+          );
+
+          const apiResponse = await response;
+          const responseData = apiResponse.data as { data?: TableResponse[] } | undefined;
+          const tables = responseData?.data;
+
+          // Build the cache map
+          dependencyTables = new Map<string, DependencyTableInfo>();
+          if (tables && tables.length > 0) {
+            for (const t of tables) {
+              dependencyTables.set(t.id, {
+                id: t.id,
+                uuid: t.uuid,
+                database: t.database,
+                name: t.name,
+                engine: t.engine,
+                tableQuery: t.tableQuery,
+                dependenciesDatabase: t.dependenciesDatabase,
+                dependenciesTable: t.dependenciesTable,
+              });
+            }
           }
-        );
 
-        const apiResponse = await response;
+          // Cache in connection metadata
+          updateConnection({ dependencyTables });
+        }
 
-        // Process the response data inline
-        const responseData = apiResponse.data as { data?: TableResponse[] } | undefined;
-        const tables = responseData?.data;
+        // Filter tables for the target database
+        const tables: TableResponse[] = [];
+        for (const [, tableInfo] of dependencyTables.entries()) {
+          const isInTargetDatabase = tableInfo.database === database;
+          const dependsOnTargetDatabase = tableInfo.dependenciesDatabase?.includes(database) ?? false;
 
-        if (tables && tables.length > 0) {
+          if (isInTargetDatabase || dependsOnTargetDatabase) {
+            tables.push({
+              id: tableInfo.id,
+              uuid: tableInfo.uuid,
+              database: tableInfo.database,
+              name: tableInfo.name,
+              engine: tableInfo.engine,
+              tableQuery: tableInfo.tableQuery,
+              dependenciesDatabase: tableInfo.dependenciesDatabase,
+              dependenciesTable: tableInfo.dependenciesTable,
+              serverVersion: "",
+              isTargetDatabase: isInTargetDatabase,
+            });
+          }
+        }
+
+        if (tables.length > 0) {
           // Convert TableResponse to the format DependencyBuilder expects
           // innerTable: 0 = not inner table, 1 = .inner., 2 = .inner_id.
-          const tablesWithInnerFlag = tables.map(t => ({ ...t, innerTable: 0 }));
+          const tablesWithInnerFlag = tables.map((t) => ({ ...t, innerTable: 0 }));
           const builder = new DependencyBuilder(tablesWithInnerFlag);
           builder.build(database);
 
-          if (builder.getNodes().size > 0) {
-            setNodes(builder.getNodes());
-            setEdges(builder.getEdges());
+          let finalNodes = builder.getNodes();
+          let finalEdges = builder.getEdges();
+
+          // If a specific table is provided, filter to show only its dependencies (upstream and downstream)
+          if (table) {
+            const targetTableId = `${database}.${table}`;
+            const relevantNodeIds = new Set<string>();
+
+            // Add the target table itself
+            relevantNodeIds.add(targetTableId);
+
+            // Find all upstream dependencies (what this table depends on)
+            const findUpstream = (nodeId: string) => {
+              const node = finalNodes.get(nodeId);
+              if (node) {
+                for (const targetId of node.targets) {
+                  if (!relevantNodeIds.has(targetId)) {
+                    relevantNodeIds.add(targetId);
+                    findUpstream(targetId);
+                  }
+                }
+              }
+            };
+
+            // Find all downstream dependencies (what depends on this table)
+            const findDownstream = (nodeId: string) => {
+              for (const [id, node] of finalNodes.entries()) {
+                if (node.targets.includes(nodeId) && !relevantNodeIds.has(id)) {
+                  relevantNodeIds.add(id);
+                  findDownstream(id);
+                }
+              }
+            };
+
+            findUpstream(targetTableId);
+            findDownstream(targetTableId);
+
+            // Filter nodes and edges
+            const filteredNodes = new Map<string, DependencyGraphNode>();
+            for (const nodeId of relevantNodeIds) {
+              const node = finalNodes.get(nodeId);
+              if (node) {
+                filteredNodes.set(nodeId, node);
+              }
+            }
+
+            const filteredEdges = finalEdges.filter(
+              (edge) => relevantNodeIds.has(edge.source) && relevantNodeIds.has(edge.target)
+            );
+
+            finalNodes = filteredNodes;
+            finalEdges = filteredEdges;
+          }
+
+          if (finalNodes.size > 0) {
+            setNodes(finalNodes);
+            setEdges(finalEdges);
           } else {
             setNodes(new Map());
             setEdges([]);
@@ -123,7 +226,7 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
     return () => {
       hasExecutedRef.current = false;
     };
-  }, [connection, database]);
+  }, [connection, database, table, updateConnection]);
 
   const onNodeClick = useCallback(
     (nodeId: string) => {
@@ -134,9 +237,8 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
 
       // Don't open the pane if the node is marked as "NOT FOUND"
       // A node is "NOT FOUND" when engine is empty or query is "NOT FOUND"
-      const shouldReturn = graphNode.category === ""
-        || graphNode.query === "NOT FOUND"
-        || graphNode.category === 'Kafka';
+      const shouldReturn =
+        graphNode.category === "" || graphNode.query === "NOT FOUND" || graphNode.category === "Kafka";
       if (shouldReturn) {
         return;
       }
@@ -164,6 +266,7 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
               onNodeClick={onNodeClick}
               style={{ width: "100%", height: "100%" }}
               database={database}
+              highlightedTableId={table ? `${database}.${table}` : undefined}
             />
           </Panel>
 
@@ -174,9 +277,9 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
 
           {/* Right Panel: Selected Table View */}
           {showTableNode && (
-            <Panel defaultSize={40} minSize={5} maxSize={70} className="bg-background border-l shadow-lg flex flex-col">
+            <Panel defaultSize={40} minSize={5} maxSize={70} className="bg-background shadow-lg flex flex-col">
               {/* Header with close button */}
-              <div className="flex items-center justify-between px-2 py-1 border-b flex-shrink-0">
+              <div className="flex items-center justify-between pl-2 border-b flex-shrink-0">
                 <OpenTableTabButton
                   database={showTableNode.namespace}
                   table={showTableNode.name}
@@ -191,13 +294,15 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
               </div>
 
               {/* DDL content */}
-              <div className="flex-1 overflow-auto p-4">
+              <div className="flex-1 overflow-auto">
                 <ThemedSyntaxHighlighter
                   customStyle={{ fontSize: "14px", margin: 0 }}
                   language="sql"
                   showLineNumbers={true}
                 >
-                  {StringUtils.prettyFormatQuery(showTableNode.query)}
+                  {connection!.metadata.has_format_query_function
+                    ? showTableNode.query
+                    : StringUtils.prettyFormatQuery(showTableNode.query)}
                 </ThemedSyntaxHighlighter>
               </div>
             </Panel>
@@ -206,7 +311,11 @@ WHERE database = '${database}' OR has(dependencies_database, '${database}')
       )}
       {!isLoading && nodes.size === 0 && (
         <div className="h-full w-full flex items-center justify-center">
-          <div className="text-sm text-muted-foreground">Tables under this database have no dependencies.</div>
+          <div className="text-sm text-muted-foreground">
+            {table
+              ? `Table ${database}.${table} has no dependencies.`
+              : `Tables under this database have no dependencies.`}
+          </div>
         </div>
       )}
     </PanelGroup>

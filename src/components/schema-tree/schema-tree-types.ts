@@ -51,4 +51,3 @@ export interface SchemaLoadResult {
   rows: TableItemDO[];
   serverDisplayName?: string;
 }
-

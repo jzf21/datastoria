@@ -35,6 +35,7 @@ interface DependencyGraphFlowProps {
   className?: string;
   style?: React.CSSProperties;
   database: string; // Database name for unique ID generation
+  highlightedTableId?: string; // Optional: ID of table to highlight (for table-specific views)
 }
 
 // Custom node component for table nodes
@@ -42,10 +43,10 @@ function TableNode({
   data,
   selected,
 }: {
-  data: { node: DependencyGraphNode; searchQuery?: string };
+  data: { node: DependencyGraphNode; searchQuery?: string; isHighlighted?: boolean };
   selected?: boolean;
 }) {
-  const { node, searchQuery } = data;
+  const { node, searchQuery, isHighlighted } = data;
   const isNotFound = node.category === "";
   const isExternal = node.type === "External";
 
@@ -65,13 +66,15 @@ function TableNode({
   return (
     <div
       className={`rounded-lg border-2 shadow-lg min-w-[200px] transition-all ${
-        selected
-          ? "border-primary ring-2 ring-primary ring-offset-2"
-          : isNotFound
-            ? "border-red-500 bg-red-50 dark:bg-red-950/20"
-            : isExternal
-              ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
-              : "border-border bg-background"
+        isHighlighted
+          ? "border-green-500 ring-4 ring-green-500/50 ring-offset-2 bg-green-50 dark:bg-green-950/30"
+          : selected
+            ? "border-primary ring-2 ring-primary ring-offset-2"
+            : isNotFound
+              ? "border-red-500 bg-red-50 dark:bg-red-950/20"
+              : isExternal
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
+                : "border-border bg-background"
       }`}
     >
       <Handle type="target" position={Position.Left} />
@@ -375,6 +378,7 @@ const DependencyGraphFlowInner = ({
   className,
   style,
   database,
+  highlightedTableId,
 }: DependencyGraphFlowProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -484,10 +488,14 @@ const DependencyGraphFlowInner = ({
       id: node.id,
       type: "tableNode",
       position: { x: 0, y: 0 }, // Will be calculated by layout
-      data: { node, searchQuery: searchQuery.trim() || undefined },
+      data: {
+        node,
+        searchQuery: searchQuery.trim() || undefined,
+        isHighlighted: highlightedTableId === node.id,
+      },
       draggable: true,
     }));
-  }, [nodes, searchQuery]);
+  }, [nodes, searchQuery, highlightedTableId]);
 
   // Use React Flow's built-in state hooks
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initialNodes);
@@ -562,9 +570,10 @@ const DependencyGraphFlowInner = ({
       data: {
         ...node.data,
         searchQuery: searchQuery.trim() || undefined,
+        isHighlighted: highlightedTableId === node.id,
       },
     }));
-  }, [flowNodes, selectedNodeId, searchQuery]);
+  }, [flowNodes, selectedNodeId, searchQuery, highlightedTableId]);
 
   // Node and edge types configuration
   const nodeTypes: NodeTypes = useMemo(

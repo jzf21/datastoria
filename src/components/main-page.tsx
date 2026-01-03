@@ -127,9 +127,8 @@ function MainPageLoadStatusComponent({ status, connectionName, error, onRetry }:
 
 // Initialize cluster info on a temporary connection and return the updates
 async function getConnectionMetadata(connection: Connection): Promise<Partial<ConnectionMetadata>> {
-  const { response } = connection.query(
-    `
-    SELECT currentUser(), 
+  const metadataQuery = connection.query(
+    `SELECT currentUser(), 
     timezone(), 
     hasColumnInTable('system', 'functions', 'description'),
     hasColumnInTable('system', 'metric_log', 'ProfileEvent_MergeSourceParts'),
@@ -137,25 +136,41 @@ async function getConnectionMetadata(connection: Connection): Promise<Partial<Co
 `,
     { default_format: "JSONCompact" }
   );
-  const apiResponse = await response;
-  if (apiResponse.httpStatus === 200) {
-    const returnNode = apiResponse.httpHeaders["x-clickhouse-server-display-name"];
-    const internalUser = apiResponse.data.data[0][0];
-    const timezone = apiResponse.data.data[0][1];
+
+  // Issue a dedicated query in case the query fails
+  const functionQuery = await connection.query(`select 1 from system.functions where name = 'formatQuery'`, {
+    default_format: "JSONCompact",
+  });
+
+  let metadata: Partial<ConnectionMetadata> = {};
+
+  const metadataResponse = await metadataQuery.response;
+  if (metadataResponse.httpStatus === 200) {
+    const returnNode = metadataResponse.httpHeaders["x-clickhouse-server-display-name"];
+    const internalUser = metadataResponse.data.data[0][0];
+    const timezone = metadataResponse.data.data[0][1];
 
     const isCluster =
       connection.cluster && connection.cluster.length > 0 && connection.metadata.targetNode === undefined;
-    return {
+    metadata = {
       targetNode: isCluster ? returnNode : undefined,
       internalUser: internalUser,
       timezone: timezone,
-      function_table_has_description_column: apiResponse.data.data[0][2] ? true : false,
-      metric_log_table_has_ProfileEvent_MergeSourceParts: apiResponse.data.data[0][3] ? true : false,
-      metric_log_table_has_ProfileEvent_MutationTotalParts: apiResponse.data.data[0][4] ? true : false,
+      function_table_has_description_column: metadataResponse.data.data[0][2] ? true : false,
+      metric_log_table_has_ProfileEvent_MergeSourceParts: metadataResponse.data.data[0][3] ? true : false,
+      metric_log_table_has_ProfileEvent_MutationTotalParts: metadataResponse.data.data[0][4] ? true : false,
     };
   }
 
-  return {};
+  {
+    const response = await functionQuery.response;
+    if (response.httpStatus === 200 && response.data.data.length > 0) {
+      const has_format_query_function = response.data.data[0][0];
+      metadata.has_format_query_function = has_format_query_function ? true : false;
+    }
+  }
+
+  return metadata;
 }
 
 export function MainPage() {

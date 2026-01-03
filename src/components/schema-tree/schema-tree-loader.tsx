@@ -3,7 +3,13 @@ import type { SchemaLoadResult, TableItemDO } from "./schema-tree-types";
 
 // Re-export types for backward compatibility
 export type {
-  ColumnNodeData, DatabaseNodeData, HostNodeData, SchemaLoadResult, SchemaNodeData, TableItemDO, TableNodeData
+  ColumnNodeData,
+  DatabaseNodeData,
+  HostNodeData,
+  SchemaLoadResult,
+  SchemaNodeData,
+  TableItemDO,
+  TableNodeData,
 } from "./schema-tree-types";
 
 export class SchemaTreeLoader {
@@ -51,17 +57,17 @@ WHERE
 ORDER BY lower(database), database, table, columnName`;
 
     try {
-      const { response, abortController } = connection.queryOnNode(
-        sql,
-        { default_format: "JSON", output_format_json_quote_64bit_integers: 0 }
-      );
+      const { response, abortController } = connection.queryOnNode(sql, {
+        default_format: "JSON",
+        output_format_json_quote_64bit_integers: 0,
+      });
 
       this.apiCanceller = abortController;
 
       const apiResponse = await response;
 
       const rows = (apiResponse.data.data || []) as TableItemDO[];
-      
+
       // Extract server display name from HTTP header
       const serverDisplayName = apiResponse.httpHeaders?.["x-clickhouse-server-display-name"];
 
