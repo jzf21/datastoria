@@ -375,8 +375,11 @@ interface DashboardPanelTimeseriesProps {
   // Runtime
   selectedTimeSpan?: TimeSpan;
 
-  // Optional callback: when a bar is clicked, notify parent with the bucket time span
-  onTimeSpanSelect?: (timeSpan: TimeSpan) => void;
+  // Optional callback: when a bar is clicked, notify parent with the bucket time span and series info
+  onChartSelection?: (
+    timeSpan: TimeSpan,
+    { name, series, value }: { name: string; series: string; value: number }
+  ) => void;
 
   // Initial loading state (useful for drilldown dialogs)
   initialLoading?: boolean;
@@ -391,7 +394,7 @@ const DashboardPanelTimeseries = forwardRef<
   DashboardVisualizationComponent,
   DashboardPanelTimeseriesProps
 >(function DashboardPanelTimeseries(props, ref) {
-  const { descriptor, selectedTimeSpan: propSelectedTimeSpan, onTimeSpanSelect } = props;
+  const { descriptor, selectedTimeSpan: propSelectedTimeSpan, onChartSelection } = props;
   const { connection } = useConnection();
   const isDark = useIsDarkTheme();
 
@@ -411,6 +414,7 @@ const DashboardPanelTimeseries = forwardRef<
   const apiCancellerRef = useRef<AbortController | null>(null);
   const timestampsRef = useRef<number[]>([]);
   const hoveredSeriesRef = useRef<string | null>(null);
+  const labelColumnsRef = useRef<string[]>([]);
 
   const toBucketTimeSpan = useCallback((dataIndex: number): TimeSpan | null => {
     const timestamps = timestampsRef.current;
@@ -639,6 +643,8 @@ const DashboardPanelTimeseries = forwardRef<
 
       // Store timestamps in ref for brush event handler
       timestampsRef.current = timestamps;
+      // Store label columns in ref for click handler
+      labelColumnsRef.current = labelColumns;
 
       // Build x-axis data
       const xAxisData: string[] = timestamps.map((ts) => {
@@ -740,6 +746,7 @@ const DashboardPanelTimeseries = forwardRef<
               areaStyle: descriptor.type === "area" ? { opacity: 0.3 } : undefined,
               // Prevent overly wide bars when there are only a few buckets
               barMaxWidth: descriptor.type === "bar" ? 24 : undefined,
+              stack: descriptor.stacked && descriptor.type === "bar" ? "stack" : undefined,
             });
           });
         });
@@ -772,6 +779,7 @@ const DashboardPanelTimeseries = forwardRef<
             areaStyle: descriptor.type === "area" ? { opacity: 0.3 } : undefined,
             // Prevent overly wide bars when there are only a few buckets
             barMaxWidth: descriptor.type === "bar" ? 24 : undefined,
+            stack: descriptor.stacked && descriptor.type === "bar" ? "stack" : undefined,
           });
         });
       }
@@ -1440,11 +1448,37 @@ const DashboardPanelTimeseries = forwardRef<
       if (dataIndex === null) {
         return;
       }
+      const seriesName = typeof p?.seriesName === "string" ? p.seriesName : undefined;
+      const seriesValue =
+        typeof p?.value === "number"
+          ? p.value
+          : typeof p?.value === "string"
+            ? parseFloat(p.value)
+            : undefined;
+      const labelColumns = labelColumnsRef.current;
+      if (!seriesName || seriesValue === undefined || isNaN(seriesValue)) {
+        return;
+      }
       const bucket = toBucketTimeSpan(dataIndex);
       if (!bucket) {
         return;
       }
-      onTimeSpanSelect?.(bucket);
+
+      // Determine the column name (label column name)
+      // For single label column, use that column name
+      // For multiple label columns, use the first one (series name format: "label1 - label2")
+      const columnName = labelColumns.length > 0 ? labelColumns[0] : "series";
+
+      // Remove metric suffix from series name if present (format: "seriesName (metricCol)")
+      let cleanSeriesName = seriesName;
+      if (cleanSeriesName.includes(" (")) {
+        const match = cleanSeriesName.match(/^(.+?)\s+\([^)]+\)$/);
+        if (match) {
+          cleanSeriesName = match[1];
+        }
+      }
+
+      onChartSelection?.(bucket, { name: columnName, series: cleanSeriesName, value: seriesValue });
     });
 
     // Handle window resize
@@ -1487,7 +1521,7 @@ const DashboardPanelTimeseries = forwardRef<
         chartInstanceRef.current = null;
       }
     };
-  }, [isDark, descriptor.type, onTimeSpanSelect, toBucketTimeSpan]);
+  }, [isDark, descriptor.type, onChartSelection, toBucketTimeSpan]);
 
   // Resize chart when expanded/collapsed state changes (since content is now hidden, not unmounted)
   useEffect(() => {

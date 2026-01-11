@@ -10,7 +10,10 @@ interface DashboardPanelProps {
   initialLoading?: boolean;
   onRef?: (ref: DashboardVisualizationComponent | null) => void;
   onCollapsedChange?: (isCollapsed: boolean) => void;
-  onTimeSpanSelect?: (timeSpan: TimeSpan) => void;
+  onChartSelection?: (
+    timeSpan: TimeSpan,
+    { name, series, value }: { name: string; series: string; value: number }
+  ) => void;
   className?: string;
 }
 
@@ -28,7 +31,7 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
   initialLoading,
   onRef,
   onCollapsedChange,
-  onTimeSpanSelect,
+  onChartSelection,
   className,
 }) => {
   // Defensive check: ensure descriptor exists and has a type property
@@ -54,7 +57,7 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
         selectedTimeSpan={selectedTimeSpan}
         initialLoading={initialLoading}
         onCollapsedChange={onCollapsedChange}
-        onTimeSpanSelect={onTimeSpanSelect}
+        onChartSelection={onChartSelection}
         className={className}
       />
     );

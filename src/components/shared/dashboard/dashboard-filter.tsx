@@ -2,12 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { FloatingLabel } from "@/components/ui/floating-label-input";
-import { Input } from "@/components/ui/input";
 import { ComparatorManager, QueryPattern } from "@/lib/query-utils";
 import { cn } from "@/lib/utils";
 import { RefreshCcw } from "lucide-react";
 import React, { Component } from "react";
-import Selector from "../selector";
+import Selector, { type SelectorRef } from "../selector";
 import type {
   DateTimeFilterSpec,
   FilterSpec,
@@ -63,6 +62,9 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
   private scrollLeftButtonRef = React.createRef<HTMLButtonElement>();
   private scrollRightButtonRef = React.createRef<HTMLButtonElement>();
 
+  // Store refs to Selector components by filter name
+  private selectorRefs = new Map<string, React.RefObject<SelectorRef | null>>();
+
   private nameConverts: Map<string, (name: string) => string>;
   private timeFilterSpec: DateTimeFilterSpec | undefined;
   private filterSpecByName: Map<string, SelectorFilterSpec>;
@@ -117,6 +119,11 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
   componentDidMount(): void {
     // Init the scroll button visibility
     this.handleSelectorContainerScroll();
+
+    const initialTimeSpan = this.getSelectedTimeSpan();
+    if (this.props.onTimeSpanChange && initialTimeSpan) {
+      this.props.onTimeSpanChange(initialTimeSpan);
+    }
 
     // Emit initial filter state if default patterns were set
     // This ensures parent components receive the initial filter and can apply it to queries
@@ -378,6 +385,30 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
     this.timeSpanSelectorRef.current?.setSelectedTimeSpan(getDisplayTimeSpanByLabel(label));
   }
 
+  public setFilter(filterName: string, value: string) {
+    const filterSpec = this.filterSpecByName.get(filterName);
+    if (!filterSpec) {
+      return; // Filter not found
+    }
+
+    // Create a QueryPattern with the value
+    const comparator = ComparatorManager.parseComparator("=");
+    const pattern = new QueryPattern(false, comparator.name, [value]);
+
+    // Update UI state directly via ref
+    const selectorRef = this.selectorRefs.get(filterName);
+    if (selectorRef?.current) {
+      selectorRef.current.setPattern(pattern);
+    }
+
+    // Find the index of this filter in the filterSpecs array
+    const filterIndex = this.props.filterSpecs.findIndex((f) => f === filterSpec);
+    if (filterIndex !== -1) {
+      // Trigger the callback to notify parent component
+      this.onItemSelectedCallback(filterIndex, filterSpec, pattern);
+    }
+  }
+
   private handleSelectorContainerScroll = () => {
     if (this.selectorContainerRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = this.selectorContainerRef.current;
@@ -436,14 +467,6 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
               return (
                 <div key={filter.alias} className="shrink-0">
                   <div className="relative">
-                    {/* Invisible peer input to drive the floating label positioning */}
-                    <Input
-                      id={timeFilterInputId}
-                      className="peer absolute inset-0 h-8 w-full opacity-0 pointer-events-none rounded-none"
-                      placeholder=" "
-                      defaultValue=" "
-                      disabled
-                    />
                     <FloatingLabel
                       htmlFor={timeFilterInputId}
                       className="pointer-events-none bg-transparent dark:bg-transparent"
@@ -465,8 +488,15 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
               );
             }
 
+            // Get or create ref for this selector
+            if (!this.selectorRefs.has(filter.name)) {
+              this.selectorRefs.set(filter.name, React.createRef<SelectorRef>());
+            }
+            const selectorRef = this.selectorRefs.get(filter.name)!;
+
             return (
               <Selector
+                ref={selectorRef}
                 className={cn("h-8", {
                   "rounded-l": index === 0,
                   "rounded-r": index === filterSpecs.length - 1,

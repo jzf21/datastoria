@@ -45,7 +45,10 @@ interface DashboardVisualizationPanelProps {
   initialLoading?: boolean;
   onRef?: (ref: DashboardVisualizationComponent | null) => void;
   onCollapsedChange?: (isCollapsed: boolean) => void;
-  onTimeSpanSelect?: (timeSpan: TimeSpan) => void;
+  onChartSelection?: (
+    timeSpan: TimeSpan,
+    { name, series, value }: { name: string; series: string; value: number }
+  ) => void;
   className?: string;
 }
 
@@ -83,7 +86,7 @@ export const DashboardVisualizationPanel = forwardRef<
       selectedTimeSpan={props.selectedTimeSpan}
       initialLoading={initialLoading}
       onCollapsedChange={onCollapsedChange}
-      onTimeSpanSelect={props.onTimeSpanSelect}
+      onChartSelection={props.onChartSelection}
       className={props.className}
     />
   );
@@ -106,7 +109,10 @@ interface UnifiedFacadeProps {
   selectedTimeSpan?: TimeSpan;
   initialLoading?: boolean;
   onCollapsedChange?: (isCollapsed: boolean) => void;
-  onTimeSpanSelect?: (timeSpan: TimeSpan) => void;
+  onChartSelection?: (
+    timeSpan: TimeSpan,
+    { name, series, value }: { name: string; series: string; value: number }
+  ) => void;
   className?: string;
 }
 
@@ -170,8 +176,11 @@ const UnifiedFacade = forwardRef<DashboardVisualizationComponent, UnifiedFacadeP
               connection.metadata?.timezone || "UTC"
             );
           } else {
-            finalSql = finalSql.replace(/{timeFilter}/g, "");
-            finalSql = finalSql.replace(/{timeFilter:String}/g, "");
+            finalSql = replaceTimeSpanParams(
+              finalSql,
+              param.selectedTimeSpan,
+              connection.metadata?.timezone || "UTC"
+            );
           }
 
           // Let visualization component prepare SQL (e.g., table adds ORDER BY and pagination)
@@ -554,7 +563,7 @@ const UnifiedFacade = forwardRef<DashboardVisualizationComponent, UnifiedFacadeP
             descriptor={descriptor as TimeseriesDescriptor}
             isLoading={isLoading}
             selectedTimeSpan={props.selectedTimeSpan}
-            onTimeSpanSelect={props.onTimeSpanSelect}
+            onChartSelection={props.onChartSelection}
             onShowRawData={handleShowRawData}
           />
         ) : descriptor.type === "gauge" ? (

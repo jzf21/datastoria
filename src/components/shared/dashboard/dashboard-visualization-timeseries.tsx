@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Dialog } from "@/components/use-dialog";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { Formatter, type FormatName, type ObjectFormatter } from "@/lib/formatter";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ import {
   type FieldOption,
   type PanelDescriptor,
   type Reducer,
+  type TableDescriptor,
   type TimeseriesDescriptor,
 } from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
@@ -296,7 +298,10 @@ export interface TimeseriesVisualizationProps {
   selectedTimeSpan?: TimeSpan;
 
   // Callbacks to facade
-  onTimeSpanSelect?: (timeSpan: TimeSpan) => void;
+  onChartSelection?: (
+    timeSpan: TimeSpan,
+    { name, series, value }: { name: string; series: string; value: number }
+  ) => void;
   onShowRawData?: () => void;
 }
 
@@ -316,7 +321,7 @@ export const TimeseriesVisualization = React.forwardRef<
     meta,
     descriptor,
     selectedTimeSpan: _selectedTimeSpan,
-    onTimeSpanSelect,
+    onChartSelection,
     onShowRawData,
   } = props;
   const isDark = useIsDarkTheme();
@@ -326,11 +331,10 @@ export const TimeseriesVisualization = React.forwardRef<
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const timestampsRef = useRef<number[]>([]);
   const hoveredSeriesRef = useRef<string | null>(null);
+  const labelColumnsRef = useRef<string[]>([]);
 
   // State for legend data
   const [legendData, setLegendData] = useState<LegendData | undefined>(undefined);
-  // State for brush selection (drilldown)
-  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeSpan | null>(null);
 
   // Detect columns
   const detectedColumns = useMemo(() => {
@@ -535,20 +539,57 @@ export const TimeseriesVisualization = React.forwardRef<
     return descriptor.drilldown[firstKey] || null;
   }, [descriptor.drilldown]);
 
-  // Render drilldown component
-  const renderDrilldownComponent = useCallback(
-    (drilldownDescriptor: PanelDescriptor, timeRange: TimeSpan) => {
-      return (
-        <div className="border-t pt-4">
-          <DashboardPanel
-            descriptor={drilldownDescriptor}
-            selectedTimeSpan={timeRange}
-            initialLoading={true}
-          />
-        </div>
-      );
+  // Handle drilldown with dialog
+  const handleDrilldown = useCallback(
+    (timeRange: TimeSpan) => {
+      const drilldownDescriptor = getFirstDrilldownDescriptor();
+      if (!drilldownDescriptor) return;
+
+      // Create a modified copy of the descriptor for drilldown
+      const modifiedDescriptor: PanelDescriptor = { ...drilldownDescriptor };
+
+      // Hide title in drilldown dialog
+      if (modifiedDescriptor.titleOption) {
+        modifiedDescriptor.titleOption = {
+          ...modifiedDescriptor.titleOption,
+          showTitle: false,
+        };
+      }
+      modifiedDescriptor.collapsed = false;
+
+      // Make table header sticky and set height for tables in dialog mode
+      if (modifiedDescriptor.type === "table") {
+        const tableDescriptor = modifiedDescriptor as TableDescriptor;
+        tableDescriptor.headOption = {
+          ...tableDescriptor.headOption,
+          isSticky: true,
+        };
+        // Set height for dialog mode (70vh matches the dialog height)
+        if (!tableDescriptor.height) {
+          tableDescriptor.height = 70; // 70vh
+        }
+      }
+
+      const title = modifiedDescriptor.titleOption?.title || "Drilldown";
+      const description = modifiedDescriptor.titleOption?.description;
+
+      Dialog.showDialog({
+        title,
+        description,
+        className: "max-w-[60vw] h-[70vh]",
+        disableContentScroll: false,
+        mainContent: (
+          <div className="w-full h-full overflow-auto">
+            <DashboardPanel
+              descriptor={modifiedDescriptor}
+              selectedTimeSpan={timeRange}
+              initialLoading={true}
+            />
+          </div>
+        ),
+      });
     },
-    []
+    [getFirstDrilldownDescriptor]
   );
 
   // Initialize echarts instance
@@ -582,17 +623,26 @@ export const TimeseriesVisualization = React.forwardRef<
       hoveredSeriesRef.current = null;
     });
 
-    // Add click handler for time span selection
-    if (onTimeSpanSelect) {
-      chartInstance.on("click", (p: { dataIndex?: number }) => {
+    // Add click handler for chart selection (time span and series)
+    if (onChartSelection) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chartInstance.on("click", { componentType: "series" } as any, (p: any) => {
         console.log("[TimeseriesVisualization] Chart click event:", p);
         if (!p || typeof p?.dataIndex !== "number") {
           return;
         }
         const dataIndex = p.dataIndex;
+        const seriesName = typeof p?.seriesName === "string" ? p.seriesName : undefined;
+        const seriesValue =
+          typeof p?.value === "number"
+            ? p.value
+            : typeof p?.value === "string"
+              ? parseFloat(p.value)
+              : undefined;
         const timestamps = timestampsRef.current;
+        const labelColumns = labelColumnsRef.current;
         const ts = timestamps[dataIndex];
-        if (!ts) {
+        if (!ts || !seriesName || seriesValue === undefined || isNaN(seriesValue)) {
           return;
         }
 
@@ -615,7 +665,26 @@ export const TimeseriesVisualization = React.forwardRef<
           startISO8601: DateTimeExtension.formatISO8601(start) || start.toISOString(),
           endISO8601: DateTimeExtension.formatISO8601(end) || end.toISOString(),
         };
-        onTimeSpanSelect(timeSpan);
+
+        // Determine the column name (label column name)
+        // For single label column, use that column name
+        // For multiple label columns, use the first one (series name format: "label1 - label2")
+        const columnName = labelColumns.length > 0 ? labelColumns[0] : "series";
+
+        // Remove metric suffix from series name if present (format: "seriesName (metricCol)")
+        let cleanSeriesName = seriesName;
+        if (cleanSeriesName.includes(" (")) {
+          const match = cleanSeriesName.match(/^(.+?)\s+\([^)]+\)$/);
+          if (match) {
+            cleanSeriesName = match[1];
+          }
+        }
+
+        onChartSelection(timeSpan, {
+          name: columnName,
+          series: cleanSeriesName,
+          value: seriesValue,
+        });
       });
     }
 
@@ -655,7 +724,7 @@ export const TimeseriesVisualization = React.forwardRef<
         chartInstanceRef.current = null;
       }
     };
-  }, [isDark, onTimeSpanSelect]);
+  }, [isDark, onChartSelection]);
 
   // Update chart when data changes
   useEffect(() => {
@@ -710,6 +779,8 @@ export const TimeseriesVisualization = React.forwardRef<
 
       // Store timestamps in ref for click handler
       timestampsRef.current = timestamps;
+      // Store label columns in ref for click handler
+      labelColumnsRef.current = labelColumns;
 
       // Build x-axis data with formatted time strings
       const xAxisData: string[] = timestamps.map((ts) => {
@@ -840,6 +911,7 @@ export const TimeseriesVisualization = React.forwardRef<
               showSymbol: false,
               areaStyle: descriptor.type === "area" ? { opacity: 0.3 } : undefined,
               barMaxWidth: descriptor.type === "bar" ? 24 : undefined,
+              stack: descriptor.stacked && descriptor.type === "bar" ? "stack" : undefined,
             };
 
             series.push(seriesOption);
@@ -903,6 +975,7 @@ export const TimeseriesVisualization = React.forwardRef<
             showSymbol: false,
             areaStyle: descriptor.type === "area" ? { opacity: 0.3 } : undefined,
             barMaxWidth: descriptor.type === "bar" ? 24 : undefined,
+            stack: descriptor.stacked && descriptor.type === "bar" ? "stack" : undefined,
           };
 
           series.push(seriesOption);
@@ -1191,10 +1264,12 @@ export const TimeseriesVisualization = React.forwardRef<
                   const startISO = new Date(startTime).toISOString();
                   const endISO = new Date(endTime).toISOString();
 
-                  setSelectedTimeRange({
+                  const timeRange: TimeSpan = {
                     startISO8601: startISO,
                     endISO8601: endISO,
-                  });
+                  };
+
+                  handleDrilldown(timeRange);
                 }
               }
             }
@@ -1218,7 +1293,15 @@ export const TimeseriesVisualization = React.forwardRef<
     } catch (err) {
       console.error("Error updating timeseries chart:", err);
     }
-  }, [data, descriptor, detectedColumns, meta, inferFormatFromMetricName, hasDrilldown]);
+  }, [
+    data,
+    descriptor,
+    detectedColumns,
+    meta,
+    inferFormatFromMetricName,
+    hasDrilldown,
+    handleDrilldown,
+  ]);
 
   // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
@@ -1234,30 +1317,13 @@ export const TimeseriesVisualization = React.forwardRef<
     prepareDataFetchSql: (sql: string, _pageNumber?: number) => sql,
   }));
 
-  // Memoize drilldown component
-  const drilldownComponent = useMemo(() => {
-    if (!hasDrilldown() || !selectedTimeRange) return null;
-    const drilldownDescriptor = getFirstDrilldownDescriptor();
-    if (!drilldownDescriptor) return null;
-    return renderDrilldownComponent(drilldownDescriptor, selectedTimeRange);
-  }, [hasDrilldown, selectedTimeRange, getFirstDrilldownDescriptor, renderDrilldownComponent]);
-
   return (
-    <CardContent
-      className={cn("px-0 p-0 flex flex-col h-full", drilldownComponent ? "overflow-y-auto" : "")}
-    >
+    <CardContent className="px-0 p-0 flex flex-col h-full">
       <div
         ref={chartContainerRef}
-        className={cn(
-          "w-full min-h-0",
-          descriptor.height ? "flex-none" : drilldownComponent ? "" : "flex-1"
-        )}
+        className={cn("w-full min-h-0", descriptor.height ? "flex-none" : "flex-1")}
         style={{
-          height: descriptor.height
-            ? `${descriptor.height}px`
-            : drilldownComponent
-              ? "300px"
-              : "100%",
+          height: descriptor.height ? `${descriptor.height}px` : "100%",
           width: "100%",
           minWidth: 0,
         }}
@@ -1272,7 +1338,6 @@ export const TimeseriesVisualization = React.forwardRef<
             legendOption={descriptor.legendOption}
           />
         )}
-      {drilldownComponent && <div>{drilldownComponent}</div>}
     </CardContent>
   );
 });

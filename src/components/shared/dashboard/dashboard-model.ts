@@ -74,7 +74,7 @@ export interface SelectorFilterSpec {
   /**
    * Optional initial filter pattern to apply when the component mounts.
    * If provided, this filter will be automatically applied on initialization.
-   * 
+   *
    * Example:
    * - { comparator: "!=", values: ["QueryStart"] } for `type <> 'QueryStart'`
    * - { comparator: "in", values: ["value1", "value2"] } for `type IN ('value1', 'value2')`
@@ -374,12 +374,15 @@ export interface TimeseriesDescriptor extends PanelDescriptor {
   legendOption?: {
     // If not given, it defaults to the 'inside'. Use 'none' to hide the legend.
     placement: "bottom" | "inside" | "none";
-    values: Reducer[];
+    values?: Reducer[];
   };
 
   tooltipOption?: {
     sortValue: "asc" | "desc" | "none";
   };
+
+  // Stacking configuration for bar charts
+  stacked?: boolean;
 }
 
 // Pie Descriptor interface

@@ -51,6 +51,10 @@ interface SelectorProps {
   onItemSelected: (matcher: QueryPattern) => void;
 }
 
+export interface SelectorRef {
+  setPattern: (pattern: QueryPattern | null) => void;
+}
+
 function filter(value: string, search: string): number {
   return value.toLowerCase().indexOf(search.toLowerCase()) >= 0 ? 1 : 0;
 }
@@ -358,18 +362,21 @@ class PatternSelector extends React.Component<PatternSelectorProps, PatternSelec
   }
 }
 
-const Selector: React.FC<SelectorProps> = React.memo(
-  ({
-    className,
-    placeholder,
-    supportedComparators,
-    defaultItems,
-    defaultPattern,
-    beforeLoadItem,
-    onLoadItem,
-    afterLoadItem,
-    onItemSelected,
-  }) => {
+const Selector = React.forwardRef<SelectorRef, SelectorProps>(
+  (
+    {
+      className,
+      placeholder,
+      supportedComparators,
+      defaultItems,
+      defaultPattern,
+      beforeLoadItem,
+      onLoadItem,
+      afterLoadItem,
+      onItemSelected,
+    },
+    ref
+  ) => {
     const comparatorGroups = React.useMemo(() => {
       return ComparatorManager.getComparatorGroups(supportedComparators);
     }, [supportedComparators]);
@@ -387,6 +394,28 @@ const Selector: React.FC<SelectorProps> = React.memo(
     const textInputRef = React.useRef<HTMLInputElement>(null);
     const searchInputRef = React.useRef<HTMLInputElement>(null);
     const patternSelectorRef = React.useRef<PatternSelector>(null);
+
+    // Sync with defaultPattern changes (e.g., when setFilter is called)
+    useEffect(() => {
+      if (defaultPattern) {
+        const newComparator = ComparatorManager.parseComparator(defaultPattern.comparator);
+        setSelectedComparator(newComparator);
+        const newValue = new Set<string>(defaultPattern.values);
+        setSelectedValue(newValue);
+        // Update the input field
+        if (textInputRef.current) {
+          textInputRef.current.value =
+            defaultPattern.values.length === 0 ? "" : defaultPattern.values.join(",");
+        }
+      } else {
+        // Clear selection if defaultPattern is undefined/null
+        setSelectedValue(new Set<string>());
+        setSelectedComparator(ComparatorManager.parseComparator("="));
+        if (textInputRef.current) {
+          textInputRef.current.value = "";
+        }
+      }
+    }, [defaultPattern]);
 
     useEffect(() => {
       if (!isOpen) {
@@ -495,16 +524,49 @@ const Selector: React.FC<SelectorProps> = React.memo(
       }
     }, []);
 
-    const onClearSelection = React.useCallback((event: React.MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      textInputRef.current.value = "";
+    const onClearSelection = React.useCallback(
+      (event: React.MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (textInputRef.current) {
+          textInputRef.current.value = "";
+        }
 
-      setIsOpen(false);
-      setSelectedValue(new Set<string>());
-      setSelectedComparator(ComparatorManager.parseComparator("=")); // Reset to the default comparator
-      onItemSelected(null);
-    }, []);
+        setIsOpen(false);
+        setSelectedValue(new Set<string>());
+        setSelectedComparator(ComparatorManager.parseComparator("=")); // Reset to the default comparator
+        onItemSelected(null);
+      },
+      [onItemSelected]
+    );
+
+    // Expose setPattern method via ref
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        setPattern: (pattern: QueryPattern | null) => {
+          if (pattern) {
+            const newComparator = ComparatorManager.parseComparator(pattern.comparator);
+            setSelectedComparator(newComparator);
+            const newValue = new Set<string>(pattern.values);
+            setSelectedValue(newValue);
+            // Update the input field
+            if (textInputRef.current) {
+              textInputRef.current.value =
+                pattern.values.length === 0 ? "" : pattern.values.join(",");
+            }
+          } else {
+            // Clear selection
+            setSelectedValue(new Set<string>());
+            setSelectedComparator(ComparatorManager.parseComparator("="));
+            if (textInputRef.current) {
+              textInputRef.current.value = "";
+            }
+          }
+        },
+      }),
+      []
+    );
 
     // Logger.trace(`Rendering selector [${placeholder}]...`);
 
@@ -635,14 +697,15 @@ const Selector: React.FC<SelectorProps> = React.memo(
         </div>
       </div>
     );
-  },
-  (prevProps, nextProps) => {
-    //console.log(prevProps);
-    //console.log(nextProps);
-    // TODO: Fix the comparison logic
-    return prevProps == nextProps;
   }
 );
 
-Selector.displayName = "Selector";
-export default Selector;
+const SelectorWithMemo = React.memo(Selector, (prevProps, nextProps) => {
+  //console.log(prevProps);
+  //console.log(nextProps);
+  // TODO: Fix the comparison logic
+  return prevProps == nextProps;
+});
+
+SelectorWithMemo.displayName = "Selector";
+export default SelectorWithMemo;

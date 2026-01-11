@@ -15,17 +15,14 @@ import type {
 } from "@/components/shared/dashboard/dashboard-model";
 import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
 import type { DashboardVisualizationComponent } from "@/components/shared/dashboard/dashboard-visualization-layout";
-import {
-  getDisplayTimeSpanByLabel,
-  type TimeSpan,
-} from "@/components/shared/dashboard/timespan-selector";
+import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
 import { TabManager } from "@/components/tab-manager";
 import { CopyButton } from "@/components/ui/copy-button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
 import type { JSONCompactFormatResponse } from "@/lib/connection/connection";
 import { cn } from "@/lib/utils";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 interface QueryIdLinkProps {
   displayQueryId: string;
@@ -218,6 +215,7 @@ LIMIT 100
 const DISTRIBUTION_QUERY = `
 SELECT
     toStartOfInterval(event_time, interval {rounding:UInt32} second) as t,
+    type,
     count(1) as count
 FROM system.query_log
 WHERE 
@@ -226,8 +224,8 @@ WHERE
   AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
   AND event_time >= {from:String} 
   AND event_time <= {to:String}
-GROUP BY t
-ORDER BY t`;
+GROUP BY t, type
+ORDER BY t, type`;
 
 const TABLE_QUERY = `
 SELECT * FROM system.query_log 
@@ -242,52 +240,31 @@ ORDER BY event_time DESC`;
 const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTableQueryLogProps) => {
   const { connection } = useConnection();
 
-  // Calculate initial time span the same way the filter component does
-  // This prevents double-fetching: panels will mount with selectedTimeSpan already set,
-  // so they'll trigger one refresh on mount. When filter component calls onTimeSpanChange
-  // with the same value, it won't trigger another refresh.
-  const initialTimeSpan = useMemo(() => {
-    const defaultTimeSpanLabel =
-      FILTER_SPECS.find((f): f is DateTimeFilterSpec => f.filterType === "date_time")
-        ?.defaultTimeSpan || "Last 15 Mins";
-    const displayTimeSpan = getDisplayTimeSpanByLabel(defaultTimeSpanLabel);
-    return displayTimeSpan.getTimeSpan();
-  }, []);
-
-  // State - initialize with the same value filter component will use
-  const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan | undefined>(initialTimeSpan);
-  const [selectedFilters, setSelectedFilters] = useState<SelectedFilter | undefined>(undefined);
-  const [inputFilter, setInputFilter] = useState<string>("");
-
   // Refs
   const inputFilterRef = useRef<HTMLInputElement>(null);
   const filterRef = useRef<DashboardFilterComponent>(null);
   const chartRef = useRef<DashboardVisualizationComponent | null>(null);
   const tableRef = useRef<DashboardVisualizationComponent | null>(null);
-  const selectedTimeSpanRef = useRef<TimeSpan | undefined>(undefined);
-
-  useEffect(() => {
-    selectedTimeSpanRef.current = selectedTimeSpan;
-  }, [selectedTimeSpan]);
 
   // Chart Descriptor
   const chartDescriptor = useMemo<TimeseriesDescriptor>(() => {
     return {
       type: "bar",
-      titleOption: { title: `Query Count Distribution`, showTitle: true },
+      titleOption: { title: `Query Count Distribution`, showTitle: true, align: "left" },
       query: {
         sql: DISTRIBUTION_QUERY,
       },
       legendOption: {
-        placement: "none",
-        values: [],
+        placement: "inside",
       },
       fieldOptions: {
         t: { name: "t", type: "datetime" },
         count: { name: "count", type: "number" },
+        type: { name: "type", type: "string" },
       },
+      stacked: true,
       height: 150,
-    };
+    } as TimeseriesDescriptor;
   }, []);
 
   const tableDescriptor = useMemo<TableDescriptor>(() => {
@@ -340,69 +317,105 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
     };
   }, []);
 
-  // Update SQLs when filters change
-  // Note: We don't trigger refresh on initial mount when time span is first set - that's handled by useRefreshable
-  // We only trigger refresh here when filters actually change after initial setup
-  useEffect(() => {
-    const parts: string[] = [];
-    if (selectedFilters?.expr) {
-      parts.push(selectedFilters.expr);
-    }
-    if (inputFilter) {
-      parts.push(inputFilter);
-    }
-    const filterExpression = parts.length > 0 ? parts.join(" AND ") : "1=1";
-    tableDescriptor.query.sql = TABLE_QUERY.replace("{filterExpression:String}", filterExpression);
-    chartDescriptor.query.sql = DISTRIBUTION_QUERY.replace(
-      "{filterExpression:String}",
-      filterExpression
-    );
+  // Helper function to update SQLs and refresh panels
+  const updateAndRefresh = useCallback(
+    (timeSpan: TimeSpan, filter: SelectedFilter | undefined, inputFilterValue?: string) => {
+      const parts: string[] = [];
+      if (filter?.expr) {
+        parts.push(filter.expr);
+      }
+      if (inputFilterValue !== undefined) {
+        const value = inputFilterValue || inputFilterRef.current?.value || "";
+        if (value) {
+          parts.push(value);
+        }
+      } else {
+        const value = inputFilterRef.current?.value || "";
+        if (value) {
+          parts.push(value);
+        }
+      }
+      const filterExpression = parts.length > 0 ? parts.join(" AND ") : "1=1";
+      tableDescriptor.query.sql = TABLE_QUERY.replace(
+        "{filterExpression:String}",
+        filterExpression
+      );
+      chartDescriptor.query.sql = DISTRIBUTION_QUERY.replace(
+        "{filterExpression:String}",
+        filterExpression
+      );
 
-    const currentTimeSpan = selectedTimeSpanRef.current;
-    if (!currentTimeSpan) {
-      return;
-    }
-
-    // Trigger refresh with a filter change indicator to force refresh even if time span hasn't changed
-    // This ensures that when filters change, the data is refreshed
-    // Note: We don't need to skip on initial setup anymore because selectedTimeSpan is initialized
-    // with the same value the filter component uses, so panels will refresh once on mount via useRefreshable,
-    // and when filter component calls onTimeSpanChange with the same value, it won't trigger another refresh.
-    chartRef.current?.refresh({
-      selectedTimeSpan: currentTimeSpan,
-      inputFilter: `filter_${Date.now()}`,
-    });
-    tableRef.current?.refresh({
-      selectedTimeSpan: currentTimeSpan,
-      inputFilter: `filter_${Date.now()}`,
-    });
+      // Trigger refresh
+      chartRef.current?.refresh({
+        selectedTimeSpan: timeSpan,
+        inputFilter: `filter_${Date.now()}`,
+      });
+      tableRef.current?.refresh({
+        selectedTimeSpan: timeSpan,
+        inputFilter: `filter_${Date.now()}`,
+      });
+    },
     // We intentionally don't include chartDescriptor and tableDescriptor in deps because:
     // 1. They're created with useMemo and are stable references
     // 2. We mutate their query.sql property directly, which doesn't change the reference
     // 3. We only want to trigger refreshes when filters change, not when descriptors are recreated
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFilters, inputFilter]);
+    []
+  );
 
-  // Handlers
-  const handleSelectionFilterChange = useCallback((filter: SelectedFilter) => {
-    setSelectedFilters(filter);
+  useEffect(() => {
+    updateAndRefresh(
+      filterRef.current!.getSelectedTimeSpan(),
+      filterRef.current!.getSelectedFilter(),
+      ""
+    );
   }, []);
 
-  const handleTimeSpanChange = useCallback((timeSpan: TimeSpan) => {
-    setSelectedTimeSpan(timeSpan);
-  }, []);
+  // Handlers - directly refresh panels when filter component state changes
+  const handleSelectionFilterChange = useCallback(
+    (filter: SelectedFilter) => {
+      // Get current time span from filter component
+      const timeSpan = filterRef.current?.getSelectedTimeSpan();
+      if (!timeSpan) {
+        return;
+      }
+      updateAndRefresh(timeSpan, filter);
+    },
+    [updateAndRefresh]
+  );
 
-  const handleChartTimeSpanSelect = useCallback((timeSpan: TimeSpan) => {
-    // Sync both the local state and the filter UI so subsequent loads use the new window.
-    filterRef.current?.setSelectedTimeSpan(timeSpan);
-    setSelectedTimeSpan(timeSpan);
-  }, []);
+  const handleTimeSpanChange = useCallback(
+    (timeSpan: TimeSpan) => {
+      // Get current filter from filter component
+      const filter = filterRef.current?.getSelectedFilter();
+      updateAndRefresh(timeSpan, filter);
+    },
+    [updateAndRefresh]
+  );
 
-  const handleInputFilterKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      setInputFilter(inputFilterRef.current?.value || "");
-    }
-  }, []);
+  const handleChartSelection = useCallback(
+    (timeSpan: TimeSpan, { name, series }: { name: string; series: string; value: number }) => {
+      // Sync the filter UI - the callbacks will handle refreshing the panels
+      filterRef.current?.setSelectedTimeSpan(timeSpan);
+      filterRef.current?.setFilter(name, series);
+    },
+    []
+  );
+
+  const handleInputFilterKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        const inputFilterValue = inputFilterRef.current?.value || "";
+        // Get current state from filter component
+        const timeSpan = filterRef.current?.getSelectedTimeSpan();
+        const filter = filterRef.current?.getSelectedFilter();
+        if (timeSpan) {
+          updateAndRefresh(timeSpan, filter, inputFilterValue);
+        }
+      }
+    },
+    [updateAndRefresh]
+  );
 
   const handleLoadFilterData = useCallback(
     async (query: SQLQuery) => {
@@ -451,34 +464,30 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
 
       {/* Chart Section */}
       <div className="shrink-0 overflow-hidden">
-        {selectedTimeSpan && (
-          <DashboardPanel
-            onRef={(r) => {
-              if (chartRef.current !== r) {
-                chartRef.current = r;
-              }
-            }}
-            descriptor={chartDescriptor}
-            selectedTimeSpan={selectedTimeSpan}
-            onTimeSpanSelect={handleChartTimeSpanSelect}
-            className="h-full w-full"
-          />
-        )}
+        <DashboardPanel
+          onRef={(r) => {
+            if (chartRef.current !== r) {
+              chartRef.current = r;
+            }
+          }}
+          descriptor={chartDescriptor}
+          selectedTimeSpan={filterRef.current?.getSelectedTimeSpan()}
+          onChartSelection={handleChartSelection}
+          className="h-full w-full"
+        />
       </div>
 
       {/* Table Section */}
       <div className={cn("min-h-0 overflow-hidden")}>
-        {selectedTimeSpan && (
-          <DashboardPanel
-            onRef={(r) => {
-              if (tableRef.current !== r) {
-                tableRef.current = r;
-              }
-            }}
-            descriptor={tableDescriptor}
-            selectedTimeSpan={selectedTimeSpan}
-          />
-        )}
+        <DashboardPanel
+          onRef={(r) => {
+            if (tableRef.current !== r) {
+              tableRef.current = r;
+            }
+          }}
+          descriptor={tableDescriptor}
+          selectedTimeSpan={filterRef.current?.getSelectedTimeSpan()}
+        />
       </div>
     </div>
   );
