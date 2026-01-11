@@ -29,8 +29,8 @@ import {
   type StatDescriptor,
   type TableDescriptor,
 } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import type { VisualizationRef } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
 
@@ -810,7 +810,7 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
         disableContentScroll: false,
         mainContent: (
           <div className="w-full h-full overflow-auto">
-            <DashboardPanel
+            <DashboardVisualizationPanel
               descriptor={modifiedDescriptor}
               selectedTimeSpan={selectedTimeSpan}
               initialLoading={true}
@@ -876,7 +876,7 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
     // Render comparison
     const renderComparison = () => {
       // Logic for determining if offset is used
-      // Since secondaryData comes from UnifiedFacade which handles the query,
+      // Since secondaryData comes from DashboardVisualizationPanel which handles the query,
       // we just check if descriptor has comparisonOption.
       if (!descriptor.comparisonOption) {
         return null;
@@ -1014,5 +1014,3 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
     );
   }
 );
-
-StatVisualization.displayName = "StatVisualization";

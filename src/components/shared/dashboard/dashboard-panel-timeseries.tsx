@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * @deprecated This component is deprecated. Use DashboardPanel facade instead.
+ * @deprecated This component is deprecated. Use DashboardVisualizationPanel facade instead.
  * This component will be removed in a future version.
  * Kept temporarily for backward compatibility.
  *
- * Migration: Simply use <DashboardPanel descriptor={timeseriesDescriptor} /> instead of
+ * Migration: Simply use <DashboardVisualizationPanel descriptor={timeseriesDescriptor} /> instead of
  * <DashboardPanelTimeseries descriptor={timeseriesDescriptor} />
  */
 import { useConnection } from "@/components/connection/connection-context";
@@ -48,12 +48,12 @@ import {
   type SQLQuery,
   type TimeseriesDescriptor,
 } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import {
   DashboardVisualizationLayout,
   type DashboardVisualizationComponent,
   type RefreshOptions,
 } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
@@ -360,7 +360,7 @@ const DrilldownChartRendererWithRefresh: React.FC<{
 
   // Render with stable key (not including timeSpan) and ref
   return (
-    <DashboardPanel
+    <DashboardVisualizationPanel
       descriptor={descriptor}
       selectedTimeSpan={selectedTimeSpan}
       onRef={setComponentRef}
@@ -1790,7 +1790,5 @@ const DashboardPanelTimeseries = forwardRef<
     </DashboardVisualizationLayout>
   );
 });
-
-DashboardPanelTimeseries.displayName = "DashboardPanelTimeseries";
 
 export default DashboardPanelTimeseries;

@@ -149,7 +149,7 @@ export function AppSidebar() {
             {isReady && (
               <>
                 <ConnectionManageSidebarMenuItem />
-                
+
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     tooltip="Click to open query tab to write and execute SQL"

@@ -124,6 +124,4 @@ const DashboardContainer = forwardRef<DashboardContainerRef, DashboardViewProps>
   }
 );
 
-DashboardContainer.displayName = "DashboardContainer";
-
 export default DashboardContainer;

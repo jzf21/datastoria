@@ -227,8 +227,6 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
   }
 );
 
-DashboardPanelHeader.displayName = "DashboardPanelHeader";
-
 /**
  * Common layout component for dashboard cards
  * Handles Card wrapper, FloatingProgressBar, Collapsible, Header, and DropdownMenu

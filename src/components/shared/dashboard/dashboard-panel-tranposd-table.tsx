@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * @deprecated This component is deprecated. Use DashboardPanel facade instead.
+ * @deprecated This component is deprecated. Use DashboardVisualizationPanel facade instead.
  * This component will be removed in a future version.
  * Kept temporarily for backward compatibility.
  *
- * Migration: Simply use <DashboardPanel descriptor={transposeTableDescriptor} /> instead of
+ * Migration: Simply use <DashboardVisualizationPanel descriptor={transposeTableDescriptor} /> instead of
  * <DashboardPanelTransposedTable descriptor={transposeTableDescriptor} />
  */
 import { useConnection } from "@/components/connection/connection-context";
@@ -540,7 +540,5 @@ const DashboardPanelTransposedTable = forwardRef<
     </DashboardVisualizationLayout>
   );
 });
-
-DashboardPanelTransposedTable.displayName = "DashboardPanelTransposedTable";
 
 export default DashboardPanelTransposedTable;

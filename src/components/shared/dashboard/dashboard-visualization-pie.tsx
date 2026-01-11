@@ -6,8 +6,8 @@ import { Formatter } from "@/lib/formatter";
 import * as echarts from "echarts";
 import React, { useCallback, useEffect, useRef } from "react";
 import type { PanelDescriptor, PieDescriptor, TableDescriptor } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import type { VisualizationRef } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
 
@@ -83,7 +83,7 @@ export const PieVisualization = React.forwardRef<PieVisualizationRef, PieVisuali
           disableContentScroll: false,
           mainContent: (
             <div className="w-full h-full overflow-auto">
-              <DashboardPanel
+              <DashboardVisualizationPanel
                 descriptor={modifiedDescriptor}
                 selectedTimeSpan={selectedTimeSpan}
                 initialLoading={true}
@@ -402,5 +402,3 @@ export const PieVisualization = React.forwardRef<PieVisualizationRef, PieVisuali
     );
   }
 );
-
-PieVisualization.displayName = "PieVisualization";

@@ -415,5 +415,3 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
     );
   }
 );
-
-TableVisualization.displayName = "TableVisualization";

@@ -34,12 +34,12 @@ import {
   type StatDescriptor,
   type TableDescriptor,
 } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import {
   DashboardVisualizationLayout,
   type DashboardVisualizationComponent,
   type RefreshOptions,
 } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
@@ -1021,7 +1021,7 @@ const DashboardPanelStat = forwardRef<DashboardVisualizationComponent, Dashboard
         disableContentScroll: false,
         mainContent: (
           <div className="w-full h-full overflow-auto">
-            <DashboardPanel
+            <DashboardVisualizationPanel
               descriptor={modifiedDescriptor}
               selectedTimeSpan={selectedTimeSpan}
               initialLoading={true}
@@ -1353,7 +1353,5 @@ const DashboardPanelStat = forwardRef<DashboardVisualizationComponent, Dashboard
     );
   }
 );
-
-DashboardPanelStat.displayName = "DashboardPanelStat";
 
 export default DashboardPanelStat;

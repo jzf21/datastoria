@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * @deprecated This component is deprecated. Use DashboardPanel facade instead.
+ * @deprecated This component is deprecated. Use DashboardVisualizationPanel facade instead.
  * This component will be removed in a future version.
  * Kept temporarily for backward compatibility.
  *
- * Migration: Simply use <DashboardPanel descriptor={pieDescriptor} /> instead of
+ * Migration: Simply use <DashboardVisualizationPanel descriptor={pieDescriptor} /> instead of
  * <DashboardPanelPie descriptor={pieDescriptor} />
  *
  * Dashboard Pie Chart Component
@@ -62,12 +62,12 @@ import {
   type SQLQuery,
   type TableDescriptor,
 } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import {
   DashboardVisualizationLayout,
   type DashboardVisualizationComponent,
   type RefreshOptions,
 } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
@@ -428,7 +428,7 @@ const DashboardPanelPie = forwardRef<DashboardVisualizationComponent, DashboardP
           disableContentScroll: false,
           mainContent: (
             <div className="w-full h-full overflow-auto">
-              <DashboardPanel
+              <DashboardVisualizationPanel
                 descriptor={modifiedDescriptor}
                 selectedTimeSpan={propSelectedTimeSpan}
                 initialLoading={true}
@@ -744,7 +744,5 @@ const DashboardPanelPie = forwardRef<DashboardVisualizationComponent, DashboardP
     );
   }
 );
-
-DashboardPanelPie.displayName = "DashboardPanelPie";
 
 export default DashboardPanelPie;

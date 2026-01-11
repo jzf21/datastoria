@@ -29,8 +29,8 @@ import {
   type TableDescriptor,
   type TimeseriesDescriptor,
 } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import type { VisualizationRef } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
 
@@ -580,7 +580,7 @@ export const TimeseriesVisualization = React.forwardRef<
         disableContentScroll: false,
         mainContent: (
           <div className="w-full h-full overflow-auto">
-            <DashboardPanel
+            <DashboardVisualizationPanel
               descriptor={modifiedDescriptor}
               selectedTimeSpan={timeRange}
               initialLoading={true}
@@ -1341,5 +1341,3 @@ export const TimeseriesVisualization = React.forwardRef<
     </CardContent>
   );
 });
-
-TimeseriesVisualization.displayName = "TimeseriesVisualization";

@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 import * as echarts from "echarts";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { GaugeDescriptor, PanelDescriptor, TableDescriptor } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import type { VisualizationRef } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
 
@@ -85,7 +85,7 @@ export const GaugeVisualization = React.forwardRef<GaugeVisualizationRef, GaugeV
         disableContentScroll: false,
         mainContent: (
           <div className="w-full h-full overflow-auto">
-            <DashboardPanel
+            <DashboardVisualizationPanel
               descriptor={modifiedDescriptor}
               selectedTimeSpan={selectedTimeSpan}
               initialLoading={true}
@@ -508,5 +508,3 @@ export const GaugeVisualization = React.forwardRef<GaugeVisualizationRef, GaugeV
     );
   }
 );
-
-GaugeVisualization.displayName = "GaugeVisualization";

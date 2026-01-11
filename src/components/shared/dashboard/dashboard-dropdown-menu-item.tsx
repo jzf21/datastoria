@@ -15,8 +15,6 @@ export const DashboardDropdownMenuItem = React.forwardRef<
   );
 });
 
-DashboardDropdownMenuItem.displayName = "DashboardDropdownMenuItem";
-
 /**
  * Compact dropdown menu sub-trigger for dashboard panels
  * Applies consistent compact styling across all dashboard components
@@ -33,5 +31,3 @@ export const DashboardDropdownMenuSubTrigger = React.forwardRef<
     />
   );
 });
-
-DashboardDropdownMenuSubTrigger.displayName = "DashboardDropdownMenuSubTrigger";

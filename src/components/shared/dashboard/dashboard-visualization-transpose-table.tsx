@@ -325,5 +325,3 @@ export const TransposeTableVisualization = React.forwardRef<
     </CardContent>
   );
 });
-
-TransposeTableVisualization.displayName = "TransposeTableVisualization";

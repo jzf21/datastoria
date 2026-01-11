@@ -1,7 +1,7 @@
 import { useConnection } from "@/components/connection/connection-context";
 import type { TableDescriptor } from "@/components/shared/dashboard/dashboard-model";
-import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
 import type { DashboardVisualizationComponent } from "@/components/shared/dashboard/dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "@/components/shared/dashboard/dashboard-visualization-panel";
 import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
 import { forwardRef, memo, useImperativeHandle, useMemo, useRef } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
@@ -73,7 +73,7 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
 
     return (
       <div className="h-full relative">
-        <DashboardPanel
+        <DashboardVisualizationPanel
           onRef={(r) => {
             if (r) {
               tableComponentRef.current = r;

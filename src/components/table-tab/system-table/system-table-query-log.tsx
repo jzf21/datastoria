@@ -13,8 +13,8 @@ import type {
   TableDescriptor,
   TimeseriesDescriptor,
 } from "@/components/shared/dashboard/dashboard-model";
-import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
 import type { DashboardVisualizationComponent } from "@/components/shared/dashboard/dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "@/components/shared/dashboard/dashboard-visualization-panel";
 import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
 import { TabManager } from "@/components/tab-manager";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -270,7 +270,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
   const tableDescriptor = useMemo<TableDescriptor>(() => {
     return {
       type: "table",
-      titleOption: { title: `Query Log Records`, showTitle: true },
+      titleOption: { title: `Query Log Records`, showTitle: true, align: "left" },
       query: {
         sql: TABLE_QUERY,
       },
@@ -464,7 +464,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
 
       {/* Chart Section */}
       <div className="shrink-0 overflow-hidden">
-        <DashboardPanel
+        <DashboardVisualizationPanel
           onRef={(r) => {
             if (chartRef.current !== r) {
               chartRef.current = r;
@@ -479,7 +479,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
 
       {/* Table Section */}
       <div className={cn("min-h-0 overflow-hidden")}>
-        <DashboardPanel
+        <DashboardVisualizationPanel
           onRef={(r) => {
             if (tableRef.current !== r) {
               tableRef.current = r;

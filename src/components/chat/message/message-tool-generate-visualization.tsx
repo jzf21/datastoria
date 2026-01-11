@@ -1,4 +1,4 @@
-import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
+import { DashboardVisualizationPanel } from "@/components/shared/dashboard/dashboard-visualization-panel";
 import { SERVER_TOOL_NAMES } from "@/lib/ai/agent/server-tools";
 import type { AppUIMessage } from "@/lib/ai/common-types";
 import { memo } from "react";
@@ -44,7 +44,7 @@ export const MessageToolGenerateVisualization = memo(function MessageToolGenerat
       >
         {isComplete && (
           <div className="pt-1">
-            <DashboardPanel descriptor={panelDescriptor as PanelDescriptor} />
+            <DashboardVisualizationPanel descriptor={panelDescriptor as PanelDescriptor} />
           </div>
         )}
         {isError && (

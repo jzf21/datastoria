@@ -13,11 +13,11 @@ import React, {
   useState,
 } from "react";
 import type { Dashboard, DashboardGroup, GridPos, PanelDescriptor } from "./dashboard-model";
-import { DashboardPanel } from "./dashboard-panel";
 import type {
   DashboardVisualizationComponent,
   RefreshOptions,
 } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
 
 export interface DashboardPanelsRef {
@@ -287,7 +287,7 @@ const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
 
   return (
     <div style={gridStyle} className={cn("w-full", isCollapsed ? "h-auto" : "h-full")}>
-      <DashboardPanel
+      <DashboardVisualizationPanel
         descriptor={chart}
         selectedTimeSpan={selectedTimeSpan}
         onRef={(el) => onSubComponentUpdated(el, panelIndex)}
@@ -625,7 +625,5 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
     );
   }
 );
-
-DashboardPanels.displayName = "DashboardPanels";
 
 export default DashboardPanels;
