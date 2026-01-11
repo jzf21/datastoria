@@ -76,9 +76,10 @@ export function ConnectionSelector({ isOpen, onClose, className }: ConnectionSel
     onClose();
   };
 
-  const handleConnectionSelect = (connConfig: ConnectionConfig) => {
-    // switchConnection expects ConnectionConfig, which we have from the list
-    switchConnection(connConfig);
+  const handleConnectionSelect = (newConnection: ConnectionConfig) => {
+    if (newConnection.name !== connection?.name) {
+      switchConnection(newConnection);
+    }
     onClose();
   };
 
@@ -132,6 +133,7 @@ export function ConnectionSelector({ isOpen, onClose, className }: ConnectionSel
           if (value.toLowerCase().includes(search.toLowerCase())) return 1;
           return 0;
         }}
+        value={connection?.name}
       >
         <CommandInput ref={inputRef} placeholder="Search connections..." className="!h-9 text-sm" />
         <CommandList className="!rounded-none max-h-[300px]">
@@ -146,7 +148,7 @@ export function ConnectionSelector({ isOpen, onClose, className }: ConnectionSel
                     value={conn.name}
                     onSelect={() => handleConnectionSelect(conn)}
                     className={cn(
-                      "flex items-center justify-between !rounded-none cursor-pointer !py-1 !px-2 mb-0.5 transition-colors hover:bg-muted",
+                      "flex items-center justify-between !rounded-none cursor-pointer !py-1 !px-2 mb-0.5 transition-colors hover:bg-muted group",
                       isSelected && "bg-muted/50"
                     )}
                     style={{ borderRadius: 0 }}
@@ -177,7 +179,10 @@ export function ConnectionSelector({ isOpen, onClose, className }: ConnectionSel
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-5 w-5 p-0 flex items-center justify-center bg-transparent hover:bg-muted hover:ring-1 hover:ring-foreground/20 shrink-0 [&_svg]:!size-3"
+                      className={cn(
+                        "h-5 w-5 text-muted-foreground",
+                        "opacity-0 group-hover:opacity-100"
+                      )}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -185,7 +190,7 @@ export function ConnectionSelector({ isOpen, onClose, className }: ConnectionSel
                       }}
                       title="Edit Connection"
                     >
-                      <Pencil />
+                      <Pencil className="!h-2.5 !w-2.5" />
                     </Button>
                   </CommandItem>
                 );

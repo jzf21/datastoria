@@ -123,14 +123,14 @@ export function QueryListItemView({
       onMouseLeave={() => setShowDelete(false)}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-1">
         <h4 className="text-sm font-semibold text-muted-foreground">{timestamp}</h4>
         {!isExecuting && onQueryDelete && (
           <Button
             ref={deleteButtonRef}
             variant="ghost"
             size="icon"
-            className={`h-6 w-6 transition-opacity ${showDelete ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            className={`h-5 w-5 transition-opacity ${showDelete ? "opacity-100" : "opacity-0 pointer-events-none"}`}
             onClick={handleDelete}
           >
             <X className="h-4 w-4" />

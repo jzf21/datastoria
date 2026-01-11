@@ -1,3 +1,5 @@
+export type QueryViewType = "query" | "plan" | "estimate" | "syntax" | "ast" | "pipeline" | "table";
+
 export interface QueryRequestViewModel {
   /**
    * SQL is being executing
@@ -40,7 +42,7 @@ export interface QueryResponseViewProps {
 
 export interface QueryViewProps {
   onQueryDelete?: (queryId: string) => void;
-  view: string;
+  view: QueryViewType | string;
   queryRequest: QueryRequestViewModel;
   viewArgs?: {
     showRequest?: "show" | "hide" | "collapse";
@@ -54,7 +56,7 @@ export interface SQLMessage {
   queryRequest: QueryRequestViewModel;
   queryResponse?: QueryResponseViewModel; // Response after query execution
   isExecuting: boolean; // Whether the query is currently executing
-  view: string;
+  view: QueryViewType | string;
   viewArgs?: {
     showRequest?: "show" | "hide" | "collapse";
     params?: Record<string, unknown>;

@@ -56,15 +56,15 @@ export const MessageMarkdownSql = memo(function MessageMarkdownSql({
     try {
       const processedSQL = StringUtils.removeComments(code);
       const queryId = uuid();
-      // Simple fire-and-forget query for now, similar to QueryExecutor but local
+      // Use JSON format for table view to enable DataTable rendering
       const { response } = connection.query(processedSQL, {
         query_id: queryId,
-        default_format: "PrettyCompactMonoBlock",
-        output_format_pretty_row_numbers: true,
+        default_format: "JSON",
+        output_format_json_quote_64bit_integers: 0,
       });
 
       const apiResponse = await response;
-      const responseData = await apiResponse.data.text();
+      const responseData = await apiResponse.data.json();
 
       const responseModel: QueryResponseViewModel = {
         queryId: queryId,
@@ -76,7 +76,7 @@ export const MessageMarkdownSql = memo(function MessageMarkdownSql({
       };
 
       setQueryResponse(responseModel);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const queryId = uuid();
       // Handle error
       const apiError = err as QueryError;
@@ -179,9 +179,12 @@ export const MessageMarkdownSql = memo(function MessageMarkdownSql({
                 params: {},
                 onCancel: () => {},
               }}
+              view="table"
             />
           )}
-          <QueryExecutionTimer isExecuting={isExecuting} />
+          <div className="mt-5">
+            <QueryExecutionTimer isExecuting={isExecuting} />
+          </div>
         </div>
       )}
     </div>

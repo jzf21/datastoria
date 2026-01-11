@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { UserProfileImage } from "@/components/user-profile-image";
 import { MoonIcon, SunIcon } from "@radix-ui/react-icons";
-import { Activity, Database, LogOut, Settings, Sparkles, Terminal } from "lucide-react";
+import { Database, LogOut, Settings, Sparkles, Telescope, Terminal } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import React, { useCallback, useEffect, useState } from "react";
 import { showSettingsDialog } from "./settings/settings-dialog";
@@ -111,7 +111,7 @@ function ConnectionManageSidebarMenuItem() {
 function SystemTableIntrospectionSidebarMenuItem() {
   return (
     <HoverCardSidebarMenuItem
-      icon={<Activity className="h-5 w-5" />}
+      icon={<Telescope className="h-5 w-5" />}
       content={() => (
         <div className="space-y-1">
           {Array.from(SYSTEM_TABLE_REGISTRY.keys()).map((tableName) => (
@@ -149,10 +149,10 @@ export function AppSidebar() {
             {isReady && (
               <>
                 <ConnectionManageSidebarMenuItem />
-
+                
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip="Click to open Query Tab"
+                    tooltip="Click to open query tab to write and execute SQL"
                     size="lg"
                     className="justify-center"
                     onClick={() => TabManager.activateQueryTab()}
@@ -160,10 +160,10 @@ export function AppSidebar() {
                     <Terminal className="h-5 w-5" />
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                <SystemTableIntrospectionSidebarMenuItem />
+
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip="Click to open AI Chat Tab"
+                    tooltip="Click to open chat tab to chat with AI"
                     size="lg"
                     className="justify-center"
                     onClick={() => TabManager.openChatTab()}
@@ -171,6 +171,9 @@ export function AppSidebar() {
                     <Sparkles className="h-5 w-5" />
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+
+                <SystemTableIntrospectionSidebarMenuItem />
+
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     tooltip="Click to open Settings"

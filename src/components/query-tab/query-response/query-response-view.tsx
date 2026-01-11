@@ -1,21 +1,25 @@
-import { CopyButton } from "@/components/ui/copy-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AnsiText, containsAnsiCodes } from "@/lib/ansi-parser";
 import { useMemo, useState } from "react";
-import type { QueryRequestViewModel, QueryResponseViewModel } from "../query-view-model";
+import type {
+  QueryRequestViewModel,
+  QueryResponseViewModel,
+  QueryViewType,
+} from "../query-view-model";
 import { ExplainASTResponseView } from "./explain-ast-response-view";
 import { ExplainPipelineResponseView } from "./explain-pipeline-response-view";
 import { ExplainQueryResponseView } from "./explain-query-response-view";
 import { ExplainSyntaxResponseView } from "./explain-syntax-response-view";
 import { QueryResponseErrorView, type QueryErrorDisplay } from "./query-response-error-view";
 import { QueryResponseHttpHeaderView } from "./query-response-http-header-view";
+import { QueryResponseTableView } from "./query-response-table-view";
+import { QueryResponseTextView } from "./query-response-text-view";
 
 interface QueryResponseViewProps {
   queryResponse: QueryResponseViewModel;
   queryRequest: QueryRequestViewModel;
   isLoading?: boolean;
   sql?: string;
-  view?: string;
+  view?: QueryViewType;
   tabId?: string;
 }
 
@@ -25,7 +29,7 @@ export function QueryResponseView({
   isLoading = false,
   sql,
   view = "query",
-  tabId,
+  tabId: _tabId,
 }: QueryResponseViewProps) {
   const [selectedTab, setSelectedTab] = useState("result");
 
@@ -41,59 +45,6 @@ export function QueryResponseView({
           },
     [queryResponse.message, queryResponse.data, queryResponse.httpHeaders]
   );
-
-  // Memoize response text computation
-  const responseText = useMemo(
-    () =>
-      typeof queryResponse.data === "string"
-        ? queryResponse.data
-        : JSON.stringify(queryResponse.data, null, 2) || "",
-    [queryResponse.data]
-  );
-
-  // Memoize response text
-  const rawQueryResponse = useMemo(() => responseText, [responseText]);
-
-  // Check if response contains ANSI color codes
-  const hasAnsiCodes = useMemo(() => containsAnsiCodes(rawQueryResponse), [rawQueryResponse]);
-
-  // Memoize response rendering based on view type
-  const renderResponse = useMemo(() => {
-    // Handle explain views - these don't need the wrapper tabs
-    if (view === "plan" || view === "estimate") {
-      return <ExplainQueryResponseView queryRequest={queryRequest} queryResponse={queryResponse} />;
-    }
-
-    if (view === "syntax") {
-      return (
-        <ExplainSyntaxResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
-      );
-    }
-
-    // Default query view rendering
-    if (!rawQueryResponse || rawQueryResponse.length === 0) {
-      return (
-        <div className="pb-4 text-sm text-muted-foreground">
-          Query was executed successfully. No data is returned to show.
-        </div>
-      );
-    }
-
-    // If response contains ANSI codes, render with ANSI parser
-    if (hasAnsiCodes) {
-      return <AnsiText>{rawQueryResponse}</AnsiText>;
-    }
-
-    return (
-      <div className="relative group">
-        <CopyButton
-          value={rawQueryResponse}
-          className="left-0 top-0 right-auto opacity-0 group-hover:opacity-100 transition-opacity"
-        />
-        <pre className="text-xs">{rawQueryResponse}</pre>
-      </div>
-    );
-  }, [view, queryRequest, queryResponse, rawQueryResponse, hasAnsiCodes]);
 
   if (isLoading) {
     return (
@@ -144,8 +95,21 @@ export function QueryResponseView({
       )}
 
       {!error && (
-        <TabsContent value="result" className="overflow-auto">
-          <div className="relative">{renderResponse}</div>
+        <TabsContent value="result" className="overflow-auto mt-0">
+          <div className="relative">
+            {view === "table" ? (
+              <QueryResponseTableView queryResponse={queryResponse} />
+            ) : view === "plan" || view === "estimate" ? (
+              <ExplainQueryResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
+            ) : view === "syntax" ? (
+              <ExplainSyntaxResponseView
+                queryRequest={queryRequest}
+                queryResponse={queryResponse}
+              />
+            ) : (
+              <QueryResponseTextView queryResponse={queryResponse} />
+            )}
+          </div>
         </TabsContent>
       )}
 

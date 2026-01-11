@@ -929,7 +929,10 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
   return (
     <div className={cn("relative w-full h-full", className)}>
       <div ref={scrollContainerRef} className="w-full h-full overflow-auto" onScroll={handleScroll}>
-        <table className="w-full caption-bottom text-sm">
+        <table
+          className={cn("w-full caption-bottom", !enableCompactMode && "text-sm")}
+          style={enableCompactMode ? { fontSize: "0.8rem", lineHeight: "1.25rem" } : undefined}
+        >
           <TableHeader>
             <TableRow className={cn("hover:bg-muted/50 select-none", headerClassName)}>
               {enableShowRowDetail && (

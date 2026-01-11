@@ -200,59 +200,56 @@ export function QueryControl({
         </ToggleGroup>
         <Separator orientation="vertical" className="h-4" /> */}
 
-        <div>
-          <Button
-            disabled={isDisabled}
-            onClick={handleRun}
-            size="sm"
-            variant="ghost"
-            className={`h-6 gap-1 px-2 text-xs rounded-sm`}
-          >
-            {mode === "sql" ? <Play className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
-            {mode === "sql"
-              ? selectedText
-                ? "Run Selected SQL(Cmd+Enter)"
-                : "Run SQL(Cmd+Enter)"
-              : "Ask AI (Cmd+Enter)"}
-          </Button>
-
-          {mode === "sql" && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  disabled={isDisabled}
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 gap-1 px-2 text-xs rounded-sm"
-                >
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => handleExplain("ast")}>
-                  Explain AST
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExplain("syntax")}>
-                  Explain Syntax
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExplain("plan-indexes")}>
-                  Explain Plan (indexes)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExplain("plan-actions")}>
-                  Explain Plan (actions)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExplain("pipeline")}>
-                  Explain Pipeline
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExplain("estimate")}>
-                  Explain Estimate
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+        <Button
+          disabled={isDisabled}
+          onClick={handleRun}
+          size="sm"
+          variant="ghost"
+          className={`h-6 gap-1 px-2 text-xs rounded-sm`}
+        >
+          {mode === "sql" ? <Play className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+          {mode === "sql"
+            ? selectedText
+              ? "Run Selected SQL(Cmd+Enter)"
+              : "Run SQL(Cmd+Enter)"
+            : "Ask AI (Cmd+Enter)"}
+        </Button>
 
         <Separator orientation="vertical" className="h-4" />
+
+        {mode === "sql" && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                disabled={isDisabled}
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 px-2 text-xs rounded-sm"
+              >
+                {selectedText ? "Explain Selected SQL" : "Explain SQL"}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => handleExplain("ast")}>Explain AST</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExplain("syntax")}>
+                Explain Syntax
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExplain("plan-indexes")}>
+                Explain Plan (indexes)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExplain("plan-actions")}>
+                Explain Plan (actions)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExplain("pipeline")}>
+                Explain Pipeline
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExplain("estimate")}>
+                Explain Estimate
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {/* {mode === "chat" && (
           <>
