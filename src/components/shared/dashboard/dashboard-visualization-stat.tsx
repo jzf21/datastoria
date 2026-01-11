@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { CardContent, CardFooter, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog } from "@/components/use-dialog";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { Formatter } from "@/lib/formatter";
@@ -18,7 +17,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import { classifyColumns, transformRowsToChartData } from "./dashboard-data-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import {
@@ -453,7 +451,6 @@ export interface StatVisualizationProps {
   meta: Array<{ name: string; type?: string }>;
   secondaryData?: Record<string, unknown>[];
   descriptor: StatDescriptor;
-  isLoading: boolean;
   selectedTimeSpan?: TimeSpan;
   isSecondaryLoading?: boolean;
   secondaryError?: string;
@@ -472,7 +469,6 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
       meta,
       secondaryData: inputSecondaryData,
       descriptor,
-      isLoading,
       selectedTimeSpan,
       isSecondaryLoading = false,
       secondaryError = "",
@@ -487,13 +483,6 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
     const valueContainerRef = useRef<HTMLDivElement>(null);
     const [fontSize, setFontSize] = useState(3);
     const fontSizeRef = useRef(3);
-
-    // Skeleton timing state
-    const [hasInitialData, setHasInitialData] = useState(false);
-    const [shouldShowSkeleton, setShouldShowSkeleton] = useState(false);
-    const [skeletonOpacity, setSkeletonOpacity] = useState(1);
-    const skeletonStartTimeRef = useRef<number | null>(null);
-    const skeletonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Helpers
     const shouldShowMinimap = useCallback((): boolean => {
@@ -590,10 +579,6 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
       const { value, minimap } = processData(inputData);
       setData(value);
       setMinimapData(minimap);
-
-      if (inputData.length > 0) {
-        setHasInitialData(true);
-      }
     }, [inputData, processData]);
 
     // Effect to process secondary data
@@ -606,57 +591,10 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
       }
     }, [inputSecondaryData, processData]);
 
-    // Skeleton timing logic
-    useEffect(() => {
-      const shouldShow = isLoading && !hasInitialData;
-
-      if (shouldShow) {
-        if (skeletonStartTimeRef.current === null) {
-          skeletonStartTimeRef.current = Date.now();
-          setShouldShowSkeleton(true);
-          setSkeletonOpacity(1);
-        }
-      } else {
-        if (skeletonStartTimeRef.current !== null) {
-          if (skeletonTimeoutRef.current) {
-            clearTimeout(skeletonTimeoutRef.current);
-            skeletonTimeoutRef.current = null;
-          }
-
-          const elapsed = Date.now() - skeletonStartTimeRef.current;
-
-          if (elapsed < SKELETON_MIN_DISPLAY_TIME) {
-            const remainingTime = SKELETON_MIN_DISPLAY_TIME - elapsed;
-            skeletonTimeoutRef.current = setTimeout(() => {
-              setSkeletonOpacity(0);
-              setTimeout(() => {
-                setShouldShowSkeleton(false);
-                skeletonStartTimeRef.current = null;
-              }, SKELETON_FADE_DURATION);
-            }, remainingTime);
-          } else {
-            setSkeletonOpacity(0);
-            setTimeout(() => {
-              setShouldShowSkeleton(false);
-              skeletonStartTimeRef.current = null;
-            }, SKELETON_FADE_DURATION);
-          }
-        }
-      }
-
-      return () => {
-        if (skeletonTimeoutRef.current) {
-          clearTimeout(skeletonTimeoutRef.current);
-          skeletonTimeoutRef.current = null;
-        }
-      };
-    }, [isLoading, hasInitialData]);
-
     // Auto-scale text
     useEffect(() => {
       const adjustFontSize = () => {
         if (!valueTextRef.current || !valueContainerRef.current) return;
-        if (isLoading && !hasInitialData) return;
 
         const container = valueContainerRef.current;
         const text = valueTextRef.current;
@@ -766,7 +704,7 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
         mutationObserver.disconnect();
         resizeObserver.disconnect();
       };
-    }, [data, isLoading, hasInitialData]);
+    }, [data]);
 
     // Drilldown Logic
     const hasMainDrilldown =
@@ -974,18 +912,11 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
                 }}
                 onClick={hasMainDrilldown ? handleDrilldownClick : undefined}
               >
-                {shouldShowSkeleton ? (
-                  <div
-                    className="transition-opacity duration-150"
-                    style={{ opacity: skeletonOpacity }}
-                  >
-                    <Skeleton className="w-20 h-10" />
-                  </div>
-                ) : shouldUseNumberFlow() ? null : descriptor.valueOption?.format ? ( // NumberFlow logic omitted/simplified as in original it returns false
-                  Formatter.getInstance().getFormatter(descriptor.valueOption.format)(data)
-                ) : (
-                  data
-                )}
+                {shouldUseNumberFlow()
+                  ? null
+                  : descriptor.valueOption?.format // NumberFlow logic omitted/simplified as in original it returns false
+                    ? Formatter.getInstance().getFormatter(descriptor.valueOption.format)(data)
+                    : data}
               </div>
             </div>
           </CardTitle>
@@ -995,19 +926,13 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
 
         {shouldShowMinimap() && (
           <CardFooter className="px-0 pb-1">
-            {shouldShowSkeleton ? (
-              <div className="w-full mt-2">
-                <Skeleton className="h-[50px] w-full" />
-              </div>
-            ) : (
-              <StatMinimap
-                id={"stat"}
-                data={minimapData}
-                isLoading={isLoading}
-                option={descriptor.minimapOption!}
-                onBrushChange={hasMinimapDrilldown ? handleMinimapDrilldown : undefined}
-              />
-            )}
+            <StatMinimap
+              id={"stat"}
+              data={minimapData}
+              isLoading={false}
+              option={descriptor.minimapOption!}
+              onBrushChange={hasMinimapDrilldown ? handleMinimapDrilldown : undefined}
+            />
           </CardFooter>
         )}
       </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -11,8 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Formatter, type FormatName } from "@/lib/formatter";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
+import React, { useCallback, useEffect, useState } from "react";
 import type { FieldOption, TransposeTableDescriptor } from "./dashboard-model";
 import type { VisualizationRef } from "./dashboard-visualization-layout";
 import { inferFieldFormat } from "./format-inference";
@@ -21,7 +19,6 @@ export interface TransposeTableVisualizationProps {
   // Data from facade
   data: Record<string, unknown>[];
   descriptor: TransposeTableDescriptor;
-  isLoading: boolean;
 }
 
 export type TransposeTableVisualizationRef = VisualizationRef;
@@ -35,20 +32,13 @@ export const TransposeTableVisualization = React.forwardRef<
   TransposeTableVisualizationRef,
   TransposeTableVisualizationProps
 >(function TransposeTableVisualization(props, ref) {
-  const { data, descriptor, isLoading } = props;
+  const { data, descriptor } = props;
 
   // Extract single row from data array
   const singleRowData = data.length > 0 ? data[0] : null;
 
   // Store inferred formats for fields that don't have explicit formats
   const [inferredFormats, setInferredFormats] = useState<Map<string, FormatName>>(new Map());
-  // Skeleton timing state for smooth transitions
-  const [shouldShowSkeleton, setShouldShowSkeleton] = useState(false);
-  const [skeletonOpacity, setSkeletonOpacity] = useState(1);
-
-  // Refs for skeleton timing
-  const skeletonStartTimeRef = useRef<number | null>(null);
-  const skeletonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get field option for a given key
   const getFieldOption = useCallback(
@@ -90,53 +80,6 @@ export const TransposeTableVisualization = React.forwardRef<
 
     setInferredFormats(formats);
   }, [singleRowData, getFieldOption]);
-
-  // Skeleton timing logic: minimum display time + fade transition
-  useEffect(() => {
-    const shouldShow = isLoading && singleRowData === null;
-
-    if (shouldShow) {
-      // Start showing skeleton
-      if (skeletonStartTimeRef.current === null) {
-        skeletonStartTimeRef.current = Date.now();
-        setShouldShowSkeleton(true);
-        setSkeletonOpacity(1);
-      }
-    } else {
-      // Data loaded or loading stopped
-      if (skeletonStartTimeRef.current !== null) {
-        const elapsed = Date.now() - skeletonStartTimeRef.current;
-
-        if (elapsed < SKELETON_MIN_DISPLAY_TIME) {
-          // Wait for minimum display time, then fade out
-          const remainingTime = SKELETON_MIN_DISPLAY_TIME - elapsed;
-          skeletonTimeoutRef.current = setTimeout(() => {
-            // Start fade out
-            setSkeletonOpacity(0);
-            // After fade completes, hide skeleton
-            setTimeout(() => {
-              setShouldShowSkeleton(false);
-              skeletonStartTimeRef.current = null;
-            }, SKELETON_FADE_DURATION);
-          }, remainingTime);
-        } else {
-          // Already shown long enough, fade out immediately
-          setSkeletonOpacity(0);
-          setTimeout(() => {
-            setShouldShowSkeleton(false);
-            skeletonStartTimeRef.current = null;
-          }, SKELETON_FADE_DURATION);
-        }
-      }
-    }
-
-    return () => {
-      if (skeletonTimeoutRef.current) {
-        clearTimeout(skeletonTimeoutRef.current);
-        skeletonTimeoutRef.current = null;
-      }
-    };
-  }, [isLoading, singleRowData]);
 
   // Format cell value based on field options
   const formatCellValue = useCallback(
@@ -209,31 +152,8 @@ export const TransposeTableVisualization = React.forwardRef<
   );
 
   // Render functions for TableBody
-  const renderLoading = useCallback(() => {
-    // Only show skeleton when shouldShowSkeleton is true (with timing logic)
-    if (!shouldShowSkeleton) return null;
-    return (
-      <>
-        {Array.from({ length: 3 }).map((_, index) => (
-          <TableRow
-            key={index}
-            className="transition-opacity duration-150"
-            style={{ opacity: skeletonOpacity }}
-          >
-            <TableCell className="whitespace-nowrap !p-2">
-              <Skeleton className="h-5 w-32" />
-            </TableCell>
-            <TableCell className="whitespace-nowrap !p-2">
-              <Skeleton className="h-5 w-full" />
-            </TableCell>
-          </TableRow>
-        ))}
-      </>
-    );
-  }, [shouldShowSkeleton, skeletonOpacity]);
-
   const renderNoData = useCallback(() => {
-    if (shouldShowSkeleton || singleRowData !== null) return null;
+    if (singleRowData !== null) return null;
     return (
       <TableRow>
         <TableCell colSpan={2} className="text-center text-muted-foreground p-8">
@@ -241,11 +161,10 @@ export const TransposeTableVisualization = React.forwardRef<
         </TableCell>
       </TableRow>
     );
-  }, [shouldShowSkeleton, singleRowData]);
+  }, [singleRowData]);
 
   const renderData = useCallback(() => {
-    // Don't show data while skeleton is visible (during minimum display time)
-    if (!singleRowData || shouldShowSkeleton) return null;
+    if (!singleRowData) return null;
 
     // Get all field entries and preserve natural order
     // Track original index to maintain natural order for fields without position
@@ -299,7 +218,7 @@ export const TransposeTableVisualization = React.forwardRef<
         })}
       </>
     );
-  }, [singleRowData, shouldShowSkeleton, formatCellValue, getFieldOption]);
+  }, [singleRowData, formatCellValue, getFieldOption]);
 
   // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
@@ -317,7 +236,6 @@ export const TransposeTableVisualization = React.forwardRef<
           </TableRow>
         </TableHeader>
         <TableBody>
-          {renderLoading()}
           {renderNoData()}
           {renderData()}
         </TableBody>

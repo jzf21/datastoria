@@ -17,7 +17,6 @@ export interface GaugeVisualizationProps {
   data: Record<string, unknown>[];
   meta: Array<{ name: string; type?: string }>;
   descriptor: GaugeDescriptor;
-  isLoading: boolean;
   selectedTimeSpan?: TimeSpan;
 }
 

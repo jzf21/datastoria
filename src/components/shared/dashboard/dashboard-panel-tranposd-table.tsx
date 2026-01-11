@@ -29,7 +29,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import type { FieldOption, SQLQuery, TransposeTableDescriptor } from "./dashboard-model";
@@ -38,6 +37,7 @@ import {
   type DashboardVisualizationComponent,
   type RefreshOptions,
 } from "./dashboard-visualization-layout";
+import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./dashboard-visualization-panel";
 import { inferFieldFormat } from "./format-inference";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";

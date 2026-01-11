@@ -16,7 +16,6 @@ export interface PieVisualizationProps {
   data: Record<string, unknown>[];
   meta: Array<{ name: string; type?: string }>;
   descriptor: PieDescriptor;
-  isLoading: boolean;
   selectedTimeSpan?: TimeSpan;
 }
 

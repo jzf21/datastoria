@@ -1,10 +1,11 @@
 "use client";
 
 import { useConnection } from "@/components/connection/connection-context";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog } from "@/components/use-dialog";
 import { QueryError } from "@/lib/connection/connection";
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import type {
@@ -38,6 +39,18 @@ import {
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
+
+/**
+ * Minimum display time for skeleton loaders (in milliseconds)
+ * This ensures skeleton doesn't flash on fast loads
+ * Aligned with FloatingProgressBar delay for consistent UX
+ */
+export const SKELETON_MIN_DISPLAY_TIME = 500;
+
+/**
+ * Fade transition duration for skeleton loaders (in milliseconds)
+ */
+export const SKELETON_FADE_DURATION = 150;
 
 interface DashboardVisualizationPanelProps {
   descriptor: PanelDescriptor;
@@ -95,6 +108,10 @@ export const DashboardVisualizationPanel = forwardRef<
   const visualizationRef = useRef<VisualizationRef>(null);
 
   const lastRefreshParamRef = useRef<RefreshOptions>({});
+
+  // Skeleton timing state - simple show/hide with minimum display time
+  const [showSkeleton, setShowSkeleton] = useState(false);
+  const skeletonStartTimeRef = useRef<number | null>(null);
 
   // Load data function - unified for all types
   const loadData = useCallback(
@@ -457,6 +474,31 @@ export const DashboardVisualizationPanel = forwardRef<
     </div>
   );
 
+  // Track first load state (when data is empty and loading)
+  const isFirstLoad = data.length === 0 && isLoading && !error;
+
+  // Simple skeleton timing: handle minimum display time, CSS handles fade
+  useEffect(() => {
+    if (isFirstLoad) {
+      // Start showing skeleton
+      if (skeletonStartTimeRef.current === null) {
+        skeletonStartTimeRef.current = Date.now();
+        setShowSkeleton(true);
+      }
+    } else {
+      // Data loaded - wait for minimum time if needed, then hide (CSS handles fade)
+      if (skeletonStartTimeRef.current !== null) {
+        const elapsed = Date.now() - skeletonStartTimeRef.current;
+        const remainingTime = Math.max(0, SKELETON_MIN_DISPLAY_TIME - elapsed);
+
+        setTimeout(() => {
+          setShowSkeleton(false);
+          skeletonStartTimeRef.current = null;
+        }, remainingTime);
+      }
+    }
+  }, [isFirstLoad]);
+
   // Defensive check - after all hooks
   if (!descriptor || !descriptor.type) {
     return <pre>Invalid descriptor: {JSON.stringify(descriptor, null, 2)}</pre>;
@@ -473,70 +515,75 @@ export const DashboardVisualizationPanel = forwardRef<
       getDropdownItems={getDropdownItems}
       onRefresh={handleRefresh}
     >
-      {error ? (
-        renderError()
-      ) : typedDescriptor.type === "table" ? (
-        <TableVisualization
-          ref={visualizationRef as React.Ref<TableVisualizationRef>}
-          data={data}
-          meta={meta}
-          descriptor={typedDescriptor as TableDescriptor}
-          isLoading={isLoading}
-          selectedTimeSpan={props.selectedTimeSpan}
-          onSortChange={handleSortChange}
-          onLoadData={handleLoadData}
-        />
-      ) : typedDescriptor.type === "pie" ? (
-        <PieVisualization
-          ref={visualizationRef as React.Ref<PieVisualizationRef>}
-          data={data}
-          meta={meta}
-          descriptor={typedDescriptor as PieDescriptor}
-          isLoading={isLoading}
-          selectedTimeSpan={props.selectedTimeSpan}
-        />
-      ) : typedDescriptor.type === "transpose-table" ? (
-        <TransposeTableVisualization
-          ref={visualizationRef as React.Ref<TransposeTableVisualizationRef>}
-          data={data}
-          descriptor={typedDescriptor as TransposeTableDescriptor}
-          isLoading={isLoading}
-        />
-      ) : typedDescriptor.type === "line" ||
-        typedDescriptor.type === "bar" ||
-        typedDescriptor.type === "area" ? (
-        <TimeseriesVisualization
-          ref={visualizationRef as React.Ref<TimeseriesVisualizationRef>}
-          data={data}
-          meta={meta}
-          descriptor={typedDescriptor as TimeseriesDescriptor}
-          isLoading={isLoading}
-          selectedTimeSpan={props.selectedTimeSpan}
-          onChartSelection={props.onChartSelection}
-          onShowRawData={handleShowRawData}
-        />
-      ) : typedDescriptor.type === "gauge" ? (
-        <GaugeVisualization
-          ref={visualizationRef as React.Ref<GaugeVisualizationRef>}
-          data={data}
-          meta={meta}
-          descriptor={typedDescriptor as GaugeDescriptor}
-          isLoading={isLoading}
-          selectedTimeSpan={props.selectedTimeSpan}
-        />
-      ) : typedDescriptor.type === "stat" ? (
-        <StatVisualization
-          ref={visualizationRef as React.Ref<StatVisualizationRef>}
-          data={data}
-          meta={meta}
-          secondaryData={secondaryData}
-          descriptor={typedDescriptor as StatDescriptor}
-          isLoading={isLoading}
-          selectedTimeSpan={props.selectedTimeSpan}
-          isSecondaryLoading={isSecondaryLoading}
-          secondaryError={secondaryError}
-        />
-      ) : null}
+      <div className="relative h-full w-full">
+        {showSkeleton && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 bg-background/50 transition-opacity duration-150">
+            <Skeleton className="w-full h-full" />
+          </div>
+        )}
+        {!showSkeleton && (
+          <div className={`h-full w-full transition-opacity duration-150`}>
+            {error ? (
+              renderError()
+            ) : typedDescriptor.type === "table" ? (
+              <TableVisualization
+                ref={visualizationRef as React.Ref<TableVisualizationRef>}
+                data={data}
+                meta={meta}
+                descriptor={typedDescriptor as TableDescriptor}
+                selectedTimeSpan={props.selectedTimeSpan}
+                onSortChange={handleSortChange}
+                onLoadData={handleLoadData}
+              />
+            ) : typedDescriptor.type === "pie" ? (
+              <PieVisualization
+                ref={visualizationRef as React.Ref<PieVisualizationRef>}
+                data={data}
+                meta={meta}
+                descriptor={typedDescriptor as PieDescriptor}
+                selectedTimeSpan={props.selectedTimeSpan}
+              />
+            ) : typedDescriptor.type === "transpose-table" ? (
+              <TransposeTableVisualization
+                ref={visualizationRef as React.Ref<TransposeTableVisualizationRef>}
+                data={data}
+                descriptor={typedDescriptor as TransposeTableDescriptor}
+              />
+            ) : typedDescriptor.type === "line" ||
+              typedDescriptor.type === "bar" ||
+              typedDescriptor.type === "area" ? (
+              <TimeseriesVisualization
+                ref={visualizationRef as React.Ref<TimeseriesVisualizationRef>}
+                data={data}
+                meta={meta}
+                descriptor={typedDescriptor as TimeseriesDescriptor}
+                selectedTimeSpan={props.selectedTimeSpan}
+                onChartSelection={props.onChartSelection}
+                onShowRawData={handleShowRawData}
+              />
+            ) : typedDescriptor.type === "gauge" ? (
+              <GaugeVisualization
+                ref={visualizationRef as React.Ref<GaugeVisualizationRef>}
+                data={data}
+                meta={meta}
+                descriptor={typedDescriptor as GaugeDescriptor}
+                selectedTimeSpan={props.selectedTimeSpan}
+              />
+            ) : typedDescriptor.type === "stat" ? (
+              <StatVisualization
+                ref={visualizationRef as React.Ref<StatVisualizationRef>}
+                data={data}
+                meta={meta}
+                secondaryData={secondaryData}
+                descriptor={typedDescriptor as StatDescriptor}
+                selectedTimeSpan={props.selectedTimeSpan}
+                isSecondaryLoading={isSecondaryLoading}
+                secondaryError={secondaryError}
+              />
+            ) : null}
+          </div>
+        )}
+      </div>
     </DashboardVisualizationLayout>
   );
 });

@@ -65,7 +65,6 @@ export interface TableVisualizationProps {
   data: Record<string, unknown>[];
   meta: Array<{ name: string; type?: string }>;
   descriptor: TableDescriptor;
-  isLoading: boolean;
   selectedTimeSpan?: TimeSpan;
 
   // Callbacks to facade
@@ -87,7 +86,7 @@ export interface TableVisualizationRef extends VisualizationRef {
  */
 export const TableVisualization = React.forwardRef<TableVisualizationRef, TableVisualizationProps>(
   function TableVisualization(props, ref) {
-    const { data, meta, descriptor, isLoading, onSortChange, onLoadData, className } = props;
+    const { data, meta, descriptor, onSortChange, onLoadData, className } = props;
 
     // State
     const [sort, setSort] = useState<{ column: string | null; direction: "asc" | "desc" | null }>({
@@ -160,7 +159,7 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
           return;
         }
 
-        if (!hasMorePages || isLoading || isRequestingMoreRef.current) {
+        if (!hasMorePages || isRequestingMoreRef.current) {
           return;
         }
 
@@ -194,7 +193,7 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
           }
         }
       },
-      [descriptor.pagination?.mode, hasMorePages, isLoading, onLoadData, data.length]
+      [descriptor.pagination?.mode, hasMorePages, onLoadData, data.length]
     );
 
     // Component for rendering show/hide columns submenu
@@ -392,7 +391,6 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
             return options;
           }, [descriptor.fieldOptions])}
           actions={descriptor.actions}
-          isLoading={isLoading}
           sort={sort}
           onSortChange={handleSortChange}
           enableIndexColumn={descriptor.miscOption?.enableIndexColumn}

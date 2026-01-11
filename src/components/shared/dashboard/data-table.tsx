@@ -13,8 +13,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import type { ActionColumn, FieldOption } from "./dashboard-model";
+import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./dashboard-visualization-panel";
 import { inferFormatFromMetaType } from "./format-inference";
 
 export type DataTablePagination = {

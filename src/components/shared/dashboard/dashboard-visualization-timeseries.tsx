@@ -294,7 +294,6 @@ export interface TimeseriesVisualizationProps {
   data: Record<string, unknown>[];
   meta: Array<{ name: string; type?: string }>;
   descriptor: TimeseriesDescriptor;
-  isLoading: boolean;
   selectedTimeSpan?: TimeSpan;
 
   // Callbacks to facade

@@ -21,7 +21,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import { classifyColumns, transformRowsToChartData } from "./dashboard-data-utils";
 import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
@@ -39,7 +38,11 @@ import {
   type DashboardVisualizationComponent,
   type RefreshOptions,
 } from "./dashboard-visualization-layout";
-import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
+import {
+  DashboardVisualizationPanel,
+  SKELETON_FADE_DURATION,
+  SKELETON_MIN_DISPLAY_TIME,
+} from "./dashboard-visualization-panel";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
