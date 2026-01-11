@@ -22,11 +22,13 @@ import {
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import {
   applyReducer,
+  type FieldOption,
   type PanelDescriptor,
   type Reducer,
   type TimeseriesDescriptor,
 } from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
+import type { VisualizationRef } from "./dashboard-visualization-layout";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
 
@@ -291,7 +293,6 @@ export interface TimeseriesVisualizationProps {
   meta: Array<{ name: string; type?: string }>;
   descriptor: TimeseriesDescriptor;
   isLoading: boolean;
-  error: string;
   selectedTimeSpan?: TimeSpan;
 
   // Callbacks to facade
@@ -299,9 +300,7 @@ export interface TimeseriesVisualizationProps {
   onShowRawData?: () => void;
 }
 
-export interface TimeseriesVisualizationRef {
-  getDropdownItems: () => React.ReactNode;
-}
+export type TimeseriesVisualizationRef = VisualizationRef;
 
 /**
  * Pure timeseries visualization component.
@@ -316,7 +315,6 @@ export const TimeseriesVisualization = React.forwardRef<
     data,
     meta,
     descriptor,
-    error,
     selectedTimeSpan: _selectedTimeSpan,
     onTimeSpanSelect,
     onShowRawData,
@@ -327,6 +325,7 @@ export const TimeseriesVisualization = React.forwardRef<
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const timestampsRef = useRef<number[]>([]);
+  const hoveredSeriesRef = useRef<string | null>(null);
 
   // State for legend data
   const [legendData, setLegendData] = useState<LegendData | undefined>(undefined);
@@ -335,6 +334,77 @@ export const TimeseriesVisualization = React.forwardRef<
 
   // Detect columns
   const detectedColumns = useMemo(() => {
+    // Restore behavior: Prefer fieldOptions if available to identify columns
+    if (descriptor.fieldOptions) {
+      const fieldOptionsArray =
+        descriptor.fieldOptions instanceof Map
+          ? Array.from(descriptor.fieldOptions.entries())
+          : Object.entries(descriptor.fieldOptions);
+
+      // Sort by position if available
+      fieldOptionsArray.sort((a, b) => {
+        const posA = a[1].position ?? Number.MAX_SAFE_INTEGER;
+        const posB = b[1].position ?? Number.MAX_SAFE_INTEGER;
+        return posA - posB;
+      });
+
+      const fieldColumns = fieldOptionsArray.map(([key, value]) => ({ ...value, name: key }));
+
+      if (
+        fieldColumns.length > 0 &&
+        !(
+          fieldColumns.length === 1 &&
+          typeof fieldColumns[0].name === "string" &&
+          fieldColumns[0].name === "value"
+        )
+      ) {
+        let timestampColumn = "";
+        const valueColumns: string[] = [];
+        const labelColumns: string[] = [];
+
+        // Identify timestamp column from fieldOptions
+        // First check for type="datetime"
+        const explicitTimestamp = fieldColumns.find(
+          (col) =>
+            (col as FieldOption & { type?: string }).type === "datetime" ||
+            (col as FieldOption & { type?: string }).type === "date"
+        );
+        if (explicitTimestamp) {
+          timestampColumn = explicitTimestamp.name;
+        } else {
+          // Fallback to name matching
+          const nameMatch = fieldColumns.find((col) => isTimestampColumnUtil(col.name));
+          if (nameMatch) {
+            timestampColumn = nameMatch.name;
+          }
+        }
+
+        // Identify value and label columns
+        fieldColumns.forEach((col) => {
+          if (col.name === timestampColumn) return;
+          if ((col as FieldOption & { type?: string }).type === "number") {
+            valueColumns.push(col.name);
+          } else if ((col as FieldOption & { type?: string }).type === "string") {
+            labelColumns.push(col.name);
+          } else {
+            // Fallback inference - only possible if data exists
+            if (data && data.length > 0) {
+              const firstVal = data[0][col.name];
+              if (typeof firstVal === "number") {
+                valueColumns.push(col.name);
+              } else {
+                labelColumns.push(col.name);
+              }
+            }
+          }
+        });
+
+        if (timestampColumn && valueColumns.length > 0) {
+          return { timestampColumn, valueColumns, labelColumns };
+        }
+      }
+    }
+
     if (!data || data.length === 0)
       return { timestampColumn: "", valueColumns: [], labelColumns: [] };
 
@@ -361,7 +431,7 @@ export const TimeseriesVisualization = React.forwardRef<
     }
 
     return { timestampColumn, valueColumns, labelColumns };
-  }, [data, meta]);
+  }, [data, meta, descriptor.fieldOptions]);
 
   // Infer format from metric name (copied from dashboard-panel-timeseries.tsx)
   const inferFormatFromMetricName = useCallback((metricName: string): FormatName => {
@@ -494,9 +564,28 @@ export const TimeseriesVisualization = React.forwardRef<
     const chartInstance = echarts.init(chartContainerRef.current, chartTheme);
     chartInstanceRef.current = chartInstance;
 
+    // Track hovered series for tooltip highlighting.
+    // With `tooltip.trigger: "axis"`, ECharts passes all series at that x-value to the formatter,
+    // and does not indicate which one is directly hovered. We capture it from mouse events instead.
+    chartInstance.off("mouseover");
+    chartInstance.off("mouseout");
+    chartInstance.off("globalout");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    chartInstance.on("mouseover", { componentType: "series" } as any, (p: any) => {
+      hoveredSeriesRef.current = typeof p?.seriesName === "string" ? p.seriesName : null;
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    chartInstance.on("mouseout", { componentType: "series" } as any, () => {
+      hoveredSeriesRef.current = null;
+    });
+    chartInstance.on("globalout", () => {
+      hoveredSeriesRef.current = null;
+    });
+
     // Add click handler for time span selection
     if (onTimeSpanSelect) {
       chartInstance.on("click", (p: { dataIndex?: number }) => {
+        console.log("[TimeseriesVisualization] Chart click event:", p);
         if (!p || typeof p?.dataIndex !== "number") {
           return;
         }
@@ -571,14 +660,6 @@ export const TimeseriesVisualization = React.forwardRef<
   // Update chart when data changes
   useEffect(() => {
     if (!chartInstanceRef.current) {
-      return;
-    }
-
-    // If there's an error, clear the chart (error message is shown in JSX)
-    if (error) {
-      chartInstanceRef.current.clear();
-      setLegendData(undefined);
-      timestampsRef.current = [];
       return;
     }
 
@@ -954,6 +1035,11 @@ export const TimeseriesVisualization = React.forwardRef<
               color: string;
             }>;
 
+            // Detect which series is being hovered.
+            // With `tooltip.trigger: "axis"`, ECharts does not tell the formatter which series
+            // is directly under the cursor. We track it via chart mouse events.
+            const hoveredSeries = hoveredSeriesRef.current;
+
             // Sort params based on tooltipOption.sortValue
             if (sortValue !== "none") {
               sortedParams.sort((a, b) => {
@@ -975,6 +1061,11 @@ export const TimeseriesVisualization = React.forwardRef<
                   const legend = newLegends.find((l) => l.series === param.seriesName);
                   const formattedValue = legend ? legend.valueFormatter(value) : value;
 
+                  // Highlight hovered series without changing font metrics (avoid tooltip width jitter)
+                  const isHovered = hoveredSeries !== null && hoveredSeries === param.seriesName;
+                  const rowBg = isHovered ? "rgba(255,255,255,0.08)" : "transparent";
+                  const rowBorder = isHovered ? param.color : "transparent";
+
                   result += `
                   <div style="
                     display:flex;
@@ -982,6 +1073,8 @@ export const TimeseriesVisualization = React.forwardRef<
                     gap:8px;
                     padding:2px 6px;
                     margin-top:2px;
+                    border-left:3px solid ${rowBorder};
+                    background:${rowBg};
                     border-radius:4px;
                   ">
                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:${param.color};flex:0 0 auto;"></span>
@@ -1114,12 +1207,18 @@ export const TimeseriesVisualization = React.forwardRef<
       requestAnimationFrame(() => {
         if (chartInstanceRef.current) {
           chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+          // Second resize after a short delay to catch any layout changes (matches legacy behavior)
+          setTimeout(() => {
+            if (chartInstanceRef.current) {
+              chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+            }
+          }, 100);
         }
       });
     } catch (err) {
       console.error("Error updating timeseries chart:", err);
     }
-  }, [data, descriptor, detectedColumns, meta, inferFormatFromMetricName, hasDrilldown, error]);
+  }, [data, descriptor, detectedColumns, meta, inferFormatFromMetricName, hasDrilldown]);
 
   // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
@@ -1132,6 +1231,7 @@ export const TimeseriesVisualization = React.forwardRef<
         )}
       </>
     ),
+    prepareDataFetchSql: (sql: string, _pageNumber?: number) => sql,
   }));
 
   // Memoize drilldown component
@@ -1146,44 +1246,33 @@ export const TimeseriesVisualization = React.forwardRef<
     <CardContent
       className={cn("px-0 p-0 flex flex-col h-full", drilldownComponent ? "overflow-y-auto" : "")}
     >
-      {error ? (
-        <div
-          key="error"
-          className="flex flex-col items-center justify-center h-full gap-2 text-destructive p-4 overflow-hidden"
-        >
-          <p className="font-semibold shrink-0">Error loading chart data:</p>
-          <p className="text-sm overflow-auto w-full text-center max-h-full custom-scrollbar">
-            {error}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div
-            ref={chartContainerRef}
-            className={cn("w-full min-h-0", drilldownComponent ? "" : "flex-1")}
-            style={{
-              height: descriptor.height
-                ? `${descriptor.height}px`
-                : drilldownComponent
-                  ? "300px"
-                  : "100%",
-              width: "100%",
-              minWidth: 0,
-            }}
+      <div
+        ref={chartContainerRef}
+        className={cn(
+          "w-full min-h-0",
+          descriptor.height ? "flex-none" : drilldownComponent ? "" : "flex-1"
+        )}
+        style={{
+          height: descriptor.height
+            ? `${descriptor.height}px`
+            : drilldownComponent
+              ? "300px"
+              : "100%",
+          width: "100%",
+          minWidth: 0,
+        }}
+      />
+      {descriptor.legendOption &&
+        descriptor.legendOption.placement !== "none" &&
+        descriptor.legendOption.placement === "bottom" &&
+        legendData && (
+          <LegendTable
+            chartInstance={chartInstanceRef.current || undefined}
+            legendData={legendData}
+            legendOption={descriptor.legendOption}
           />
-          {descriptor.legendOption &&
-            descriptor.legendOption.placement !== "none" &&
-            descriptor.legendOption.placement === "bottom" &&
-            legendData && (
-              <LegendTable
-                chartInstance={chartInstanceRef.current || undefined}
-                legendData={legendData}
-                legendOption={descriptor.legendOption}
-              />
-            )}
-          {drilldownComponent && <div>{drilldownComponent}</div>}
-        </>
-      )}
+        )}
+      {drilldownComponent && <div>{drilldownComponent}</div>}
     </CardContent>
   );
 });

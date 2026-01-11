@@ -1,7 +1,7 @@
 import { useConnection } from "@/components/connection/connection-context";
 import type { TableDescriptor } from "@/components/shared/dashboard/dashboard-model";
 import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
-import type { DashboardPanelComponent } from "@/components/shared/dashboard/dashboard-panel-layout";
+import type { DashboardVisualizationComponent } from "@/components/shared/dashboard/dashboard-visualization-layout";
 import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
 import { forwardRef, memo, useImperativeHandle, useMemo, useRef } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
@@ -15,7 +15,7 @@ export interface DataSampleViewProps {
 const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleViewProps>(
   ({ database, table }, ref) => {
     useConnection(); // Ensure connection context is available
-    const tableComponentRef = useRef<DashboardPanelComponent | null>(null);
+    const tableComponentRef = useRef<DashboardVisualizationComponent | null>(null);
 
     // Create table descriptor - RefreshableTableComponent will discover columns from meta
     // Note: Formatters are not applied here because we don't know column names until data loads.

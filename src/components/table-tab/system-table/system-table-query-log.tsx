@@ -14,8 +14,11 @@ import type {
   TimeseriesDescriptor,
 } from "@/components/shared/dashboard/dashboard-model";
 import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
-import type { DashboardPanelComponent } from "@/components/shared/dashboard/dashboard-panel-layout";
-import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
+import type { DashboardVisualizationComponent } from "@/components/shared/dashboard/dashboard-visualization-layout";
+import {
+  getDisplayTimeSpanByLabel,
+  type TimeSpan,
+} from "@/components/shared/dashboard/timespan-selector";
 import { TabManager } from "@/components/tab-manager";
 import { CopyButton } from "@/components/ui/copy-button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -247,16 +250,28 @@ ORDER BY event_time DESC`;
 const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTableQueryLogProps) => {
   const { connection } = useConnection();
 
-  // State
-  const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan | undefined>(undefined);
+  // Calculate initial time span the same way the filter component does
+  // This prevents double-fetching: panels will mount with selectedTimeSpan already set,
+  // so they'll trigger one refresh on mount. When filter component calls onTimeSpanChange
+  // with the same value, it won't trigger another refresh.
+  const initialTimeSpan = useMemo(() => {
+    const defaultTimeSpanLabel =
+      FILTER_SPECS.find((f): f is DateTimeFilterSpec => f.filterType === "date_time")
+        ?.defaultTimeSpan || "Last 15 Mins";
+    const displayTimeSpan = getDisplayTimeSpanByLabel(defaultTimeSpanLabel);
+    return displayTimeSpan.getTimeSpan();
+  }, []);
+
+  // State - initialize with the same value filter component will use
+  const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan | undefined>(initialTimeSpan);
   const [selectedFilters, setSelectedFilters] = useState<SelectedFilter | undefined>(undefined);
   const [inputFilter, setInputFilter] = useState<string>("");
 
   // Refs
   const inputFilterRef = useRef<HTMLInputElement>(null);
   const filterRef = useRef<DashboardFilterComponent>(null);
-  const chartRef = useRef<DashboardPanelComponent | null>(null);
-  const tableRef = useRef<DashboardPanelComponent | null>(null);
+  const chartRef = useRef<DashboardVisualizationComponent | null>(null);
+  const tableRef = useRef<DashboardVisualizationComponent | null>(null);
   const selectedTimeSpanRef = useRef<TimeSpan | undefined>(undefined);
 
   useEffect(() => {
@@ -333,7 +348,9 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
     };
   }, []);
 
-  // Update SQLs
+  // Update SQLs when filters change
+  // Note: We don't trigger refresh on initial mount when time span is first set - that's handled by useRefreshable
+  // We only trigger refresh here when filters actually change after initial setup
   useEffect(() => {
     const parts: string[] = [];
     if (selectedFilters?.expr) {
@@ -353,6 +370,12 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
     if (!currentTimeSpan) {
       return;
     }
+
+    // Trigger refresh with a filter change indicator to force refresh even if time span hasn't changed
+    // This ensures that when filters change, the data is refreshed
+    // Note: We don't need to skip on initial setup anymore because selectedTimeSpan is initialized
+    // with the same value the filter component uses, so panels will refresh once on mount via useRefreshable,
+    // and when filter component calls onTimeSpanChange with the same value, it won't trigger another refresh.
     chartRef.current?.refresh({
       selectedTimeSpan: currentTimeSpan,
       inputFilter: `filter_${Date.now()}`,
@@ -361,7 +384,12 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
       selectedTimeSpan: currentTimeSpan,
       inputFilter: `filter_${Date.now()}`,
     });
-  }, [selectedFilters, inputFilter, tableDescriptor, chartDescriptor]);
+    // We intentionally don't include chartDescriptor and tableDescriptor in deps because:
+    // 1. They're created with useMemo and are stable references
+    // 2. We mutate their query.sql property directly, which doesn't change the reference
+    // 3. We only want to trigger refreshes when filters change, not when descriptors are recreated
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFilters, inputFilter]);
 
   // Handlers
   const handleSelectionFilterChange = useCallback((filter: SelectedFilter) => {
@@ -448,15 +476,17 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
 
       {/* Table Section */}
       <div className={cn("min-h-0 overflow-hidden")}>
-        <DashboardPanel
-          onRef={(r) => {
-            if (tableRef.current !== r) {
-              tableRef.current = r;
-            }
-          }}
-          descriptor={tableDescriptor}
-          selectedTimeSpan={selectedTimeSpan}
-        />
+        {selectedTimeSpan && (
+          <DashboardPanel
+            onRef={(r) => {
+              if (tableRef.current !== r) {
+                tableRef.current = r;
+              }
+            }}
+            descriptor={tableDescriptor}
+            selectedTimeSpan={selectedTimeSpan}
+          />
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { connect } from "echarts";
 import { ChevronRight } from "lucide-react";
 import React, {
@@ -13,7 +14,10 @@ import React, {
 } from "react";
 import type { Dashboard, DashboardGroup, GridPos, PanelDescriptor } from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
-import type { DashboardPanelComponent, RefreshOptions } from "./dashboard-panel-layout";
+import type {
+  DashboardVisualizationComponent,
+  RefreshOptions,
+} from "./dashboard-visualization-layout";
 import type { TimeSpan } from "./timespan-selector";
 
 export interface DashboardPanelsRef {
@@ -230,7 +234,10 @@ interface DashboardGridPanelProps {
   descriptor: PanelDescriptor;
   panelIndex: number;
   isVisible: boolean;
-  onSubComponentUpdated: (subComponent: DashboardPanelComponent | null, index: number) => void;
+  onSubComponentUpdated: (
+    subComponent: DashboardVisualizationComponent | null,
+    index: number
+  ) => void;
   selectedTimeSpan: TimeSpan;
   isCollapsed: boolean;
   onCollapsedChange: (isCollapsed: boolean) => void;
@@ -279,7 +286,7 @@ const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
   }
 
   return (
-    <div style={gridStyle} className="w-full h-full">
+    <div style={gridStyle} className={cn("w-full", isCollapsed ? "h-auto" : "h-full")}>
       <DashboardPanel
         descriptor={chart}
         selectedTimeSpan={selectedTimeSpan}
@@ -296,7 +303,7 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
     const [groupCollapseStates, setGroupCollapseStates] = useState<Map<number, boolean>>(new Map());
     // Track individual panel collapse states
     const [panelCollapseStates, setPanelCollapseStates] = useState<Map<number, boolean>>(new Map());
-    const subComponentRefs = useRef<(DashboardPanelComponent | null)[]>([]);
+    const subComponentRefs = useRef<(DashboardVisualizationComponent | null)[]>([]);
 
     // Upgrade dashboard version if needed and memoize only the charts array
     const panels = useMemo(() => {
@@ -427,7 +434,7 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
     const connectAllCharts = useCallback(() => {
       const chartInstances: echarts.ECharts[] = subComponentRefs.current
         .filter(
-          (ref): ref is DashboardPanelComponent =>
+          (ref): ref is DashboardVisualizationComponent =>
             ref !== null &&
             typeof (ref as unknown as { getEChartInstance?: () => echarts.ECharts })
               .getEChartInstance === "function"
@@ -454,7 +461,7 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
 
     // Callback when the sub component is mounted or unmounted
     const onSubComponentUpdated = useCallback(
-      (subComponent: DashboardPanelComponent | null, index: number) => {
+      (subComponent: DashboardVisualizationComponent | null, index: number) => {
         subComponentRefs.current[index] = subComponent;
         connectAllCharts();
       },

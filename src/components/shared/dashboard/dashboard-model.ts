@@ -402,6 +402,41 @@ export interface PieDescriptor extends PanelDescriptor {
   valueFormat?: FormatName;
 }
 
+// Gauge Descriptor interface
+export interface GaugeDescriptor extends PanelDescriptor {
+  type: "gauge";
+
+  // Field options as Map or Record, where key is the field name
+  // If not provided, the first numeric column will be used as the value
+  fieldOptions?: Map<string, FieldOption> | Record<string, FieldOption>;
+
+  // Gauge configuration
+  gaugeOption?: {
+    // Minimum value (default: 0)
+    min?: number;
+    // Maximum value (default: 100)
+    max?: number;
+    // Number of split segments (default: 10)
+    splitNumber?: number;
+    // Show axis line (default: true)
+    showAxisLine?: boolean;
+    // Show split line (default: true)
+    showSplitLine?: boolean;
+    // Show axis tick (default: true)
+    showAxisTick?: boolean;
+    // Show axis label (default: true)
+    showAxisLabel?: boolean;
+    // Show pointer (default: true)
+    showPointer?: boolean;
+    // Show detail (default: true)
+    showDetail?: boolean;
+    // Detail formatter (default: "{value}%")
+    detailFormatter?: string;
+    // Value format for the gauge
+    valueFormat?: FormatName;
+  };
+}
+
 export type DashboardFilter = {
   selectors?: SelectorUI[];
   showTimeSpanSelector?: boolean;

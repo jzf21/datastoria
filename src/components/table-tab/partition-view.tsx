@@ -1,7 +1,7 @@
 import { useConnection } from "@/components/connection/connection-context";
 import type { FieldOption, TableDescriptor } from "@/components/shared/dashboard/dashboard-model";
 import { DashboardPanel } from "@/components/shared/dashboard/dashboard-panel";
-import type { DashboardPanelComponent } from "@/components/shared/dashboard/dashboard-panel-layout";
+import type { DashboardVisualizationComponent } from "@/components/shared/dashboard/dashboard-visualization-layout";
 import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
 import { Button } from "@/components/ui/button";
 import { Connection, QueryError } from "@/lib/connection/connection";
@@ -153,7 +153,7 @@ export interface PartitionViewProps {
 const PartitionSizeViewComponent = forwardRef<RefreshableTabViewRef, PartitionViewProps>(
   ({ database, table, autoLoad = false }, ref) => {
     const { connection } = useConnection();
-    const tableComponentRef = useRef<DashboardPanelComponent>(null);
+    const tableComponentRef = useRef<DashboardVisualizationComponent>(null);
     const isMountedRef = useRef(true);
 
     useImperativeHandle(ref, () => ({

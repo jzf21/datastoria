@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RefreshOptions } from "./dashboard-panel-layout";
+import type { RefreshOptions } from "./dashboard-visualization-layout";
 
 interface UseRefreshableOptions {
   initialCollapsed?: boolean;
@@ -160,7 +160,12 @@ export function useRefreshable({
       return;
     }
     const params = getInitialParams();
-    // Even if params is undefined, we trigger it. The component's loadData will handle validation.
+    // Skip initial refresh if params are undefined (indicates required params not yet available)
+    // This prevents double-fetching when components mount before required props (like selectedTimeSpan) are set
+    if (params === undefined) {
+      return;
+    }
+    // Trigger refresh with params (empty object is valid for components that don't require params)
     refresh(params || ({} as RefreshOptions));
   }, [getInitialParams, refresh]);
 

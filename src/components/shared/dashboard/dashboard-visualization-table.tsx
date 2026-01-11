@@ -14,8 +14,51 @@ import {
   DashboardDropdownMenuSubTrigger,
 } from "./dashboard-dropdown-menu-item";
 import type { FieldOption, TableDescriptor } from "./dashboard-model";
+import type { VisualizationRef } from "./dashboard-visualization-layout";
 import { DataTable, type DataTableRef } from "./data-table";
 import type { TimeSpan } from "./timespan-selector";
+
+// SQL utility function for table sorting
+function replaceOrderByClause(
+  sql: string,
+  orderByColumn: string | null,
+  orderDirection: "asc" | "desc" | null
+): string {
+  if (!orderByColumn || !orderDirection) {
+    // Remove ORDER BY clause if sorting is cleared
+    return sql.replace(
+      /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*/gi,
+      ""
+    );
+  }
+
+  const orderByClause = `ORDER BY ${orderByColumn} ${orderDirection.toUpperCase()}`;
+  const hasOrderBy = /\s+ORDER\s+BY\s+/i.test(sql);
+
+  if (hasOrderBy) {
+    const replaceRegex =
+      /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*(?=\s+LIMIT|\s*$)/gi;
+    return sql.replace(replaceRegex, ` ${orderByClause}`);
+  } else {
+    const limitRegex = /\s+LIMIT\s+\d+/i;
+    if (limitRegex.test(sql)) {
+      limitRegex.lastIndex = 0;
+      return sql.replace(limitRegex, ` ${orderByClause}$&`);
+    } else {
+      return sql.trim() + ` ${orderByClause}`;
+    }
+  }
+}
+
+// SQL utility function for pagination
+function applyLimitOffset(sql: string, limit: number, offset: number): string {
+  const trimmed = sql.trim();
+  const trailingLimitRegex = /\s+LIMIT\s+\d+(?:\s+OFFSET\s+\d+)?\s*$/i;
+  if (trailingLimitRegex.test(trimmed)) {
+    return trimmed.replace(trailingLimitRegex, ` LIMIT ${limit} OFFSET ${offset}`);
+  }
+  return `${trimmed} LIMIT ${limit} OFFSET ${offset}`;
+}
 
 export interface TableVisualizationProps {
   // Data from facade
@@ -23,25 +66,18 @@ export interface TableVisualizationProps {
   meta: Array<{ name: string; type?: string }>;
   descriptor: TableDescriptor;
   isLoading: boolean;
-  error: string;
   selectedTimeSpan?: TimeSpan;
 
   // Callbacks to facade
   onSortChange?: (column: string, direction: "asc" | "desc" | null) => void;
-  onRequestMoreData?: () => void;
-
-  // Pagination state from facade (for server-side pagination)
-  hasMorePages?: boolean;
+  onLoadData?: (pageNumber: number) => Promise<void> | void;
 
   // Additional props
   className?: string;
 }
 
-export interface TableVisualizationRef {
-  resetScroll: () => void;
-  getAllColumns: () => Array<{ name: string; title: string; isVisible: boolean }>;
-  toggleColumnVisibility: (columnName: string) => void;
-  getDropdownItems: () => React.ReactNode;
+export interface TableVisualizationRef extends VisualizationRef {
+  resetPagination: () => void; // Override to make it required for table
 }
 
 /**
@@ -51,24 +87,49 @@ export interface TableVisualizationRef {
  */
 export const TableVisualization = React.forwardRef<TableVisualizationRef, TableVisualizationProps>(
   function TableVisualization(props, ref) {
-    const {
-      data,
-      meta,
-      descriptor,
-      isLoading,
-      error,
-      selectedTimeSpan,
-      onSortChange,
-      onRequestMoreData,
-      hasMorePages,
-      className,
-    } = props;
+    const { data, meta, descriptor, isLoading, onSortChange, onLoadData, className } = props;
 
     // State
     const [sort, setSort] = useState<{ column: string | null; direction: "asc" | "desc" | null }>({
       column: descriptor.sortOption?.initialSort?.column || null,
       direction: descriptor.sortOption?.initialSort?.direction || null,
     });
+
+    // Pagination state (moved from facade)
+    const currentPageRef = useRef(0);
+    const prevDataLengthRef = useRef(0);
+    const isRequestingMoreRef = useRef(false);
+
+    // Compute hasMorePages from data length and pageSize
+    // We track the previous data length to determine if the last loaded page was complete
+    const hasMorePages = useMemo(() => {
+      if (descriptor.pagination?.mode !== "server") {
+        return true; // Not applicable for client-side pagination
+      }
+
+      const pageSize = descriptor.pagination.pageSize;
+
+      // If we have no data yet, assume there might be pages
+      if (data.length === 0) {
+        return true;
+      }
+
+      // For the first page, check if we got a full page
+      // If data.length >= pageSize, we got a full page, so there might be more
+      if (prevDataLengthRef.current === 0) {
+        return data.length >= pageSize;
+      }
+
+      // For subsequent pages, check if the last page load added a full page
+      // If the increment >= pageSize, the last page was full, so there might be more pages
+      // If the increment < pageSize, the last page was incomplete, so no more pages
+      const dataIncrement = data.length - prevDataLengthRef.current;
+      return dataIncrement >= pageSize;
+    }, [data.length, descriptor.pagination?.mode, descriptor.pagination?.pageSize]);
+
+    // Note: prevDataLengthRef is updated in handleTableScroll when loading new pages
+    // We don't update it automatically on data changes to preserve the previous length
+    // for computing the increment
 
     // Refs
     const dataTableRef = useRef<DataTableRef>(null);
@@ -93,13 +154,13 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
         scrollTop: number;
         scrollHeight: number;
         clientHeight: number;
-        isNearBottom: boolean;
+        distanceToBottom: number;
       }) => {
         if (descriptor.pagination?.mode !== "server") {
           return;
         }
 
-        if (!hasMorePages || isLoading) {
+        if (!hasMorePages || isLoading || isRequestingMoreRef.current) {
           return;
         }
 
@@ -107,12 +168,33 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
           return;
         }
 
-        // Check if scrolled near bottom
-        if (scrollMetrics.isNearBottom && onRequestMoreData) {
-          onRequestMoreData();
+        // Check if scrolled near bottom (within 150px threshold)
+        const threshold = descriptor.miscOption?.enableCompactMode ? 150 : 200;
+        if (scrollMetrics.distanceToBottom < threshold && onLoadData) {
+          isRequestingMoreRef.current = true;
+          const nextPage = currentPageRef.current + 1;
+          // Store previous data length before loading to compute increment later
+          // Update synchronously so hasMorePages computation uses correct previous length
+          prevDataLengthRef.current = data.length;
+          const result = onLoadData(nextPage);
+          // Handle both sync and async callbacks
+          if (result instanceof Promise) {
+            result
+              .then(() => {
+                // Update currentPage after data loads successfully
+                currentPageRef.current = nextPage;
+              })
+              .finally(() => {
+                isRequestingMoreRef.current = false;
+              });
+          } else {
+            // For sync callbacks, update immediately
+            currentPageRef.current = nextPage;
+            isRequestingMoreRef.current = false;
+          }
         }
       },
-      [descriptor.pagination?.mode, hasMorePages, isLoading, onRequestMoreData]
+      [descriptor.pagination?.mode, hasMorePages, isLoading, onLoadData, data.length]
     );
 
     // Component for rendering show/hide columns submenu
@@ -223,12 +305,45 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
       );
     };
 
+    // Reset pagination state
+    const resetPagination = useCallback(() => {
+      currentPageRef.current = 0;
+      // Reset prevDataLengthRef so hasMorePages computation works correctly for first page
+      prevDataLengthRef.current = 0;
+      isRequestingMoreRef.current = false;
+      // Reset scroll position to top so user sees the first page
+      dataTableRef.current?.resetScroll();
+    }, []);
+
+    // Prepare SQL for data fetching (applies sort and pagination if server-side is enabled)
+    const prepareDataFetchSql = useCallback(
+      (sql: string, pageNumber: number = 0): string => {
+        let finalSql = sql;
+
+        // Apply server-side sorting if enabled
+        if (descriptor.sortOption?.serverSideSorting && sort.column && sort.direction) {
+          finalSql = replaceOrderByClause(finalSql, sort.column, sort.direction);
+        }
+
+        // Apply pagination if server-side pagination is enabled
+        if (descriptor.pagination?.mode === "server") {
+          const pageSize = descriptor.pagination.pageSize;
+          finalSql = applyLimitOffset(finalSql, pageSize, pageNumber * pageSize);
+        }
+
+        return finalSql;
+      },
+      [
+        descriptor.sortOption?.serverSideSorting,
+        descriptor.pagination?.mode,
+        descriptor.pagination?.pageSize,
+        sort.column,
+        sort.direction,
+      ]
+    );
+
     // Expose methods via ref (must be after RenderShowColumns is defined)
     React.useImperativeHandle(ref, () => ({
-      resetScroll: () => dataTableRef.current?.resetScroll(),
-      getAllColumns: () => dataTableRef.current?.getAllColumns() || [],
-      toggleColumnVisibility: (columnName: string) =>
-        dataTableRef.current?.toggleColumnVisibility(columnName),
       getDropdownItems: () => (
         <>
           <DropdownMenuSub>
@@ -243,6 +358,8 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
           </DropdownMenuSub>
         </>
       ),
+      resetPagination,
+      prepareDataFetchSql,
     }));
 
     return (
@@ -276,7 +393,6 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
           }, [descriptor.fieldOptions])}
           actions={descriptor.actions}
           isLoading={isLoading}
-          error={error}
           sort={sort}
           onSortChange={handleSortChange}
           enableIndexColumn={descriptor.miscOption?.enableIndexColumn}
@@ -288,7 +404,7 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
               ? {
                   mode: "server",
                   pageSize: descriptor.pagination.pageSize,
-                  hasMorePages: hasMorePages ?? true,
+                  hasMorePages,
                 }
               : undefined
           }

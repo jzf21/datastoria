@@ -21,13 +21,36 @@ export type RefreshOptions = {
   forceRefresh?: boolean; // Force refresh even if parameters haven't changed
 };
 
-export interface DashboardPanelComponent {
+export interface DashboardVisualizationComponent {
   refresh(param: RefreshOptions): void;
 
   getLastRefreshOptions(): RefreshOptions;
 }
 
-export interface DashboardPanelLayoutProps {
+/**
+ * Common interface for all visualization component refs.
+ * All visualization components must implement these methods.
+ */
+export interface VisualizationRef {
+  /**
+   * Get dropdown menu items specific to this visualization
+   */
+  getDropdownItems: () => React.ReactNode;
+  /**
+   * Prepare SQL query for data fetching.
+   * This allows each visualization to modify SQL as needed (e.g., add ORDER BY, LIMIT/OFFSET).
+   * @param sql - The base SQL query
+   * @param pageNumber - Optional page number for pagination (default: 0)
+   * @returns Modified SQL query
+   */
+  prepareDataFetchSql: (sql: string, pageNumber?: number) => string;
+  /**
+   * Reset pagination state (optional, only for visualizations that support pagination)
+   */
+  resetPagination?: () => void;
+}
+
+export interface DashboardVisualizationLayoutProps {
   // Card props
   componentRef?: React.RefObject<HTMLDivElement | null>;
   className?: string;
@@ -162,11 +185,7 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
         <div className="flex-1 text-left min-w-0">
           <CardDescription
             className={cn(
-              titleOption.align
-                ? "text-" + titleOption.align
-                : isCollapsible
-                  ? "text-left"
-                  : "text-center",
+              titleOption.align ? "text-" + titleOption.align : "text-center",
               "text-xs text-muted-foreground m-0 truncate"
             )}
           >
@@ -214,7 +233,7 @@ DashboardPanelHeader.displayName = "DashboardPanelHeader";
  * Common layout component for dashboard cards
  * Handles Card wrapper, FloatingProgressBar, Collapsible, Header, and DropdownMenu
  */
-export function DashboardPanelLayout({
+export function DashboardVisualizationLayout({
   componentRef,
   className,
   style,
@@ -227,7 +246,7 @@ export function DashboardPanelLayout({
   children,
   headerClassName,
   headerBackground = false,
-}: DashboardPanelLayoutProps) {
+}: DashboardVisualizationLayoutProps) {
   const isCollapsible = isCollapsed !== undefined && setIsCollapsed !== undefined;
   const showTitle = !!titleOption?.title && titleOption?.showTitle !== false;
   const showRefreshButton = titleOption?.showRefreshButton === true;
@@ -254,7 +273,8 @@ export function DashboardPanelLayout({
     <Card
       ref={componentRef}
       className={cn(
-        "@container/card rounded-sm relative overflow-hidden h-full flex flex-col",
+        "@container/card rounded-sm relative overflow-hidden flex flex-col",
+        isCollapsible && isCollapsed ? "h-auto" : "h-full",
         className
       )}
       style={style}
@@ -264,10 +284,12 @@ export function DashboardPanelLayout({
         <Collapsible
           open={!isCollapsed}
           onOpenChange={(open) => setIsCollapsed?.(!open)}
-          className="flex flex-col h-full"
+          className={cn("flex flex-col", isCollapsed ? "h-auto" : "h-full")}
         >
           {renderHeaderWithTitle(true)}
-          <CollapsibleContent className="flex-1 overflow-hidden">{children}</CollapsibleContent>
+          <CollapsibleContent className="flex-1 overflow-hidden data-[state=closed]:h-0 data-[state=closed]:min-h-0 data-[state=closed]:overflow-hidden">
+            {children}
+          </CollapsibleContent>
         </Collapsible>
       ) : (
         <>

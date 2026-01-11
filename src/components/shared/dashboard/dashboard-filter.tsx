@@ -108,13 +108,13 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
 
     // Emit initial values so parent components can load data on first render.
     // This is important because many pages gate rendering (e.g. charts) on selectedTimeSpan being set.
-    const initialTimeSpan = this.getSelectedTimeSpan();
-    if (this.props.onTimeSpanChange && initialTimeSpan) {
-      this.props.onTimeSpanChange(initialTimeSpan);
-    }
-    if (this.props.onFilterChange) {
-      this.props.onFilterChange(this.getSelectedFilter());
-    }
+    // const initialTimeSpan = this.getSelectedTimeSpan();
+    // if (this.props.onTimeSpanChange && initialTimeSpan) {
+    //   this.props.onTimeSpanChange(initialTimeSpan);
+    // }
+    // if (this.props.onFilterChange) {
+    //   this.props.onFilterChange(this.getSelectedFilter());
+    // }
   }
 
   shouldComponentUpdate(nextProps: FilterProps): boolean {

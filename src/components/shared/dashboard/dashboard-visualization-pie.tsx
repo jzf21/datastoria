@@ -7,6 +7,7 @@ import * as echarts from "echarts";
 import React, { useCallback, useEffect, useRef } from "react";
 import type { PanelDescriptor, PieDescriptor, TableDescriptor } from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
+import type { VisualizationRef } from "./dashboard-visualization-layout";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
 
@@ -16,13 +17,10 @@ export interface PieVisualizationProps {
   meta: Array<{ name: string; type?: string }>;
   descriptor: PieDescriptor;
   isLoading: boolean;
-  error: string;
   selectedTimeSpan?: TimeSpan;
 }
 
-export interface PieVisualizationRef {
-  getDropdownItems: () => React.ReactNode;
-}
+export type PieVisualizationRef = VisualizationRef;
 
 /**
  * Pure pie visualization component.
@@ -31,7 +29,7 @@ export interface PieVisualizationRef {
  */
 export const PieVisualization = React.forwardRef<PieVisualizationRef, PieVisualizationProps>(
   function PieVisualization(props, ref) {
-    const { data, meta, descriptor, error, selectedTimeSpan } = props;
+    const { data, meta, descriptor, selectedTimeSpan } = props;
     const isDark = useIsDarkTheme();
 
     // Refs
@@ -386,31 +384,20 @@ export const PieVisualization = React.forwardRef<PieVisualizationRef, PieVisuali
     // Expose methods via ref
     React.useImperativeHandle(ref, () => ({
       getDropdownItems: () => null, // No visualization-specific dropdown items for pie
+      prepareDataFetchSql: (sql: string, _pageNumber?: number) => sql,
     }));
 
     return (
       <CardContent className="px-0 p-0 h-full flex flex-col">
-        {error ? (
-          <div
-            key="error"
-            className="flex flex-col items-center justify-center h-full gap-2 text-destructive p-4 overflow-hidden"
-          >
-            <p className="font-semibold shrink-0">Error loading chart data:</p>
-            <p className="text-sm overflow-auto w-full text-center max-h-full custom-scrollbar">
-              {error}
-            </p>
-          </div>
-        ) : (
-          <div
-            ref={chartContainerRef}
-            className="flex-1 w-full min-h-0"
-            style={{
-              height: descriptor.height ? `${descriptor.height}px` : "100%",
-              width: "100%",
-              minWidth: 0,
-            }}
-          />
-        )}
+        <div
+          ref={chartContainerRef}
+          className="flex-1 w-full min-h-0"
+          style={{
+            height: descriptor.height ? `${descriptor.height}px` : "100%",
+            width: "100%",
+            minWidth: 0,
+          }}
+        />
       </CardContent>
     );
   }

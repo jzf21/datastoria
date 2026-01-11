@@ -42,10 +42,10 @@ import {
 } from "./dashboard-dropdown-menu-item";
 import type { FieldOption, SQLQuery, TableDescriptor } from "./dashboard-model";
 import {
-  DashboardPanelLayout,
-  type DashboardPanelComponent,
+  DashboardVisualizationLayout,
+  type DashboardVisualizationComponent,
   type RefreshOptions,
-} from "./dashboard-panel-layout";
+} from "./dashboard-visualization-layout";
 import { DataTable, type DataTableRef } from "./data-table";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
@@ -117,7 +117,7 @@ function applyLimitOffset(sql: string, limit: number, offset: number): string {
   return `${trimmed} LIMIT ${limit} OFFSET ${offset}`;
 }
 
-const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTableProps>(
+const DashboardPanelTable = forwardRef<DashboardVisualizationComponent, DashboardPanelTableProps>(
   function DashboardPanelTable(props, ref) {
     const { descriptor } = props;
     const { connection } = useConnection();
@@ -411,7 +411,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
         scrollTop: number;
         scrollHeight: number;
         clientHeight: number;
-        isNearBottom: boolean;
+        distanceToBottom: number;
       }) => {
         if (descriptor.pagination?.mode !== "server") {
           return;
@@ -426,8 +426,8 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
           return;
         }
 
-        // Check if scrolled near bottom
-        if (scrollMetrics.isNearBottom) {
+        // Check if scrolled near bottom (within 100px threshold)
+        if (scrollMetrics.distanceToBottom < 100) {
           // Set ref immediately to prevent duplicate requests
           isRequestingMoreRef.current = true;
           const nextPage = currentPage + 1;
@@ -580,7 +580,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
     }, [getLastRefreshParameter, refresh]);
 
     return (
-      <DashboardPanelLayout
+      <DashboardVisualizationLayout
         componentRef={componentRef}
         className={props.className}
         isLoading={isLoading}
@@ -636,7 +636,7 @@ const DashboardPanelTable = forwardRef<DashboardPanelComponent, DashboardPanelTa
             className="h-full border-0 rounded-none"
           />
         </CardContent>
-      </DashboardPanelLayout>
+      </DashboardVisualizationLayout>
     );
   }
 );

@@ -1,15 +1,14 @@
 import React from "react";
-import type { PanelDescriptor, StatDescriptor } from "./dashboard-model";
-import type { DashboardPanelComponent } from "./dashboard-panel-layout";
-import { DashboardPanelNew } from "./dashboard-panel-new";
-import DashboardPanelStat from "./dashboard-panel-stat";
+import type { PanelDescriptor } from "./dashboard-model";
+import type { DashboardVisualizationComponent } from "./dashboard-visualization-layout";
+import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
 
 interface DashboardPanelProps {
   descriptor: PanelDescriptor;
   selectedTimeSpan?: TimeSpan;
   initialLoading?: boolean;
-  onRef?: (ref: DashboardPanelComponent | null) => void;
+  onRef?: (ref: DashboardVisualizationComponent | null) => void;
   onCollapsedChange?: (isCollapsed: boolean) => void;
   onTimeSpanSelect?: (timeSpan: TimeSpan) => void;
   className?: string;
@@ -20,7 +19,7 @@ interface DashboardPanelProps {
  * Used for both main dashboard panels and drilldown panels
  *
  * REFACTORING IN PROGRESS:
- * - Table, Pie, Transpose-table, Timeseries: Uses new refactored architecture (DashboardPanelNew)
+ * - Table, Pie, Transpose-table, Timeseries, Gauge, Stat: Uses new refactored architecture (DashboardPanelNew)
  * - Others: Still using legacy components
  */
 export const DashboardPanel: React.FC<DashboardPanelProps> = ({
@@ -37,17 +36,19 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
     return <pre>Invalid descriptor: {JSON.stringify(descriptor, null, 2)}</pre>;
   }
 
-  // Use new refactored implementation for table, pie, transpose-table, and timeseries
+  // Use new refactored implementation for table, pie, transpose-table, timeseries, gauge, and stat
   if (
     descriptor.type === "table" ||
     descriptor.type === "pie" ||
     descriptor.type === "transpose-table" ||
     descriptor.type === "line" ||
     descriptor.type === "bar" ||
-    descriptor.type === "area"
+    descriptor.type === "area" ||
+    descriptor.type === "gauge" ||
+    descriptor.type === "stat"
   ) {
     return (
-      <DashboardPanelNew
+      <DashboardVisualizationPanel
         ref={onRef}
         descriptor={descriptor}
         selectedTimeSpan={selectedTimeSpan}
@@ -55,19 +56,6 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({
         onCollapsedChange={onCollapsedChange}
         onTimeSpanSelect={onTimeSpanSelect}
         className={className}
-      />
-    );
-  }
-
-  // Legacy implementations for other types
-  if (descriptor.type === "stat") {
-    return (
-      <DashboardPanelStat
-        ref={onRef}
-        descriptor={descriptor as StatDescriptor}
-        selectedTimeSpan={selectedTimeSpan}
-        initialLoading={initialLoading}
-        onCollapsedChange={onCollapsedChange}
       />
     );
   }

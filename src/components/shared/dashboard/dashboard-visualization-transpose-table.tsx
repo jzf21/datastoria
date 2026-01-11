@@ -14,19 +14,17 @@ import { Formatter, type FormatName } from "@/lib/formatter";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./constants";
 import type { FieldOption, TransposeTableDescriptor } from "./dashboard-model";
+import type { VisualizationRef } from "./dashboard-visualization-layout";
 import { inferFieldFormat } from "./format-inference";
 
 export interface TransposeTableVisualizationProps {
   // Data from facade
-  data: Record<string, unknown> | null;
+  data: Record<string, unknown>[];
   descriptor: TransposeTableDescriptor;
   isLoading: boolean;
-  error: string;
 }
 
-export interface TransposeTableVisualizationRef {
-  getDropdownItems: () => React.ReactNode;
-}
+export type TransposeTableVisualizationRef = VisualizationRef;
 
 /**
  * Pure transpose-table visualization component.
@@ -37,7 +35,10 @@ export const TransposeTableVisualization = React.forwardRef<
   TransposeTableVisualizationRef,
   TransposeTableVisualizationProps
 >(function TransposeTableVisualization(props, ref) {
-  const { data, descriptor, isLoading, error } = props;
+  const { data, descriptor, isLoading } = props;
+
+  // Extract single row from data array
+  const singleRowData = data.length > 0 ? data[0] : null;
 
   // Store inferred formats for fields that don't have explicit formats
   const [inferredFormats, setInferredFormats] = useState<Map<string, FormatName>>(new Map());
@@ -68,15 +69,15 @@ export const TransposeTableVisualization = React.forwardRef<
 
   // Infer formats when data changes
   useEffect(() => {
-    if (!data) {
+    if (!singleRowData) {
       setInferredFormats(new Map());
       return;
     }
 
     const formats = new Map<string, FormatName>();
-    const sampleRows = [data]; // Single row for transpose table
+    const sampleRows = [singleRowData]; // Single row for transpose table
 
-    Object.keys(data).forEach((key) => {
+    Object.keys(singleRowData).forEach((key) => {
       const fieldOption = getFieldOption(key);
       // Only infer if no format is specified in the descriptor
       if (!fieldOption?.format) {
@@ -88,11 +89,11 @@ export const TransposeTableVisualization = React.forwardRef<
     });
 
     setInferredFormats(formats);
-  }, [data, getFieldOption]);
+  }, [singleRowData, getFieldOption]);
 
   // Skeleton timing logic: minimum display time + fade transition
   useEffect(() => {
-    const shouldShow = isLoading && data === null;
+    const shouldShow = isLoading && singleRowData === null;
 
     if (shouldShow) {
       // Start showing skeleton
@@ -135,7 +136,7 @@ export const TransposeTableVisualization = React.forwardRef<
         skeletonTimeoutRef.current = null;
       }
     };
-  }, [isLoading, data]);
+  }, [isLoading, singleRowData]);
 
   // Format cell value based on field options
   const formatCellValue = useCallback(
@@ -208,20 +209,6 @@ export const TransposeTableVisualization = React.forwardRef<
   );
 
   // Render functions for TableBody
-  const renderError = useCallback(() => {
-    if (!error) return null;
-    return (
-      <TableRow>
-        <TableCell colSpan={2} className="text-center text-destructive p-8">
-          <div className="flex flex-col items-center justify-center h-[72px] gap-2">
-            <p className="font-semibold">Error loading transposed table data:</p>
-            <p className="text-sm">{error}</p>
-          </div>
-        </TableCell>
-      </TableRow>
-    );
-  }, [error]);
-
   const renderLoading = useCallback(() => {
     // Only show skeleton when shouldShowSkeleton is true (with timing logic)
     if (!shouldShowSkeleton) return null;
@@ -246,7 +233,7 @@ export const TransposeTableVisualization = React.forwardRef<
   }, [shouldShowSkeleton, skeletonOpacity]);
 
   const renderNoData = useCallback(() => {
-    if (error || shouldShowSkeleton || data !== null) return null;
+    if (shouldShowSkeleton || singleRowData !== null) return null;
     return (
       <TableRow>
         <TableCell colSpan={2} className="text-center text-muted-foreground p-8">
@@ -254,15 +241,15 @@ export const TransposeTableVisualization = React.forwardRef<
         </TableCell>
       </TableRow>
     );
-  }, [error, shouldShowSkeleton, data]);
+  }, [shouldShowSkeleton, singleRowData]);
 
   const renderData = useCallback(() => {
     // Don't show data while skeleton is visible (during minimum display time)
-    if (error || !data || shouldShowSkeleton) return null;
+    if (!singleRowData || shouldShowSkeleton) return null;
 
     // Get all field entries and preserve natural order
     // Track original index to maintain natural order for fields without position
-    const fieldEntries = Object.entries(data).map(([key, value], originalIndex) => {
+    const fieldEntries = Object.entries(singleRowData).map(([key, value], originalIndex) => {
       const fieldOption = getFieldOption(key);
       return {
         key,
@@ -312,11 +299,12 @@ export const TransposeTableVisualization = React.forwardRef<
         })}
       </>
     );
-  }, [error, data, shouldShowSkeleton, formatCellValue, getFieldOption]);
+  }, [singleRowData, shouldShowSkeleton, formatCellValue, getFieldOption]);
 
   // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
     getDropdownItems: () => null, // No visualization-specific dropdown items for transpose-table
+    prepareDataFetchSql: (sql: string, _pageNumber?: number) => sql,
   }));
 
   return (
@@ -329,7 +317,6 @@ export const TransposeTableVisualization = React.forwardRef<
           </TableRow>
         </TableHeader>
         <TableBody>
-          {renderError()}
           {renderLoading()}
           {renderNoData()}
           {renderData()}

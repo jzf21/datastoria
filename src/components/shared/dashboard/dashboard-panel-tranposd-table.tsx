@@ -34,10 +34,10 @@ import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import type { FieldOption, SQLQuery, TransposeTableDescriptor } from "./dashboard-model";
 import {
-  DashboardPanelLayout,
-  type DashboardPanelComponent,
+  DashboardVisualizationLayout,
+  type DashboardVisualizationComponent,
   type RefreshOptions,
-} from "./dashboard-panel-layout";
+} from "./dashboard-visualization-layout";
 import { inferFieldFormat } from "./format-inference";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
@@ -61,7 +61,7 @@ interface DashboardPanelTransposedTableProps {
 }
 
 const DashboardPanelTransposedTable = forwardRef<
-  DashboardPanelComponent,
+  DashboardVisualizationComponent,
   DashboardPanelTransposedTableProps
 >(function DashboardPanelTransposedTable(props, ref) {
   const { descriptor } = props;
@@ -511,7 +511,7 @@ const DashboardPanelTransposedTable = forwardRef<
   }, [getLastRefreshParameter, refresh]);
 
   return (
-    <DashboardPanelLayout
+    <DashboardVisualizationLayout
       componentRef={componentRef}
       className={props.className}
       isLoading={isLoading}
@@ -537,7 +537,7 @@ const DashboardPanelTransposedTable = forwardRef<
           </TableBody>
         </Table>
       </CardContent>
-    </DashboardPanelLayout>
+    </DashboardVisualizationLayout>
   );
 });
 

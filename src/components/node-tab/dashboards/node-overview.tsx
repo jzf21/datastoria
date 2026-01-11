@@ -1,11 +1,13 @@
 import type {
+  GaugeDescriptor,
+  PanelDescriptor,
   StatDescriptor,
   TableDescriptor,
 } from "@/components/shared/dashboard/dashboard-model";
 import { OpenDatabaseTabButton } from "@/components/table-tab/open-database-tab-button";
 import { OpenTableTabButton } from "@/components/table-tab/open-table-tab-button";
 
-export const nodeOverviewDashboard: StatDescriptor[] = [
+export const nodeOverviewDashboard: PanelDescriptor[] = [
   //
   // Server Version
   //
@@ -274,7 +276,7 @@ ORDER BY size DESC
     },
   } as StatDescriptor,
   {
-    type: "stat",
+    type: "gauge",
     titleOption: {
       title: "Used Storage",
     },
@@ -317,5 +319,5 @@ ORDER BY size DESC
         },
       } as TableDescriptor,
     },
-  } as StatDescriptor,
+  } as GaugeDescriptor,
 ];

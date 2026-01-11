@@ -3,10 +3,12 @@
 import { useConnection } from "@/components/connection/connection-context";
 import { Dialog } from "@/components/use-dialog";
 import { QueryError } from "@/lib/connection/connection";
-import React, { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import { DateTimeExtension } from "@/lib/datetime-utils";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import type {
+  GaugeDescriptor,
   PanelDescriptor,
   PieDescriptor,
   StatDescriptor,
@@ -14,15 +16,16 @@ import type {
   TimeseriesDescriptor,
   TransposeTableDescriptor,
 } from "./dashboard-model";
-import {
-  DashboardPanelLayout,
-  type DashboardPanelComponent,
-  type RefreshOptions,
-} from "./dashboard-panel-layout";
-// Import old components for non-refactored types
-import DashboardPanelStat from "./dashboard-panel-stat";
 // Import pure visualization components
+import { GaugeVisualization, type GaugeVisualizationRef } from "./dashboard-visualization-gauge";
+import {
+  DashboardVisualizationLayout,
+  type DashboardVisualizationComponent,
+  type RefreshOptions,
+  type VisualizationRef,
+} from "./dashboard-visualization-layout";
 import { PieVisualization, type PieVisualizationRef } from "./dashboard-visualization-pie";
+import { StatVisualization, type StatVisualizationRef } from "./dashboard-visualization-stat";
 import { TableVisualization, type TableVisualizationRef } from "./dashboard-visualization-table";
 import {
   TimeseriesVisualization,
@@ -36,52 +39,11 @@ import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import { useRefreshable } from "./use-refreshable";
 
-// SQL utility functions for table sorting and pagination
-function replaceOrderByClause(
-  sql: string,
-  orderByColumn: string | null,
-  orderDirection: "asc" | "desc" | null
-): string {
-  if (!orderByColumn || !orderDirection) {
-    // Remove ORDER BY clause if sorting is cleared
-    return sql.replace(
-      /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*/gi,
-      ""
-    );
-  }
-
-  const orderByClause = `ORDER BY ${orderByColumn} ${orderDirection.toUpperCase()}`;
-  const hasOrderBy = /\s+ORDER\s+BY\s+/i.test(sql);
-
-  if (hasOrderBy) {
-    const replaceRegex =
-      /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*(?=\s+LIMIT|\s*$)/gi;
-    return sql.replace(replaceRegex, ` ${orderByClause}`);
-  } else {
-    const limitRegex = /\s+LIMIT\s+\d+/i;
-    if (limitRegex.test(sql)) {
-      limitRegex.lastIndex = 0;
-      return sql.replace(limitRegex, ` ${orderByClause}$&`);
-    } else {
-      return sql.trim() + ` ${orderByClause}`;
-    }
-  }
-}
-
-function applyLimitOffset(sql: string, limit: number, offset: number): string {
-  const trimmed = sql.trim();
-  const trailingLimitRegex = /\s+LIMIT\s+\d+(?:\s+OFFSET\s+\d+)?\s*$/i;
-  if (trailingLimitRegex.test(trimmed)) {
-    return trimmed.replace(trailingLimitRegex, ` LIMIT ${limit} OFFSET ${offset}`);
-  }
-  return `${trimmed} LIMIT ${limit} OFFSET ${offset}`;
-}
-
-interface DashboardPanelProps {
+interface DashboardVisualizationPanelProps {
   descriptor: PanelDescriptor;
   selectedTimeSpan?: TimeSpan;
   initialLoading?: boolean;
-  onRef?: (ref: DashboardPanelComponent | null) => void;
+  onRef?: (ref: DashboardVisualizationComponent | null) => void;
   onCollapsedChange?: (isCollapsed: boolean) => void;
   onTimeSpanSelect?: (timeSpan: TimeSpan) => void;
   className?: string;
@@ -92,70 +54,55 @@ interface DashboardPanelProps {
  * Single unified facade that handles data fetching, layout, and lifecycle management.
  * Delegates rendering to pure visualization components based on descriptor.type.
  *
- * Currently supports: table, pie, transpose-table, timeseries (refactored)
- * Legacy support: stat (using old components)
+ * Currently supports: table, pie, transpose-table, timeseries, gauge, stat (all refactored)
  */
-export const DashboardPanelNew = forwardRef<DashboardPanelComponent, DashboardPanelProps>(
-  function DashboardPanelNew(props, ref) {
-    const { descriptor, initialLoading = false, onCollapsedChange } = props;
+export const DashboardVisualizationPanel = forwardRef<
+  DashboardVisualizationComponent,
+  DashboardVisualizationPanelProps
+>(function DashboardPanelNew(props, ref) {
+  const { descriptor, initialLoading = false, onCollapsedChange } = props;
 
-    // Defensive check
-    if (!descriptor || !descriptor.type) {
-      return <pre>Invalid descriptor: {JSON.stringify(descriptor, null, 2)}</pre>;
-    }
-
-    // For non-refactored types, use old components
-    if (
-      descriptor.type !== "table" &&
-      descriptor.type !== "pie" &&
-      descriptor.type !== "transpose-table" &&
-      descriptor.type !== "line" &&
-      descriptor.type !== "bar" &&
-      descriptor.type !== "area"
-    ) {
-      // Legacy path - use old components
-      if (descriptor.type === "stat") {
-        return (
-          <DashboardPanelStat
-            ref={props.onRef}
-            descriptor={descriptor as StatDescriptor}
-            selectedTimeSpan={props.selectedTimeSpan}
-            initialLoading={initialLoading}
-            onCollapsedChange={onCollapsedChange}
-          />
-        );
-      }
-
-      return null;
-    }
-
-    // Refactored path - unified facade for table, pie, transpose-table, timeseries
-    return (
-      <UnifiedFacade
-        ref={ref}
-        descriptor={
-          descriptor as
-            | TableDescriptor
-            | PieDescriptor
-            | TransposeTableDescriptor
-            | TimeseriesDescriptor
-        }
-        selectedTimeSpan={props.selectedTimeSpan}
-        initialLoading={initialLoading}
-        onCollapsedChange={onCollapsedChange}
-      />
-    );
+  // Defensive check
+  if (!descriptor || !descriptor.type) {
+    return <pre>Invalid descriptor: {JSON.stringify(descriptor, null, 2)}</pre>;
   }
-);
 
-DashboardPanelNew.displayName = "DashboardPanelNew";
+  // Refactored path - unified facade for table, pie, transpose-table, timeseries, gauge, stat
+  return (
+    <UnifiedFacade
+      ref={ref}
+      descriptor={
+        descriptor as
+          | TableDescriptor
+          | PieDescriptor
+          | TransposeTableDescriptor
+          | TimeseriesDescriptor
+          | GaugeDescriptor
+          | StatDescriptor
+      }
+      selectedTimeSpan={props.selectedTimeSpan}
+      initialLoading={initialLoading}
+      onCollapsedChange={onCollapsedChange}
+      onTimeSpanSelect={props.onTimeSpanSelect}
+      className={props.className}
+    />
+  );
+});
+
+DashboardVisualizationPanel.displayName = "DashboardPanelNew";
 
 /**
  * UnifiedFacade: Single facade component for all refactored visualization types
  * Handles data fetching, lifecycle, and conditional rendering of visualization components
  */
 interface UnifiedFacadeProps {
-  descriptor: TableDescriptor | PieDescriptor | TransposeTableDescriptor | TimeseriesDescriptor;
+  descriptor:
+    | TableDescriptor
+    | PieDescriptor
+    | TransposeTableDescriptor
+    | TimeseriesDescriptor
+    | GaugeDescriptor
+    | StatDescriptor;
   selectedTimeSpan?: TimeSpan;
   initialLoading?: boolean;
   onCollapsedChange?: (isCollapsed: boolean) => void;
@@ -163,7 +110,7 @@ interface UnifiedFacadeProps {
   className?: string;
 }
 
-const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
+const UnifiedFacade = forwardRef<DashboardVisualizationComponent, UnifiedFacadeProps>(
   function UnifiedFacade(props, ref) {
     const { descriptor, initialLoading = false, onCollapsedChange } = props;
     const { connection } = useConnection();
@@ -175,23 +122,18 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
     const [error, setError] = useState("");
     const [executedSql, setExecutedSql] = useState<string>("");
 
-    // Table-specific state
-    const [sort, setSort] = useState<{ column: string; direction: "asc" | "desc" | null }>({
-      column: "",
-      direction: null,
-    });
-    const [currentPage, setCurrentPage] = useState(0);
-    const [hasMorePages, setHasMorePages] = useState(true);
+    // Secondary data state (for Stat comparison)
+    const [secondaryData, setSecondaryData] = useState<Record<string, unknown>[]>([]);
+    const [isSecondaryLoading, setIsSecondaryLoading] = useState(false);
+    const [secondaryError, setSecondaryError] = useState("");
 
     // Refs
     const apiCancellerRef = useRef<AbortController | null>(null);
-    const tableVizRef = useRef<TableVisualizationRef>(null);
-    const pieVizRef = useRef<PieVisualizationRef>(null);
-    const transposeTableVizRef = useRef<TransposeTableVisualizationRef>(null);
-    const timeseriesVizRef = useRef<TimeseriesVisualizationRef>(null);
+    const secondaryApiCancellerRef = useRef<AbortController | null>(null);
+
+    const visualizationRef = useRef<VisualizationRef>(null);
+
     const lastRefreshParamRef = useRef<RefreshOptions>({});
-    const sortRef = useRef(sort);
-    const isRequestingMoreRef = useRef(false);
 
     // Load data function - unified for all types
     const loadData = useCallback(
@@ -232,38 +174,14 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
             finalSql = finalSql.replace(/{timeFilter:String}/g, "");
           }
 
-          // Apply table-specific transformations
-          if (descriptor.type === "table") {
-            const tableDescriptor = descriptor as TableDescriptor;
-
-            // Apply server-side sorting if enabled
-            if (
-              tableDescriptor.sortOption?.serverSideSorting &&
-              sortRef.current.column &&
-              sortRef.current.direction
-            ) {
-              finalSql = replaceOrderByClause(
-                finalSql,
-                sortRef.current.column,
-                sortRef.current.direction
-              );
-            }
-
-            // Apply pagination
-            if (tableDescriptor.pagination?.mode === "server") {
-              const pageSize = tableDescriptor.pagination.pageSize;
-              finalSql = applyLimitOffset(finalSql, pageSize, pageNumber * pageSize);
-            }
-          }
+          // Let visualization component prepare SQL (e.g., table adds ORDER BY and pagination)
+          finalSql =
+            visualizationRef.current?.prepareDataFetchSql(finalSql, pageNumber) ?? finalSql;
 
           setExecutedSql(finalSql);
 
           // Choose the right query method based on type
-          const queryMethod =
-            descriptor.type === "transpose-table" ? connection.query : connection.queryOnNode;
-
-          const { response, abortController } = queryMethod.call(
-            connection,
+          const { response, abortController } = connection.queryOnNode(
             finalSql,
             {
               default_format: "JSON",
@@ -282,7 +200,6 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
 
           if (abortController.signal.aborted) {
             setIsLoading(false);
-            isRequestingMoreRef.current = false;
             return;
           }
 
@@ -291,7 +208,6 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
             const errorData = apiResponse.data.json<QueryError>();
             setError(errorData.message || "Unknown error");
             setIsLoading(false);
-            isRequestingMoreRef.current = false;
             return;
           }
 
@@ -315,17 +231,13 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
                 // Subsequent pages - append data
                 setData((prevData) => [...prevData, ...newData]);
               }
-
-              // Check if there are more pages
-              const pageSize = tableDescriptor.pagination.pageSize;
-              setHasMorePages(newData.length >= pageSize);
             } else {
               // No pagination or client-side pagination
               setData(newData);
               setMeta(newMeta);
             }
           } else {
-            // Pie, transpose-table, and timeseries - just set data
+            // Other types - just set data
             setData(newData);
             setMeta(newMeta);
           }
@@ -333,14 +245,93 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
           // Clear error on successful data load
           setError("");
           setIsLoading(false);
-          isRequestingMoreRef.current = false;
+
+          // Handle Stat comparison if needed
+          if (descriptor.type === "stat") {
+            const statDescriptor = descriptor as StatDescriptor;
+            if (statDescriptor.comparisonOption?.offset && props.selectedTimeSpan) {
+              const offsetValue = DateTimeExtension.parseOffsetExpression(
+                statDescriptor.comparisonOption.offset
+              );
+
+              if (offsetValue !== 0) {
+                setIsSecondaryLoading(true);
+                setSecondaryError("");
+
+                if (secondaryApiCancellerRef.current) {
+                  secondaryApiCancellerRef.current.abort();
+                  secondaryApiCancellerRef.current = null;
+                }
+
+                // Calculate offset time span
+                const offsetTimeSpan: TimeSpan = {
+                  startISO8601:
+                    DateTimeExtension.formatISO8601(
+                      new Date(
+                        new Date(props.selectedTimeSpan.startISO8601).getTime() + offsetValue * 1000
+                      )
+                    ) || "",
+
+                  endISO8601:
+                    DateTimeExtension.formatISO8601(
+                      new Date(
+                        new Date(props.selectedTimeSpan.endISO8601).getTime() + offsetValue * 1000
+                      )
+                    ) || "",
+                };
+
+                // Prepare offset SQL
+                const offsetSql = replaceTimeSpanParams(
+                  query.sql,
+                  offsetTimeSpan,
+                  connection.metadata?.timezone || "UTC"
+                );
+
+                const { response: offsetResponse, abortController: offsetAbort } =
+                  connection.queryOnNode(
+                    offsetSql,
+                    {
+                      default_format: "JSON",
+                      output_format_json_quote_64bit_integers: 0,
+                      ...query.params,
+                    },
+                    {
+                      "Content-Type": "text/plain",
+                      ...query.headers,
+                    }
+                  );
+
+                secondaryApiCancellerRef.current = offsetAbort;
+
+                offsetResponse
+                  .then((res) => {
+                    if (offsetAbort.signal.aborted) return;
+
+                    if (res.httpStatus >= 400) {
+                      const errData = res.data.json<QueryError>();
+                      setSecondaryError(errData.message || "Failed to load comparison data");
+                    } else {
+                      const resData = res.data.json<{
+                        data?: Record<string, unknown>[];
+                      }>();
+                      setSecondaryData(resData.data || []);
+                    }
+                    setIsSecondaryLoading(false);
+                  })
+                  .catch((err) => {
+                    if (offsetAbort.signal.aborted) return;
+                    setSecondaryError(err instanceof Error ? err.message : "Unknown error");
+                    setIsSecondaryLoading(false);
+                  });
+              }
+            }
+          }
         } catch (err) {
           if (err instanceof Error && err.name === "AbortError") {
             return;
           }
           setError(err instanceof Error ? err.message : "Unknown error");
           setIsLoading(false);
-          isRequestingMoreRef.current = false;
         }
       },
       [connection, descriptor, props.selectedTimeSpan]
@@ -353,10 +344,8 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
           return;
         }
 
-        // Reset pagination state on refresh
-        setCurrentPage(0);
-        setHasMorePages(true);
-        isRequestingMoreRef.current = false;
+        // Reset pagination state on refresh (if visualization supports it)
+        visualizationRef.current?.resetPagination?.();
 
         loadData(param, 0);
       },
@@ -364,11 +353,27 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
     );
 
     // Get initial parameters for refreshable hook
+    // Return undefined when selectedTimeSpan is not available to prevent initial fetch
+    // This prevents double-fetching when component mounts before selectedTimeSpan is set
     const getInitialParams = useCallback(() => {
+      // Check if the query requires time span parameters
+      const query = descriptor.query;
+      const requiresTimeSpan =
+        query?.sql.includes("{startTimestamp") ||
+        query?.sql.includes("{endTimestamp") ||
+        query?.sql.includes("{timeFilter") ||
+        query?.sql.includes("{from:") ||
+        query?.sql.includes("{to:");
+
+      if (requiresTimeSpan && !props.selectedTimeSpan) {
+        // Return undefined to skip initial refresh when time span is required but not available
+        return undefined;
+      }
+
       return props.selectedTimeSpan
         ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshOptions)
         : ({} as RefreshOptions);
-    }, [props.selectedTimeSpan]);
+    }, [props.selectedTimeSpan, descriptor.query, descriptor.type]);
 
     // Use the refreshable hook
     const { componentRef, isCollapsed, setIsCollapsed, refresh, getLastRefreshParameter } =
@@ -391,16 +396,12 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
       (column: string, direction: "asc" | "desc" | null) => {
         if (descriptor.type !== "table") return;
 
-        const newSort = { column, direction };
-        setSort(newSort);
-        sortRef.current = newSort;
-
         const tableDescriptor = descriptor as TableDescriptor;
         if (tableDescriptor.sortOption?.serverSideSorting) {
           const lastParams = lastRefreshParamRef.current;
           const refreshParam: RefreshOptions = {
             ...lastParams,
-            inputFilter: `sort_${Date.now()}_${newSort.column}_${newSort.direction}`,
+            inputFilter: `sort_${Date.now()}_${column}_${direction}`,
           };
           refresh(refreshParam);
         }
@@ -408,17 +409,14 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
       [descriptor, refresh]
     );
 
-    const handleRequestMoreData = useCallback(() => {
-      if (descriptor.type !== "table") return;
-      if (!hasMorePages || isLoading || isRequestingMoreRef.current) {
-        return;
-      }
-
-      isRequestingMoreRef.current = true;
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      loadData(lastRefreshParamRef.current, nextPage);
-    }, [descriptor.type, hasMorePages, isLoading, currentPage, loadData]);
+    // Handle loading data for a specific page (called by table visualization)
+    const handleLoadData = useCallback(
+      async (pageNumber: number) => {
+        if (descriptor.type !== "table") return;
+        await loadData(lastRefreshParamRef.current, pageNumber);
+      },
+      [descriptor.type, loadData]
+    );
 
     // Common handlers
     const handleShowQuery = useCallback(() => {
@@ -483,20 +481,7 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
     // Get dropdown items - combine facade-level items with visualization-specific items
     const getDropdownItems = useCallback(() => {
       // Get visualization-specific dropdown items (without "Show query")
-      let vizItems = null;
-      if (descriptor.type === "table") {
-        vizItems = tableVizRef.current?.getDropdownItems();
-      } else if (descriptor.type === "pie") {
-        vizItems = pieVizRef.current?.getDropdownItems();
-      } else if (descriptor.type === "transpose-table") {
-        vizItems = transposeTableVizRef.current?.getDropdownItems();
-      } else if (
-        descriptor.type === "line" ||
-        descriptor.type === "bar" ||
-        descriptor.type === "area"
-      ) {
-        vizItems = timeseriesVizRef.current?.getDropdownItems();
-      }
+      const vizItems = visualizationRef.current?.getDropdownItems();
 
       // Combine with facade-level "Show query" item
       return (
@@ -509,76 +494,18 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
           {vizItems}
         </>
       );
-    }, [descriptor.type, descriptor.query, handleShowQuery]);
+    }, [descriptor.query, handleShowQuery]);
 
-    // Render visualization based on type
-    const renderVisualization = () => {
-      if (descriptor.type === "table") {
-        return (
-          <TableVisualization
-            ref={tableVizRef}
-            data={data}
-            meta={meta}
-            descriptor={descriptor as TableDescriptor}
-            isLoading={isLoading}
-            error={error}
-            selectedTimeSpan={props.selectedTimeSpan}
-            onSortChange={handleSortChange}
-            onRequestMoreData={handleRequestMoreData}
-            hasMorePages={hasMorePages}
-          />
-        );
-      }
-
-      if (descriptor.type === "pie") {
-        return (
-          <PieVisualization
-            ref={pieVizRef}
-            data={data}
-            meta={meta}
-            descriptor={descriptor as PieDescriptor}
-            isLoading={isLoading}
-            error={error}
-            selectedTimeSpan={props.selectedTimeSpan}
-          />
-        );
-      }
-
-      if (descriptor.type === "transpose-table") {
-        // Transpose table expects a single row object, not an array
-        const singleRowData = data.length > 0 ? data[0] : null;
-        return (
-          <TransposeTableVisualization
-            ref={transposeTableVizRef}
-            data={singleRowData}
-            descriptor={descriptor as TransposeTableDescriptor}
-            isLoading={isLoading}
-            error={error}
-          />
-        );
-      }
-
-      if (descriptor.type === "line" || descriptor.type === "bar" || descriptor.type === "area") {
-        return (
-          <TimeseriesVisualization
-            ref={timeseriesVizRef}
-            data={data}
-            meta={meta}
-            descriptor={descriptor as TimeseriesDescriptor}
-            isLoading={isLoading}
-            error={error}
-            selectedTimeSpan={props.selectedTimeSpan}
-            onTimeSpanSelect={props.onTimeSpanSelect}
-            onShowRawData={handleShowRawData}
-          />
-        );
-      }
-
-      return null;
-    };
+    // Render error state
+    const renderError = () => (
+      <div className="flex h-full w-full flex-col items-center justify-center p-4 text-sm text-destructive gap-1">
+        <div className="font-semibold shrink-0">Query Error</div>
+        <div className="text-center overflow-auto w-full max-h-full custom-scrollbar">{error}</div>
+      </div>
+    );
 
     return (
-      <DashboardPanelLayout
+      <DashboardVisualizationLayout
         componentRef={componentRef}
         className={props.className}
         isLoading={isLoading}
@@ -588,8 +515,71 @@ const UnifiedFacade = forwardRef<DashboardPanelComponent, UnifiedFacadeProps>(
         getDropdownItems={getDropdownItems}
         onRefresh={handleRefresh}
       >
-        {renderVisualization()}
-      </DashboardPanelLayout>
+        {error ? (
+          renderError()
+        ) : descriptor.type === "table" ? (
+          <TableVisualization
+            ref={visualizationRef as React.Ref<TableVisualizationRef>}
+            data={data}
+            meta={meta}
+            descriptor={descriptor as TableDescriptor}
+            isLoading={isLoading}
+            selectedTimeSpan={props.selectedTimeSpan}
+            onSortChange={handleSortChange}
+            onLoadData={handleLoadData}
+          />
+        ) : descriptor.type === "pie" ? (
+          <PieVisualization
+            ref={visualizationRef as React.Ref<PieVisualizationRef>}
+            data={data}
+            meta={meta}
+            descriptor={descriptor as PieDescriptor}
+            isLoading={isLoading}
+            selectedTimeSpan={props.selectedTimeSpan}
+          />
+        ) : descriptor.type === "transpose-table" ? (
+          <TransposeTableVisualization
+            ref={visualizationRef as React.Ref<TransposeTableVisualizationRef>}
+            data={data}
+            descriptor={descriptor as TransposeTableDescriptor}
+            isLoading={isLoading}
+          />
+        ) : descriptor.type === "line" ||
+          descriptor.type === "bar" ||
+          descriptor.type === "area" ? (
+          <TimeseriesVisualization
+            ref={visualizationRef as React.Ref<TimeseriesVisualizationRef>}
+            data={data}
+            meta={meta}
+            descriptor={descriptor as TimeseriesDescriptor}
+            isLoading={isLoading}
+            selectedTimeSpan={props.selectedTimeSpan}
+            onTimeSpanSelect={props.onTimeSpanSelect}
+            onShowRawData={handleShowRawData}
+          />
+        ) : descriptor.type === "gauge" ? (
+          <GaugeVisualization
+            ref={visualizationRef as React.Ref<GaugeVisualizationRef>}
+            data={data}
+            meta={meta}
+            descriptor={descriptor as GaugeDescriptor}
+            isLoading={isLoading}
+            selectedTimeSpan={props.selectedTimeSpan}
+          />
+        ) : descriptor.type === "stat" ? (
+          <StatVisualization
+            ref={visualizationRef as React.Ref<StatVisualizationRef>}
+            data={data}
+            meta={meta}
+            secondaryData={secondaryData}
+            descriptor={descriptor as StatDescriptor}
+            isLoading={isLoading}
+            selectedTimeSpan={props.selectedTimeSpan}
+            isSecondaryLoading={isSecondaryLoading}
+            secondaryError={secondaryError}
+          />
+        ) : null}
+      </DashboardVisualizationLayout>
     );
   }
 );

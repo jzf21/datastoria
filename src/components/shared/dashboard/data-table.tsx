@@ -92,7 +92,7 @@ export interface DataTableProps {
     scrollTop: number;
     scrollHeight: number;
     clientHeight: number;
-    isNearBottom: boolean;
+    distanceToBottom: number;
   }) => void;
   /**
    * Enable expandable rows with transposed detail view (default: false)
@@ -450,13 +450,13 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
       }
 
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      const distanceToBottom = scrollHeight - scrollTop - clientHeight;
 
       onTableScroll({
         scrollTop,
         scrollHeight,
         clientHeight,
-        isNearBottom,
+        distanceToBottom,
       });
     },
     [onTableScroll]

@@ -36,10 +36,10 @@ import {
 } from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
 import {
-  DashboardPanelLayout,
-  type DashboardPanelComponent,
+  DashboardVisualizationLayout,
+  type DashboardVisualizationComponent,
   type RefreshOptions,
-} from "./dashboard-panel-layout";
+} from "./dashboard-visualization-layout";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
@@ -478,7 +478,7 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({
   );
 });
 
-const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelStatProps>(
+const DashboardPanelStat = forwardRef<DashboardVisualizationComponent, DashboardPanelStatProps>(
   function RefreshableStatComponent(props, ref) {
     const { descriptor, selectedTimeSpan } = props;
     const { connection } = useConnection();
@@ -1209,7 +1209,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
     }, [getLastRefreshParameter, refresh]);
 
     return (
-      <DashboardPanelLayout
+      <DashboardVisualizationLayout
         componentRef={componentRef}
         // Use explicit height if provided, otherwise fill the container (100%)
         // This allows the grid system to control the height via gridPos
@@ -1349,7 +1349,7 @@ const DashboardPanelStat = forwardRef<DashboardPanelComponent, DashboardPanelSta
             </CardFooter>
           )}
         </div>
-      </DashboardPanelLayout>
+      </DashboardVisualizationLayout>
     );
   }
 );

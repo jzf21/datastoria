@@ -64,10 +64,10 @@ import {
 } from "./dashboard-model";
 import { DashboardPanel } from "./dashboard-panel";
 import {
-  DashboardPanelLayout,
-  type DashboardPanelComponent,
+  DashboardVisualizationLayout,
+  type DashboardVisualizationComponent,
   type RefreshOptions,
-} from "./dashboard-panel-layout";
+} from "./dashboard-visualization-layout";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
 import useIsDarkTheme from "./use-is-dark-theme";
@@ -89,7 +89,7 @@ interface DashboardPanelPieProps {
   className?: string;
 }
 
-const DashboardPanelPie = forwardRef<DashboardPanelComponent, DashboardPanelPieProps>(
+const DashboardPanelPie = forwardRef<DashboardVisualizationComponent, DashboardPanelPieProps>(
   function DashboardPanelPie(props, ref) {
     const { descriptor, selectedTimeSpan: propSelectedTimeSpan } = props;
     const { connection } = useConnection();
@@ -706,7 +706,7 @@ const DashboardPanelPie = forwardRef<DashboardPanelComponent, DashboardPanelPieP
     }, [getLastRefreshParameter, refresh]);
 
     return (
-      <DashboardPanelLayout
+      <DashboardVisualizationLayout
         componentRef={componentRef}
         className={props.className}
         isLoading={isLoading}
@@ -740,7 +740,7 @@ const DashboardPanelPie = forwardRef<DashboardPanelComponent, DashboardPanelPieP
             />
           )}
         </CardContent>
-      </DashboardPanelLayout>
+      </DashboardVisualizationLayout>
     );
   }
 );
