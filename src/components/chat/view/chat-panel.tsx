@@ -110,30 +110,40 @@ export function ChatPanel({
 
   // Load or create initial chat session
   useEffect(() => {
+    // If we already have a chat loaded with the correct ID, do nothing
+    if (chat && chat.id === chatId) return;
+
     const loadSession = async () => {
       const connectionId = connection?.connectionId;
-      if (!connectionId || chatId) return;
+      if (!connectionId) return;
 
-      // If there's a pending command when component mounts (panel was closed, now opening)
-      // OR if explicitly forcing new chat, create a new chat
-      const hasPendingCommand = pendingCommand?.text || pendingCommand?.forceNewChat;
-      if (hasPendingCommand) {
-        const newChatId = uuidv7();
-        previousChatIdRef.current = null;
-        setChatId(newChatId);
-        await createChat(newChatId, connectionId);
-        return;
+      let idToLoad = chatId;
+
+      // If no explicit ID, determine what to load
+      if (!idToLoad) {
+        // If there's a pending command when component mounts (panel was closed, now opening)
+        // OR if explicitly forcing new chat, create a new chat
+        const hasPendingCommand = pendingCommand?.text || pendingCommand?.forceNewChat;
+        if (hasPendingCommand) {
+          idToLoad = uuidv7();
+          previousChatIdRef.current = null;
+          setChatId(idToLoad);
+        } else {
+          // Otherwise, load latest chat or create new one
+          const latestId = await chatStorage.getLatestChatIdForConnection(connectionId);
+          idToLoad = latestId || uuidv7();
+          setChatId(idToLoad);
+        }
       }
 
-      // Otherwise, load latest chat or create new one
-      const latestId = await chatStorage.getLatestChatIdForConnection(connectionId);
-      const idToUse = latestId || uuidv7();
-      setChatId(idToUse);
-      await createChat(idToUse, connectionId);
+      // Create chat instance
+      if (idToLoad) {
+        await createChat(idToLoad, connectionId);
+      }
     };
     loadSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection?.connectionId, chatId]);
+  }, [connection?.connectionId, chatId, chat]);
 
   // Handle pending command when chat already exists (panel was already open)
   useEffect(() => {
@@ -213,6 +223,7 @@ export function ChatPanel({
 
   const handleSelectChat = useCallback((id: string) => {
     setChatId(id);
+    setChat(null);
   }, []);
 
   const handleClearCurrentChat = useCallback(() => {

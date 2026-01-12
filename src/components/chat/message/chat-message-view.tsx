@@ -143,9 +143,6 @@ export const ChatMessageView = memo(function ChatMessageView({
   const isUser = message.role === "user";
 
   const showLoading = !isUser && message.isLoading;
-  if (isUser) {
-    console.log("isUser", isUser, message);
-  }
   return (
     <div
       className={cn(
@@ -181,7 +178,6 @@ export const ChatMessageView = memo(function ChatMessageView({
             {message.parts.length === 0 && message.isLoading && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <span>Thinking</span>
-                <TypingDots />
               </div>
             )}
             {message.parts.length === 0 &&
