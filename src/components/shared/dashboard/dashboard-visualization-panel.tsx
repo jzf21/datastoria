@@ -132,21 +132,11 @@ export const DashboardVisualizationPanel = forwardRef<
         lastRefreshParamRef.current = param;
 
         // Replace time span parameters
-        let finalSql = query.sql;
-        if (props.selectedTimeSpan) {
-          // All types use replaceTimeSpanParams with timezone
-          finalSql = replaceTimeSpanParams(
-            finalSql,
-            props.selectedTimeSpan,
-            connection.metadata?.timezone || "UTC"
-          );
-        } else {
-          finalSql = replaceTimeSpanParams(
-            finalSql,
-            param.selectedTimeSpan,
-            connection.metadata?.timezone || "UTC"
-          );
-        }
+        let finalSql = replaceTimeSpanParams(
+          query.sql,
+          param.selectedTimeSpan,
+          connection.metadata?.timezone || "UTC"
+        );
 
         // Let visualization component prepare SQL (e.g., table adds ORDER BY and pagination)
         finalSql = visualizationRef.current?.prepareDataFetchSql(finalSql, pageNumber) ?? finalSql;

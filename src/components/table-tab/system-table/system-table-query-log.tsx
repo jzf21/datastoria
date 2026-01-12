@@ -369,7 +369,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
       filterRef.current!.getSelectedFilter(),
       ""
     );
-  }, []);
+  }, [updateAndRefresh]);
 
   // Handlers - directly refresh panels when filter component state changes
   const handleSelectionFilterChange = useCallback(
@@ -465,7 +465,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
       {/* Chart Section */}
       <div className="shrink-0 overflow-hidden">
         <DashboardVisualizationPanel
-          onRef={(r) => {
+          ref={(r) => {
             if (chartRef.current !== r) {
               chartRef.current = r;
             }
@@ -480,7 +480,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
       {/* Table Section */}
       <div className={cn("min-h-0 overflow-hidden")}>
         <DashboardVisualizationPanel
-          onRef={(r) => {
+          ref={(r) => {
             if (tableRef.current !== r) {
               tableRef.current = r;
             }
