@@ -103,8 +103,10 @@ function EmptyTabPlaceholderComponent() {
   );
 }
 
-const MainPageTabListComponent = ({ selectedConnection }: MainPageTabListProps) => {
-  const { isReady } = useConnection();
+export const MainPageTabList = memo(function MainPageTabList({
+  selectedConnection,
+}: MainPageTabListProps) {
+  const { isConnectionAvailable } = useConnection();
   const { isVisible: isChatPanelVisible, toggle: toggleChatPanel } = useChatPanel();
   // Tab management state
   const [activeTab, setActiveTab] = useState<string>("");
@@ -229,31 +231,28 @@ const MainPageTabListComponent = ({ selectedConnection }: MainPageTabListProps) 
 
   // Close all tabs when connection changes or is updated
   useEffect(() => {
-    // Create a key that includes connection details that might change (name, url, user)
-    // This ensures tabs close when connection is saved/updated, even if name stays the same
-    const currentConnectionKey = selectedConnection
-      ? `${selectedConnection.name}-${selectedConnection.url}-${selectedConnection.user}`
-      : null;
-    const previousConnectionKey = previousConnectionKeyRef.current;
+    const currentConnectionId =
+      selectedConnection === undefined ? null : selectedConnection!.connectionId;
+    const previousConnectionId = previousConnectionKeyRef.current;
 
     // Close tabs if connection key changed (switching connections or connection was updated)
-    if (previousConnectionKey !== null && previousConnectionKey !== currentConnectionKey) {
+    if (previousConnectionId !== null && previousConnectionId !== currentConnectionId) {
       setTabs([]);
       setActiveTab("");
       hasOpenedInitialQueryTabRef.current = false;
     }
 
     // Update the ref to track the current connection
-    previousConnectionKeyRef.current = currentConnectionKey;
+    previousConnectionKeyRef.current = currentConnectionId;
   }, [selectedConnection]);
 
   // Open query tab when schema is loaded (only once per connection)
   useEffect(() => {
-    if (isReady && !hasOpenedInitialQueryTabRef.current) {
+    if (isConnectionAvailable && !hasOpenedInitialQueryTabRef.current) {
       TabManager.activateQueryTab();
       hasOpenedInitialQueryTabRef.current = true;
     }
-  }, [isReady]);
+  }, [isConnectionAvailable]);
 
   // Helper function to get the next tab ID, or previous if no next exists
   const getNextOrPreviousTabId = useCallback((tabId: string, tabsList: TabInfo[]) => {
@@ -744,7 +743,7 @@ const MainPageTabListComponent = ({ selectedConnection }: MainPageTabListProps) 
           )}
           <div className="flex-1 overflow-hidden relative">
             {/* Show Smart Empty State when no tabs exist and chat panel is not visible, but only when ready */}
-            {tabs.length === 0 && isReady && <EmptyTabPlaceholderComponent />}
+            {tabs.length === 0 && isConnectionAvailable && <EmptyTabPlaceholderComponent />}
 
             {/* All Tabs - Always mounted */}
             {tabContent}
@@ -770,6 +769,4 @@ const MainPageTabListComponent = ({ selectedConnection }: MainPageTabListProps) 
       )}
     </PanelGroup>
   );
-};
-
-export const MainPageTabList = memo(MainPageTabListComponent);
+});

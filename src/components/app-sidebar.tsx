@@ -131,7 +131,7 @@ function SystemTableIntrospectionSidebarMenuItem() {
 }
 
 export function AppSidebar() {
-  const { isReady } = useConnection();
+  const { isConnectionAvailable } = useConnection();
   const { data: session } = useSession();
 
   return (
@@ -146,7 +146,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup className="pt-0">
           <SidebarMenu>
-            {isReady && (
+            {isConnectionAvailable && (
               <>
                 <ConnectionManageSidebarMenuItem />
 

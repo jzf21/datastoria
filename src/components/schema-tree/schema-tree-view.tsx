@@ -65,7 +65,7 @@ export interface SchemaTreeViewProps {
 }
 
 export function SchemaTreeView({ initialSchemaData }: SchemaTreeViewProps) {
-  const { connection, updateConnection } = useConnection();
+  const { connection, updateConnectionMetadata } = useConnection();
   const [isLoading, setIsLoading] = useState(false);
   const [treeData, setTreeData] = useState<TreeDataItem[]>([]);
   const [search, setSearch] = useState("");
@@ -113,7 +113,7 @@ export function SchemaTreeView({ initialSchemaData }: SchemaTreeViewProps) {
 
         // Extract and update table names and database names in connection metadata
         const { tableNames, databaseNames } = extractTableNames(result);
-        updateConnection({ tableNames, databaseNames });
+        updateConnectionMetadata({ tableNames, databaseNames });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         setError(errorMessage);
@@ -123,14 +123,14 @@ export function SchemaTreeView({ initialSchemaData }: SchemaTreeViewProps) {
     };
 
     loadData();
-  }, [connection, buildTree, updateConnection]);
+  }, [connection, buildTree, updateConnectionMetadata]);
 
   // Handle host change from the host selector
   const handleHostChange = useCallback(
     (hostName: string) => {
       if (!connection) return;
 
-      updateConnection({ targetNode: hostName });
+      updateConnectionMetadata({ targetNode: hostName });
 
       // Refresh the tree to load data from the new host
       loadDatabases();
@@ -138,7 +138,7 @@ export function SchemaTreeView({ initialSchemaData }: SchemaTreeViewProps) {
       // Reset the node tab flag when host changes
       hasOpenedNodeTabRef.current = false;
     },
-    [connection, updateConnection, loadDatabases]
+    [connection, updateConnectionMetadata, loadDatabases]
   );
 
   // Update the ref whenever handleHostChange changes

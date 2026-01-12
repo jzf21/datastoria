@@ -205,7 +205,8 @@ async function getConnectionMetadata(connection: Connection): Promise<Partial<Co
 }
 
 export function MainPage() {
-  const { connection, updateConnection, setIsReady, isReady, isInitialized } = useConnection();
+  const { connection, pendingConfig, commitConnection, isInitialized, isConnectionAvailable } =
+    useConnection();
 
   // State for global initialization status (driven by SchemaTreeView)
   const [initStatus, setInitStatus] = useState<AppInitStatus>("initializing");
@@ -215,29 +216,34 @@ export function MainPage() {
 
   // Main Loading Effect
   useEffect(() => {
-    if (!connection) {
+    // If we have a pending config but no active public connection (or it doesn't match), we need to load.
+    if (!pendingConfig) {
       return;
     }
 
-    // Only load if connection is not ready yet
-    if (isReady) {
+    // Optimization: If public connection already matches pendingConfig and connection is available, we are done.
+    if (connection && connection.name === pendingConfig.name && isConnectionAvailable) {
       return;
     }
+
     setInitStatus("connecting");
     setInitError(null);
 
     let isMounted = true;
     const schemaLoader = new SchemaTreeLoader();
 
+    // 1. Create temporary runtime connection for initialization
+    const newConnection = Connection.create(pendingConfig);
+
     const load = async () => {
       try {
         hostNameManager.clear();
 
         // Pre-load hostnames for shortening if cluster is configured
-        if (connection.cluster) {
+        if (newConnection.cluster) {
           try {
-            const response = await connection.query(
-              `SELECT host_name FROM system.clusters WHERE cluster = '${connection.cluster}'`,
+            const response = await newConnection.query(
+              `SELECT host_name FROM system.clusters WHERE cluster = '${newConnection.cluster}'`,
               { default_format: "JSONCompact" }
             ).response;
             const data = response.data.json<any>();
@@ -252,37 +258,34 @@ export function MainPage() {
         }
 
         // 1. Initialize cluster info and get the updates
-        const metadataUpdates = await getConnectionMetadata(connection);
+        const newMetadata = await getConnectionMetadata(newConnection);
 
-        // 2. Create a temporary connection with cluster info for loading schema
-        let tempConnection = connection;
-        if (Object.keys(metadataUpdates).length > 0) {
-          // Create a new connection object with metadata updates
-          tempConnection = Object.create(Object.getPrototypeOf(connection));
-          Object.assign(tempConnection, connection);
-          tempConnection.metadata = { ...connection.metadata, ...metadataUpdates };
+        // 2. Apply metadata updates to tempConnection
+        if (Object.keys(newMetadata).length > 0) {
+          newConnection.metadata = { ...newConnection.metadata, ...newMetadata };
         }
 
         const startTime = Date.now();
 
         // 3. Load Schema data using the temporary connection
-        const result = await schemaLoader.load(tempConnection);
+        const result = await schemaLoader.load(newConnection);
 
         if (isMounted) {
           // 4. Extract table names and database names from schema result
           const { tableNames, databaseNames } = extractTableNames(result);
 
-          // 5. Update connection context with metadata info including table names and database names
-          updateConnection({
-            ...metadataUpdates,
+          // 5. Apply table and database names to tempConnection metadata
+          newConnection.metadata = {
+            ...newConnection.metadata,
             tableNames,
             databaseNames,
-          });
+          };
 
           const post = () => {
             setLoadedSchemaData(result);
             setInitStatus("ready");
-            setIsReady(true);
+            // 6. Commit the fully initialized connection to context
+            commitConnection(newConnection);
           };
 
           const endTime = Date.now();
@@ -310,16 +313,16 @@ export function MainPage() {
       isMounted = false;
       schemaLoader.abort();
     };
-  }, [connection, updateConnection, setIsReady, isReady, retryCount]);
+  }, [pendingConfig, connection, commitConnection, retryCount, isConnectionAvailable]);
 
   useEffect(() => {
-    if (isInitialized && !connection) {
+    if (isInitialized && !pendingConfig && !connection) {
       setInitStatus("connecting");
     }
-  }, [isInitialized, connection]);
+  }, [isInitialized, pendingConfig, connection]);
 
   // Show wizard if no connections exist
-  if (isInitialized && !connection) {
+  if (isInitialized && !pendingConfig && !connection) {
     return <ConnectionWizard />;
   }
 
@@ -328,7 +331,7 @@ export function MainPage() {
     return (
       <MainPageLoadStatusComponent
         status={initStatus}
-        connectionName={connection ? connection.name : undefined}
+        connectionName={pendingConfig ? pendingConfig.name : connection?.name}
         error={initError}
         onRetry={() => {
           setRetryCount((prev) => prev + 1);

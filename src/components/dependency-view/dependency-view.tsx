@@ -39,7 +39,7 @@ export interface DependencyViewProps {
 }
 
 const DependencyViewComponent = ({ database, table }: DependencyViewProps) => {
-  const { connection, updateConnection } = useConnection();
+  const { connection, updateConnectionMetadata } = useConnection();
   const [nodes, setNodes] = useState<Map<string, DependencyGraphNode>>(new Map());
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,7 +114,7 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
           }
 
           // Cache in connection metadata
-          updateConnection({ dependencyTables });
+          updateConnectionMetadata({ dependencyTables });
         }
 
         // Filter tables for the target database
@@ -227,7 +227,7 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
     return () => {
       hasExecutedRef.current = false;
     };
-  }, [connection, database, table, updateConnection]);
+  }, [connection, database, table, updateConnectionMetadata]);
 
   const onNodeClick = useCallback(
     (nodeId: string) => {

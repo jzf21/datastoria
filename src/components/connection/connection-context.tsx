@@ -4,42 +4,49 @@ import { ConnectionManager } from "@/lib/connection/connection-manager";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface ConnectionContextType {
-  isReady: boolean;
-  setIsReady: (ready: boolean) => void;
+  isConnectionAvailable: boolean;
+  setIsConnectionAvailable: (ready: boolean) => void;
   connection: Connection | null;
+  pendingConfig: ConnectionConfig | null;
   isInitialized: boolean;
   switchConnection: (conn: ConnectionConfig | null) => void;
-  updateConnection: (metadata: Partial<ConnectionMetadata>) => void;
+  updateConnectionMetadata: (metadata: Partial<ConnectionMetadata>) => void;
+  commitConnection: (conn: Connection) => void;
 }
 
 export const ConnectionContext = createContext<ConnectionContextType>({
-  isReady: false,
-  setIsReady: () => {
+  isConnectionAvailable: false,
+  setIsConnectionAvailable: () => {
     // Default implementation
   },
   connection: null,
+  pendingConfig: null,
   isInitialized: false,
   switchConnection: () => {
     // Default implementation
   },
-  updateConnection: () => {
+  updateConnectionMetadata: () => {
+    // Default implementation
+  },
+  commitConnection: () => {
     // Default implementation
   },
 });
 
 export function ConnectionProvider({ children }: { children: React.ReactNode }) {
-  const [isReady, setIsReady] = useState<boolean>(false);
+  const [isConnectionAvailable, setIsConnectionAvailable] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [connection, setConnection] = useState<Connection | null>(null);
+  const [pendingConfig, setPendingConfig] = useState<ConnectionConfig | null>(null);
 
   // Mount effect - load connection on client side
   useEffect(() => {
     setIsInitialized(true);
 
-    const manager = ConnectionManager.getInstance();
-    const savedConnection = manager.getLastSelectedOrFirst();
-    if (savedConnection) {
-      setConnection(Connection.create(savedConnection));
+    const lastUsedConnection = ConnectionManager.getInstance().getLastSelectedOrFirst();
+    if (lastUsedConnection) {
+      setPendingConfig(lastUsedConnection);
+      // We don't create connection here, MainPage will handle initialization from pendingConfig
     }
   }, []);
 
@@ -49,66 +56,70 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     if (config) {
       // 1. Save selection
       manager.saveLastSelected(config.name);
-      // 2. Derive runtime
-      const conn = Connection.create(config);
-      setConnection(conn);
-      // 3. Reset ready state (MainPage will handle initialization)
-      setIsReady(false);
+      // 2. Set pending config
+      setPendingConfig(config);
+
+      // 3. Don't clear the connection which triggers all dependencies to be updated
+      //setConnection(null);
+
+      // 4. Reset ready state (MainPage will handle initialization)
+      setIsConnectionAvailable(false);
     } else {
       manager.saveLastSelected(undefined);
+      setPendingConfig(null);
       setConnection(null);
-      setIsReady(false); // No connection means not ready
+      setIsConnectionAvailable(false); // No connection means not ready
     }
   };
 
-  const updateConnection = (metadataUpdates: Partial<ConnectionMetadata>) => {
-    setConnection((prev) => {
-      if (!prev) return null;
-      // Since Connection is a class, we need to be careful about immutability if we are spreading.
-      // However, Connection class methods are on the prototype.
-      // Spreading {...prev, ...updates} will lose the prototype chain if not careful,
-      // but Object.assign or spread on a class instance creates a plain object in some contexts if not handled right?
-      // Actually, React state updates usually expect new objects.
-      // Ideally we should clone the connection.
-      // For now, let's assume we can create a new object with prototype.
-      const newConn = Object.create(Object.getPrototypeOf(prev));
-      Object.assign(newConn, prev);
-      // Update the metadata property
-      // Handle Map and Set merging specially
-      const mergedMetadata: ConnectionMetadata = { ...prev.metadata, ...metadataUpdates };
+  const commitConnection = (conn: Connection) => {
+    setConnection(conn);
+    setIsConnectionAvailable(true);
+  };
 
-      // Merge tableNames Map if both exist
-      if (metadataUpdates.tableNames && prev.metadata.tableNames) {
-        const mergedTableNames = new Map(prev.metadata.tableNames);
-        for (const [key, value] of metadataUpdates.tableNames) {
-          mergedTableNames.set(key, value);
-        }
-        mergedMetadata.tableNames = mergedTableNames;
+  const updateConnectionMetadata = (metadataUpdates: Partial<ConnectionMetadata>) => {
+    if (!connection) {
+      return;
+    }
+
+    // Direct mutation of the existing connection object's metadata
+    // We do NOT call setConnection with a new object.
+
+    // Merge tableNames Map if both exist
+    if (metadataUpdates.tableNames && connection.metadata.tableNames) {
+      const mergedTableNames = connection.metadata.tableNames;
+      for (const [key, value] of metadataUpdates.tableNames) {
+        mergedTableNames.set(key, value);
       }
+      // Since we mutated the map in place, we don't need to assign it back,
+      // but to be safe and consistent with the rest of the logic:
+      metadataUpdates.tableNames = mergedTableNames;
+    }
 
-      // Merge databaseNames Map if both exist
-      if (metadataUpdates.databaseNames && prev.metadata.databaseNames) {
-        const mergedDatabaseNames = new Map(prev.metadata.databaseNames);
-        for (const [key, value] of metadataUpdates.databaseNames) {
-          mergedDatabaseNames.set(key, value);
-        }
-        mergedMetadata.databaseNames = mergedDatabaseNames;
+    // Merge databaseNames Map if both exist
+    if (metadataUpdates.databaseNames && connection.metadata.databaseNames) {
+      const mergedDatabaseNames = connection.metadata.databaseNames;
+      for (const [key, value] of metadataUpdates.databaseNames) {
+        mergedDatabaseNames.set(key, value);
       }
+      metadataUpdates.databaseNames = mergedDatabaseNames;
+    }
 
-      newConn.metadata = mergedMetadata;
-      return newConn;
-    });
+    // Mutate the metadata in place
+    Object.assign(connection.metadata, metadataUpdates);
   };
 
   return (
     <ConnectionContext.Provider
       value={{
-        isReady,
-        setIsReady,
+        isConnectionAvailable,
+        setIsConnectionAvailable,
         connection,
+        pendingConfig,
         isInitialized,
         switchConnection,
-        updateConnection,
+        updateConnectionMetadata,
+        commitConnection,
       }}
     >
       {children}
