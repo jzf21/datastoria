@@ -6,7 +6,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog } from "@/components/use-dialog";
 import { QueryError } from "@/lib/connection/connection";
 import { DateTimeExtension } from "@/lib/datetime-utils";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  startTransition,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import type {
@@ -39,14 +47,12 @@ import {
 } from "./dashboard-visualization-transpose-table";
 import { replaceTimeSpanParams } from "./sql-time-utils";
 import type { TimeSpan } from "./timespan-selector";
-import { useRefreshable } from "./use-refreshable";
 
 /**
  * Minimum display time for skeleton loaders (in milliseconds)
- * This ensures skeleton doesn't flash on fast loads
- * Aligned with FloatingProgressBar delay for consistent UX
+ * This ensures skeleton doesn't flash on fast loads for better UX
  */
-export const SKELETON_MIN_DISPLAY_TIME = 500;
+export const SKELETON_MIN_DISPLAY_TIME = 1_000;
 
 /**
  * Fade transition duration for skeleton loaders (in milliseconds)
@@ -95,17 +101,92 @@ export const DashboardVisualizationPanel = forwardRef<
   const [isSecondaryLoading, setIsSecondaryLoading] = useState(false);
   const [secondaryError, setSecondaryError] = useState("");
 
+  // Inlined refreshable state (from useRefreshable hook)
+  const [isCollapsed, setIsCollapsedInternal] = useState(typedDescriptor.collapsed ?? false);
+  const [needRefresh, setNeedRefresh] = useState(false);
+  const [isVisualizationMounted, setIsVisualizationMounted] = useState(false);
+
   // Refs
   const apiCancellerRef = useRef<AbortController | null>(null);
   const secondaryApiCancellerRef = useRef<AbortController | null>(null);
 
-  const visualizationRef = useRef<VisualizationRef>(null);
+  const visualizationRef = useCallback((node: VisualizationRef | null) => {
+    if (node) {
+      // Visualization component has mounted
+      visualizationRefInternal.current = node;
+      setIsVisualizationMounted(true);
+    }
+  }, []);
+
+  const visualizationRefInternal = useRef<VisualizationRef>(null);
 
   const lastRefreshParamRef = useRef<RefreshOptions>({});
+
+  // Inlined refreshable refs (from useRefreshable hook)
+  const componentRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const refreshParameterRef = useRef<RefreshOptions | undefined>(undefined);
+  const lastRefreshParamRefFromHook = useRef<RefreshOptions | undefined>(undefined);
 
   // Skeleton timing state - simple show/hide with minimum display time
   const [showSkeleton, setShowSkeleton] = useState(false);
   const skeletonStartTimeRef = useRef<number | null>(null);
+
+  // Wrapper around setIsCollapsed that also calls the callback (from useRefreshable)
+  const setIsCollapsed = useCallback(
+    (collapsed: boolean) => {
+      setIsCollapsedInternal(collapsed);
+      onCollapsedChange?.(collapsed);
+    },
+    [onCollapsedChange]
+  );
+
+  // Check if component is actually visible (from useRefreshable)
+  const isComponentInView = useCallback((): boolean => {
+    if (!componentRef.current) {
+      return false;
+    }
+
+    const element = componentRef.current;
+
+    // Check if element is actually visible (not hidden by collapsed parents)
+    const rect = element.getBoundingClientRect();
+    const isVisible = rect.width > 0 && rect.height > 0;
+
+    if (!isVisible) {
+      return false;
+    }
+
+    // Check if any parent is hidden (collapsed)
+    let parent: HTMLElement | null = element.parentElement;
+    while (parent && parent !== document.body) {
+      const style = window.getComputedStyle(parent);
+      if (style.display === "none" || style.visibility === "hidden") {
+        return false;
+      }
+      if (parent.hasAttribute("hidden")) {
+        return false;
+      }
+      if (parent.hasAttribute("data-state") && parent.getAttribute("data-state") === "closed") {
+        if (style.display === "none") {
+          return false;
+        }
+      }
+      parent = parent.parentElement;
+    }
+
+    // Check if element is in viewport
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const elementBottom = rect.bottom;
+    const elementTop = rect.top;
+
+    return elementTop < viewportHeight && elementBottom > 0;
+  }, []);
+
+  // Check if component should refresh (from useRefreshable)
+  const shouldRefresh = useCallback((): boolean => {
+    return !isCollapsed && isComponentInView();
+  }, [isCollapsed, isComponentInView]);
 
   // Load data function - unified for all types
   const loadData = useCallback(
@@ -140,7 +221,11 @@ export const DashboardVisualizationPanel = forwardRef<
         );
 
         // Let visualization component prepare SQL (e.g., table adds ORDER BY and pagination)
-        finalSql = visualizationRef.current?.prepareDataFetchSql(finalSql, pageNumber) ?? finalSql;
+        // With the callback ref pattern, visualizationRefInternal.current will be available
+        // before the initial data load is triggered
+        if (visualizationRefInternal.current?.prepareDataFetchSql) {
+          finalSql = visualizationRefInternal.current.prepareDataFetchSql(finalSql, pageNumber);
+        }
 
         setExecutedSql(finalSql);
 
@@ -185,12 +270,15 @@ export const DashboardVisualizationPanel = forwardRef<
 
         // Handle data based on type
         if (pageNumber === 0) {
-          // First page - replace data
+          // First page - replace data (keep synchronous for immediate feedback)
           setData(newData);
           setMeta(newMeta);
         } else {
-          // Subsequent pages - append data
-          setData((prevData) => [...prevData, ...newData]);
+          // Subsequent pages - append data using transition for non-blocking update
+          // This prevents UI freezing and allows progress bar to animate smoothly
+          startTransition(() => {
+            setData((prevData) => [...prevData, ...newData]);
+          });
         }
 
         // Clear error on successful data load
@@ -300,44 +388,48 @@ export const DashboardVisualizationPanel = forwardRef<
       }
 
       // Reset pagination state on refresh (if visualization supports it)
-      visualizationRef.current?.resetPagination?.();
+      visualizationRefInternal.current?.resetPagination?.();
 
       loadData(param, 0);
     },
     [typedDescriptor.query, loadData]
   );
 
-  // Get initial parameters for refreshable hook
-  // Return undefined when selectedTimeSpan is not available to prevent initial fetch
-  // This prevents double-fetching when component mounts before selectedTimeSpan is set
-  const getInitialParams = useCallback(() => {
-    // Check if the query requires time span parameters
-    const query = typedDescriptor.query;
-    const requiresTimeSpan =
-      query?.sql.includes("{startTimestamp") ||
-      query?.sql.includes("{endTimestamp") ||
-      query?.sql.includes("{timeFilter") ||
-      query?.sql.includes("{from:") ||
-      query?.sql.includes("{to:");
+  // Public refresh method (from useRefreshable, modified to check visualization ref)
+  const refresh = useCallback(
+    (param: RefreshOptions) => {
+      // Check if the parameters have actually changed
+      if (
+        !param.forceRefresh &&
+        lastRefreshParamRefFromHook.current &&
+        JSON.stringify(lastRefreshParamRefFromHook.current) === JSON.stringify(param)
+      ) {
+        return;
+      }
 
-    if (requiresTimeSpan && !props.selectedTimeSpan) {
-      // Return undefined to skip initial refresh when time span is required but not available
-      return undefined;
-    }
+      // Store the parameter for potential deferred execution
+      refreshParameterRef.current = param;
 
-    return props.selectedTimeSpan
-      ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshOptions)
-      : ({} as RefreshOptions);
-  }, [props.selectedTimeSpan, typedDescriptor.query]);
+      // Re-check visibility at the time of refresh
+      const isCurrentlyVisible = isComponentInView();
+      const shouldRefreshNow = !isCollapsed && isCurrentlyVisible;
 
-  // Use the refreshable hook
-  const { componentRef, isCollapsed, setIsCollapsed, refresh, getLastRefreshParameter } =
-    useRefreshable({
-      initialCollapsed: typedDescriptor.collapsed ?? false,
-      refreshInternal,
-      getInitialParams,
-      onCollapsedChange,
-    });
+      // Only refresh if NOT collapsed AND in viewport
+      if (shouldRefreshNow) {
+        refreshInternal(param);
+        lastRefreshParamRefFromHook.current = param;
+        setNeedRefresh(false);
+      } else {
+        // Mark that refresh is needed when component becomes visible/expanded
+        setNeedRefresh(true);
+      }
+    },
+    [isCollapsed, isComponentInView, refreshInternal]
+  );
+
+  const getLastRefreshParameter = useCallback((): RefreshOptions => {
+    return refreshParameterRef.current || {};
+  }, []);
 
   // Expose component ref
   useImperativeHandle(ref, () => ({
@@ -436,7 +528,7 @@ export const DashboardVisualizationPanel = forwardRef<
   // Get dropdown items - combine facade-level items with visualization-specific items
   const getDropdownItems = useCallback(() => {
     // Get visualization-specific dropdown items (without "Show query")
-    const vizItems = visualizationRef.current?.getDropdownItems();
+    const vizItems = visualizationRefInternal.current?.getDropdownItems();
 
     // Combine with facade-level "Show query" item
     return (
@@ -474,7 +566,9 @@ export const DashboardVisualizationPanel = forwardRef<
       // Data loaded - wait for minimum time if needed, then hide (CSS handles fade)
       if (skeletonStartTimeRef.current !== null) {
         const elapsed = Date.now() - skeletonStartTimeRef.current;
-        const remainingTime = Math.max(0, SKELETON_MIN_DISPLAY_TIME - elapsed);
+
+        // Use a random so that different panels on the page will be shown in a random delay
+        const remainingTime = Math.random() * Math.max(0, SKELETON_MIN_DISPLAY_TIME - elapsed);
 
         setTimeout(() => {
           setShowSkeleton(false);
@@ -483,6 +577,99 @@ export const DashboardVisualizationPanel = forwardRef<
       }
     }
   }, [isFirstLoad]);
+
+  // Trigger initial refresh AFTER visualization ref is available (modified from useRefreshable)
+  useEffect(() => {
+    // Wait for visualization to be mounted before initial refresh
+    if (!isVisualizationMounted) {
+      return;
+    }
+
+    // Check if the query requires time span parameters
+    const query = typedDescriptor.query;
+    const requiresTimeSpan =
+      query?.sql.includes("{startTimestamp") ||
+      query?.sql.includes("{endTimestamp") ||
+      query?.sql.includes("{timeFilter") ||
+      query?.sql.includes("{from:") ||
+      query?.sql.includes("{to:");
+
+    if (requiresTimeSpan && !props.selectedTimeSpan) {
+      // Skip initial refresh when time span is required but not available
+      return;
+    }
+
+    const params = props.selectedTimeSpan
+      ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshOptions)
+      : ({} as RefreshOptions);
+
+    // Trigger refresh with params
+    refresh(params);
+  }, [isVisualizationMounted, props.selectedTimeSpan, typedDescriptor.query, refresh]);
+
+  // Handle collapsed state changes - refresh when expanded if needed (from useRefreshable)
+  useEffect(() => {
+    if (!isCollapsed && needRefresh && shouldRefresh()) {
+      const currentParam = refreshParameterRef.current;
+      if (currentParam) {
+        if (
+          lastRefreshParamRefFromHook.current &&
+          JSON.stringify(lastRefreshParamRefFromHook.current) === JSON.stringify(currentParam)
+        ) {
+          setNeedRefresh(false);
+        } else {
+          refreshInternal(currentParam);
+          lastRefreshParamRefFromHook.current = currentParam;
+          setNeedRefresh(false);
+        }
+      } else {
+        setNeedRefresh(false);
+      }
+    }
+  }, [isCollapsed, needRefresh, shouldRefresh, refreshInternal]);
+
+  // IntersectionObserver setup (from useRefreshable)
+  useEffect(() => {
+    const handleIntersection = (entries: IntersectionObserverEntry[]) => {
+      const entry = entries[0];
+      if (entry.isIntersecting && entry.intersectionRatio > 0 && shouldRefresh()) {
+        if (!isComponentInView()) {
+          return;
+        }
+
+        const currentParam = refreshParameterRef.current;
+        if (currentParam) {
+          if (
+            lastRefreshParamRefFromHook.current &&
+            JSON.stringify(lastRefreshParamRefFromHook.current) === JSON.stringify(currentParam)
+          ) {
+            setNeedRefresh(false);
+          } else {
+            refreshInternal(currentParam);
+            lastRefreshParamRefFromHook.current = currentParam;
+            setNeedRefresh(false);
+          }
+        }
+      }
+    };
+
+    const currentComponent = componentRef.current;
+    observerRef.current = new IntersectionObserver(handleIntersection, {
+      root: null,
+      rootMargin: "0px",
+      threshold: [0, 0.1],
+    });
+
+    if (currentComponent) {
+      observerRef.current.observe(currentComponent);
+    }
+
+    return () => {
+      if (currentComponent && observerRef.current) {
+        observerRef.current.unobserve(currentComponent);
+      }
+    };
+  }, [needRefresh, shouldRefresh, refreshInternal, isComponentInView]);
 
   // Defensive check - after all hooks
   if (!descriptor || !descriptor.type) {
@@ -500,14 +687,13 @@ export const DashboardVisualizationPanel = forwardRef<
       getDropdownItems={getDropdownItems}
       onRefresh={handleRefresh}
     >
-      <div className="relative h-full w-full">
-        {showSkeleton && (
-          <div className="absolute inset-0 flex items-center justify-center z-10 bg-background/50 transition-opacity duration-150">
-            <Skeleton className="w-full h-full" />
+      <div className="h-full w-full">
+        {showSkeleton ? (
+          <div className="flex items-center justify-center h-full w-full min-h-[100px] transition-opacity duration-150">
+            <Skeleton className="w-full h-full [animation-duration:1s]" />
           </div>
-        )}
-        {!showSkeleton && (
-          <div className={`h-full w-full transition-opacity duration-150`}>
+        ) : (
+          <div className="h-full w-full transition-opacity duration-150">
             {error ? (
               renderError()
             ) : typedDescriptor.type === "table" ? (
@@ -517,6 +703,7 @@ export const DashboardVisualizationPanel = forwardRef<
                 meta={meta}
                 descriptor={typedDescriptor as TableDescriptor}
                 selectedTimeSpan={props.selectedTimeSpan}
+                isLoading={isLoading}
                 onSortChange={handleSortChange}
                 onLoadData={handleLoadData}
               />

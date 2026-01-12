@@ -23,12 +23,16 @@ export const AskAIButton = memo(function AskAIButton({
     // Build the message with SQL and error details
     const message = `I got an error when executing this SQL query. Please explain what went wrong in short and provide a fix.
 
-${sql ? `### SQL
+${
+  sql
+    ? `### SQL
 \`\`\`sql
 ${sql}
 \`\`\`
 
-` : ""}### Error Message
+`
+    : ""
+}### Error Message
 ${errorMessage}
 `;
 

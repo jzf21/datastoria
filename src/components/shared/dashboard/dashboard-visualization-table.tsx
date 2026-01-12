@@ -71,6 +71,9 @@ export interface TableVisualizationProps {
   onSortChange?: (column: string, direction: "asc" | "desc" | null) => void;
   onLoadData?: (pageNumber: number) => Promise<void> | void;
 
+  // Loading state from facade
+  isLoading?: boolean;
+
   // Additional props
   className?: string;
 }
@@ -86,7 +89,7 @@ export interface TableVisualizationRef extends VisualizationRef {
  */
 export const TableVisualization = React.forwardRef<TableVisualizationRef, TableVisualizationProps>(
   function TableVisualization(props, ref) {
-    const { data, meta, descriptor, onSortChange, onLoadData, className } = props;
+    const { data, meta, descriptor, onSortChange, onLoadData, isLoading, className } = props;
 
     // State
     const [sort, setSort] = useState<{ column: string | null; direction: "asc" | "desc" | null }>({
@@ -133,6 +136,22 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
     // Refs
     const dataTableRef = useRef<DataTableRef>(null);
 
+    // Optimize fieldOptions computation - only recompute when descriptor.fieldOptions changes
+    const fieldOptionsArray = useMemo(() => {
+      if (!descriptor.fieldOptions) return [];
+      const options: FieldOption[] = [];
+      if (descriptor.fieldOptions instanceof Map) {
+        for (const [key, value] of descriptor.fieldOptions) {
+          options.push({ ...value, name: key });
+        }
+      } else {
+        for (const [key, value] of Object.entries(descriptor.fieldOptions)) {
+          options.push({ ...value, name: key });
+        }
+      }
+      return options;
+    }, [descriptor.fieldOptions]);
+
     // Handle sort change from DataTable
     const handleSortChange = useCallback(
       (column: string, direction: "asc" | "desc" | null) => {
@@ -168,7 +187,7 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
         }
 
         // Check if scrolled near bottom (within 150px threshold)
-        const threshold = descriptor.miscOption?.enableCompactMode ? 150 : 200;
+        const threshold = descriptor.miscOption?.enableCompactMode ? 50 : 150;
         if (scrollMetrics.distanceToBottom < threshold && onLoadData) {
           isRequestingMoreRef.current = true;
           const nextPage = currentPageRef.current + 1;
@@ -376,23 +395,12 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
           ref={dataTableRef}
           data={data}
           meta={meta}
-          fieldOptions={useMemo(() => {
-            if (!descriptor.fieldOptions) return [];
-            const options: FieldOption[] = [];
-            if (descriptor.fieldOptions instanceof Map) {
-              descriptor.fieldOptions.forEach((value, key) => {
-                options.push({ ...value, name: key });
-              });
-            } else {
-              Object.entries(descriptor.fieldOptions).forEach(([key, value]) => {
-                options.push({ ...value, name: key });
-              });
-            }
-            return options;
-          }, [descriptor.fieldOptions])}
+          fieldOptions={fieldOptionsArray}
           actions={descriptor.actions}
           sort={sort}
           onSortChange={handleSortChange}
+          // Pass down so that the data will show loading state for inifinte page loading
+          isLoading={isLoading}
           enableIndexColumn={descriptor.miscOption?.enableIndexColumn}
           enableShowRowDetail={descriptor.miscOption?.enableShowRowDetail}
           enableClientSorting={!descriptor.sortOption?.serverSideSorting}

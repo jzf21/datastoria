@@ -13,6 +13,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useDebouncedCallback } from "use-debounce";
 import type { ActionColumn, FieldOption } from "./dashboard-model";
 import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./dashboard-visualization-panel";
 import { inferFormatFromMetaType } from "./format-inference";
@@ -442,24 +443,36 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
     });
   }, [data, sort, enableClientSorting]);
 
-  // Handle scroll events and notify parent
+  // Debounced scroll handler to prevent excessive calls and UI blocking
+  const debouncedScrollHandler = useDebouncedCallback(
+    (scrollMetrics: {
+      scrollTop: number;
+      scrollHeight: number;
+      clientHeight: number;
+      distanceToBottom: number;
+    }) => {
+      if (onTableScroll) {
+        onTableScroll(scrollMetrics);
+      }
+    },
+    100, // 100ms debounce delay
+    { leading: true, trailing: true } // Fire on both leading and trailing edge for responsiveness
+  );
+
+  // Handle scroll events and notify parent via debounced callback
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
-      if (!onTableScroll) {
-        return;
-      }
-
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
       const distanceToBottom = scrollHeight - scrollTop - clientHeight;
 
-      onTableScroll({
+      debouncedScrollHandler({
         scrollTop,
         scrollHeight,
         clientHeight,
         distanceToBottom,
       });
     },
-    [onTableScroll]
+    [debouncedScrollHandler]
   );
 
   // Skeleton timing logic

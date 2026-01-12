@@ -263,7 +263,11 @@ export const ChatHistoryList = React.memo<ChatHistoryListProps>(
 
     return (
       <div className="flex flex-col h-[300px]">
-        <Command className="rounded-sm border-0" value={selectedChatId} onValueChange={setSelectedChatId} >
+        <Command
+          className="rounded-sm border-0"
+          value={selectedChatId}
+          onValueChange={setSelectedChatId}
+        >
           <CommandInput placeholder="Search conversations..." className="h-9" />
           <CommandList className="flex-1 max-h-none">
             <CommandEmpty>No conversations found.</CommandEmpty>
