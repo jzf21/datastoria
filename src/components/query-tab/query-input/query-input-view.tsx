@@ -276,11 +276,65 @@ export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>
       };
     }, []);
 
+    // Cleanup scroll event listeners when component unmounts
+    useEffect(() => {
+      return () => {
+        if (editorRef.current) {
+          const cleanup = (editorRef.current as { __scrollCleanup?: () => void }).__scrollCleanup;
+          if (cleanup) {
+            cleanup();
+          }
+        }
+      };
+    }, []);
+
     const handleEditorLoad = useCallback(
       (editor: Ace.Editor) => {
         const extendedEditor = editor as ExtendedEditor;
         editor.setValue(QueryInputLocalStorage.getInput(storageKey));
         editor.renderer.setScrollMargin(5, 10, 0, 0);
+
+        // Prevent scroll event propagation from tooltip description to suggestion list
+        // The CSS overscroll-behavior: contain should handle most cases,
+        // but we also stop wheel event propagation as a backup
+        const attachScrollPrevention = (element: HTMLElement) => {
+          const preventPropagation = (e: WheelEvent) => {
+            // Stop propagation in the bubble phase (after the scroll has happened)
+            // This allows the scroll to work within the description div,
+            // but prevents it from bubbling up to the suggestion list
+            e.stopPropagation();
+          };
+
+          // Don't use capture - let the event reach the element first so it can scroll
+          // Then stop it from bubbling up to parent elements
+          element.addEventListener("wheel", preventPropagation, { passive: false });
+        };
+
+        // Watch for tooltip scrollable divs and attach scroll prevention
+        const observer = new MutationObserver(() => {
+          const scrollableDivs = document.querySelectorAll(".ace-tooltip-scrollable");
+          scrollableDivs.forEach((div) => {
+            if (!(div as HTMLElement).dataset.scrollPrevented) {
+              attachScrollPrevention(div as HTMLElement);
+              (div as HTMLElement).dataset.scrollPrevented = "true";
+            }
+          });
+        });
+
+        // Observe document body for tooltip additions
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+        });
+
+        // Also attach to any existing scrollable divs
+        const existingDivs = document.querySelectorAll(".ace-tooltip-scrollable");
+        existingDivs.forEach((div) => attachScrollPrevention(div as HTMLElement));
+
+        // Store cleanup function
+        (extendedEditor as { __scrollCleanup?: () => void }).__scrollCleanup = () => {
+          observer.disconnect();
+        };
 
         const session = editor.getSession();
 

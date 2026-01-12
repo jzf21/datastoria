@@ -1,6 +1,7 @@
 import { Connection, type JSONCompactFormatResponse } from "@/lib/connection/connection";
 import { StringUtils } from "@/lib/string-utils";
 import type { Ace } from "ace-builds";
+import { marked } from "marked";
 import { QuerySnippetManager } from "../snippet/QuerySnippetManager";
 
 type CompletionItem = {
@@ -31,6 +32,71 @@ export class QuerySuggestionManager {
   private currentConnectionName: string | null = null;
   private qualifiedTableCompletions: CompletionItem[] = [];
 
+  /**
+   * Convert relative URL to absolute URL for ClickHouse documentation
+   */
+  private static normalizeUrl(url: string | null): string {
+    if (!url) return "";
+    // If it's already an absolute URL (starts with http:// or https://), return as is
+    if (/^https?:\/\//.test(url)) {
+      return url;
+    }
+
+    // If it's a relative URL, prepend the ClickHouse docs base URL
+    // Remove leading slash if present to avoid double slashes
+    let cleanUrl = url.startsWith("/") ? url.slice(1) : url;
+    
+    // Remove .md suffix (e.g., "test.md" -> "test", "test.md#anchor" -> "test#anchor")
+    cleanUrl = cleanUrl.replace(/\.md(#|$)/g, "$1");
+    return `https://clickhouse.com/docs/sql-reference/functions/${cleanUrl}`;
+  }
+
+  /**
+   * Convert markdown text to HTML for ACE editor docHTML
+   */
+  private static markdownToHtml(markdown: string): string {
+    if (!markdown) return "";
+    try {
+      // Create a custom renderer to customize link rendering
+      const renderer = new marked.Renderer();
+      
+      // Override link renderer to add target="_blank", styling, and normalize URLs
+      // marked v17 uses an object parameter: {href, title, tokens}
+      // Use regular function (not arrow) to access 'this.parser'
+      renderer.link = function({ href, title, tokens }: { href: string | null; title?: string | null; tokens: any }) {
+        if (!href) {
+          // If no href, render just the text content
+          const text = this.parser ? this.parser.parseInline(tokens) : tokens.map((t: any) => t.raw || t.text || "").join("");
+          return text;
+        }
+        
+        const absoluteUrl = QuerySuggestionManager.normalizeUrl(href);
+        const titleAttr = title ? ` title="${title}"` : "";
+        
+        // Parse tokens to get the link text using the parser
+        const text = this.parser ? this.parser.parseInline(tokens) : tokens.map((t: any) => t.raw || t.text || "").join("");
+        
+        // Style links with underline and color, open in new window
+        return `<a href="${absoluteUrl}" target="_blank" rel="noopener noreferrer"${titleAttr} style="text-decoration: underline; cursor: pointer;">${text}</a>`;
+      };
+
+      // Use marked.parse() with custom renderer
+      return marked.parse(markdown, {
+        breaks: true, // Convert line breaks to <br>
+        gfm: true, // GitHub Flavored Markdown
+        renderer: renderer,
+      }) as string;
+    } catch (error) {
+      console.error("Failed to convert markdown to HTML:", error);
+      // Fallback: escape HTML and preserve line breaks
+      return markdown
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\n/g, "<br />");
+    }
+  }
+
   public onConnectionSelected(connection: Connection) {
     if (!connection) {
       this.currentConnectionName = null;
@@ -58,20 +124,38 @@ export class QuerySuggestionManager {
     // Helper function to process completion items
     const processCompletionItem = (eachRowObject: any) => {
       const description = eachRowObject[3];
+      const descriptionHtml = description
+        ? QuerySuggestionManager.markdownToHtml(description)
+        : "";
       const docHTML =
         description !== ""
-          ? ["<b>", eachRowObject[0], "</b>", "<hr />", eachRowObject[3]].join("")
+          ? [
+              "<b>",
+              eachRowObject[0],
+              "</b>",
+              "<hr />",
+              '<div class="ace-tooltip-scrollable" style="height: 320px; max-height: 320px; overflow-y: auto; overflow-x: hidden; padding: 4px 0; box-sizing: border-box; display: block; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;">',
+              descriptionHtml,
+              "</div>",
+            ].join("")
           : undefined;
 
+      const type = eachRowObject[1];
       const completion: CompletionItem = {
         caption: eachRowObject[0],
         value: eachRowObject[0],
-        meta: eachRowObject[1],
+        meta: type,
         score: eachRowObject[2],
         docHTML: docHTML,
       };
 
-      const type = eachRowObject[1];
+      // Add custom insertMatch for function completions to position cursor inside parentheses
+      if (type === "function") {
+        completion.completer = {
+          insertMatch: QuerySuggestionManager.insertFunctionCompletion,
+        } as Ace.Completer;
+      }
+
       if (type === "format") {
         this.formatCompletion.push(completion);
       } else if (type === "setting") {
@@ -122,7 +206,20 @@ export class QuerySuggestionManager {
       for (const [dbName, dbInfo] of connection.metadata.databaseNames) {
         const comment = dbInfo.comment || "";
         // Build docHTML with comment if available
-        const docHTML = comment ? ["<b>", dbName, "</b>", "<hr />", comment].join("") : undefined;
+        const commentHtml = comment
+          ? QuerySuggestionManager.markdownToHtml(comment)
+          : "";
+        const docHTML = comment
+          ? [
+              "<b>",
+              dbName,
+              "</b>",
+              "<hr />",
+              '<div class="ace-tooltip-scrollable" style="height: 320px; max-height: 320px; overflow-y: auto; overflow-x: hidden; padding: 4px 0; box-sizing: border-box; display: block; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;">',
+              commentHtml,
+              "</div>",
+            ].join("")
+          : undefined;
 
         const completion: CompletionItem = {
           caption: dbName,
@@ -315,7 +412,20 @@ SELECT * FROM (
         const { database, table, comment } = tableInfo;
 
         // Build docHTML with comment if available
-        const docHTML = comment ? ["<b>", table, "</b>", "<hr />", comment].join("") : undefined;
+        const commentHtml = comment
+          ? QuerySuggestionManager.markdownToHtml(comment)
+          : "";
+        const docHTML = comment
+          ? [
+              "<b>",
+              table,
+              "</b>",
+              "<hr />",
+              '<div class="ace-tooltip-scrollable" style="height: 320px; max-height: 320px; overflow-y: auto; overflow-x: hidden; padding: 4px 0; box-sizing: border-box; display: block; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;">',
+              commentHtml,
+              "</div>",
+            ].join("")
+          : undefined;
 
         // Add to database-specific table completion
         if (!tablesByDatabase.has(database)) {
@@ -379,7 +489,13 @@ SELECT * FROM (
           // Build docHTML with type and comment if available
           const docHTMLParts = ["<b>", column, "</b>", "<hr />", "type: ", type];
           if (comment) {
-            docHTMLParts.push("<hr />", comment);
+            const commentHtml = QuerySuggestionManager.markdownToHtml(comment);
+            docHTMLParts.push(
+              "<hr />",
+              '<div class="ace-tooltip-scrollable" style="height: 320px; max-height: 320px; overflow-y: auto; overflow-x: hidden; padding: 4px 0; box-sizing: border-box; display: block; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;">',
+              commentHtml,
+              "</div>"
+            );
           }
           const docHTML = docHTMLParts.join("");
 
@@ -444,6 +560,38 @@ SELECT * FROM (
     return this.qualifiedTableCompletions
       .map((c) => c.value)
       .filter((v): v is string => v !== undefined);
+  }
+
+  /**
+   * Custom insertMatch function for function completions that positions the cursor
+   * inside the parentheses after inserting the function name
+   */
+  private static insertFunctionCompletion(editor: Ace.Editor, completion: Ace.Completion): void {
+    const session = editor.getSession();
+    const pos = editor.getCursorPosition();
+    const value = completion.value || completion.caption || "";
+
+    // Find the start of the prefix to replace
+    const line = session.getLine(pos.row);
+    let startCol = pos.column;
+    while (startCol > 0 && /[\w$]/.test(line[startCol - 1])) {
+      startCol--;
+    }
+
+    // Replace the prefix with the function name
+    const range = {
+      start: { row: pos.row, column: startCol },
+      end: { row: pos.row, column: pos.column },
+    };
+
+    session.replace(range, value);
+
+    // Move cursor back one character to position it inside the parentheses
+    // This works because function names end with '()', so we want cursor between '(' and ')'
+    const newPos = editor.getCursorPosition();
+    if (newPos.column > 0) {
+      editor.moveCursorTo(newPos.row, newPos.column - 1);
+    }
   }
 
   /**

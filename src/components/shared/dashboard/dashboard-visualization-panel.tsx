@@ -65,18 +65,11 @@ interface DashboardVisualizationPanelProps {
   className?: string;
 }
 
-/**
- * Refactored DashboardVisualizationPanel facade component.
- * Single unified facade that handles data fetching, layout, and lifecycle management.
- * Delegates rendering to pure visualization components based on descriptor.type.
- *
- * Currently supports: table, pie, transpose-table, timeseries, gauge, stat (all refactored)
- */
 export const DashboardVisualizationPanel = forwardRef<
   DashboardVisualizationComponent,
   DashboardVisualizationPanelProps
 >(function DashboardPanelNew(props, ref) {
-  const { descriptor, initialLoading = false, onCollapsedChange } = props;
+  const { descriptor, initialLoading = true, onCollapsedChange } = props;
 
   // Type narrowing for refactored visualization types
   const typedDescriptor = descriptor as

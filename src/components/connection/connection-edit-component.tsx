@@ -53,7 +53,7 @@ function StatusPopover({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent className={cn("p-0 overflow-hidden z-[10000]", className)} {...props}>
         <PopoverPrimitive.Arrow className={cn("fill-[var(--border)]")} width={12} height={8} />
-        <div className="flex items-start gap-2 p-4">
+        <div className="flex items-start gap-2 px-3 py-3">
           {icon}
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-sm mb-1">{title}</div>
@@ -493,7 +493,7 @@ export function ConnectionEditComponent({
           const clusterApiResponse = await clusterResponse;
 
           setAbort(undefined);
-          if (clusterApiResponse.data.data.length === 0) {
+          if (clusterApiResponse.data.json().length === 0) {
             setTestResultWithDelay({
               type: "error",
               message: `Cluster [${testConnectionConfig.cluster}] is not found on given ClickHouse server.`,
@@ -505,11 +505,12 @@ export function ConnectionEditComponent({
             });
           }
         } catch (clusterError: unknown) {
+          console.error(clusterError);
           const error = clusterError as QueryError;
           setAbort(undefined);
           setTestResultWithDelay({
             type: "error",
-            message: `Successfully connected to ClickHouse server. But unable to determine if the cluster [${testConnectionConfig.name}] exists on the server. You can still save the connection to continue. ${
+            message: `Successfully connected to ClickHouse server. But unable to determine if the cluster [${testConnectionConfig.cluster}] exists on the server. You can still save the connection to continue. ${
               error.httpStatus !== 404 ? error.message : ""
             }`,
           });

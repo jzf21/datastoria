@@ -37,16 +37,38 @@
 }
 
 /*
- * Override the default style to allow word-break
+ * Override the default style to allow word-break and enable vertical scrolling
  */
 .ace_tooltip {
   /* Default: pre, which prevents the word-break */
-  white-space: pre-wrap;
+  white-space: pre-wrap !important;
 
   /* Default: 400px */
-  max-width: 350px;
+  max-width: 350px !important;
+
+  /* Allow the tooltip to grow - don't constrain height */
+  max-height: none !important;
+  height: auto !important;
+  overflow: visible !important;
 
   font-size: 12px;
+
+  /* Add padding for better readability */
+  padding: 8px 12px !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure any scrollable divs inside tooltip work properly */
+.ace_tooltip > div[style*="overflow-y"],
+.ace_tooltip .ace-tooltip-scrollable {
+  /* Force scrolling to work */
+  display: block !important;
+  position: relative !important;
+  /* Ensure it can actually scroll */
+  min-height: 0 !important;
+  /* Prevent scroll chaining - stop scroll from propagating to parent */
+  overscroll-behavior: contain !important;
+  overscroll-behavior-y: contain !important;
 }
 
 /*
