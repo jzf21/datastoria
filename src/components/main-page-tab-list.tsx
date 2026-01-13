@@ -5,6 +5,7 @@ import { DEFAULT_CHAT_QUESTIONS } from "@/components/chat/view/chat-view";
 import { useChatPanel } from "@/components/chat/view/use-chat-panel";
 import { useConnection } from "@/components/connection/connection-context";
 import { DatabaseTab } from "@/components/database-tab/database-tab";
+import { SYSTEM_TABLE_REGISTRY } from "@/components/introspection/system-table-registry";
 import { NodeTab } from "@/components/node-tab/node-tab";
 import { QueryLogInspectorTab } from "@/components/query-log-inspector/query-log-inspector-tab";
 import { QueryTab } from "@/components/query-tab/query-tab";
@@ -27,6 +28,7 @@ import {
   Search,
   Sparkles,
   Table as TableIcon,
+  Telescope,
   Terminal,
   X,
   type LucideIcon,
@@ -154,6 +156,11 @@ export const MainPageTabList = memo(function MainPageTabList({
           if (!database || !table) return;
           tabId = `table:${database}.${table}`;
           newTab = { id: tabId, type: "table", database, table, engine };
+          break;
+        case "introspection":
+          if (!event.detail.tableName) return;
+          tabId = `introspection:${event.detail.tableName}`;
+          newTab = { id: tabId, type: "introspection", tableName: event.detail.tableName };
           break;
         case "database":
           if (!database) return;
@@ -527,6 +534,9 @@ export const MainPageTabList = memo(function MainPageTabList({
           return { id: tab.id, label: `${tab.database}`, icon: Database };
         } else if (tab.type === "table") {
           return { id: tab.id, label: `${tab.database}.${tab.table}`, icon: TableIcon };
+        } else if (tab.type === "introspection") {
+          const entry = SYSTEM_TABLE_REGISTRY.get(tab.tableName);
+          return { id: tab.id, label: entry?.title || tab.tableName, icon: Telescope };
         } else if (tab.type === "chat") {
           return { id: tab.id, label: "AI Assistant", icon: Sparkles };
         }
@@ -588,6 +598,25 @@ export const MainPageTabList = memo(function MainPageTabList({
             aria-hidden={activeTab !== tab.id}
           >
             <TableTab database={tab.database} table={tab.table} engine={tab.engine} />
+          </div>
+        );
+      }
+      if (tab.type === "introspection") {
+        const EntryComponent = SYSTEM_TABLE_REGISTRY.get(tab.tableName)?.component;
+        return (
+          <div
+            key={tab.id}
+            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
+            role="tabpanel"
+            aria-hidden={activeTab !== tab.id}
+          >
+            {EntryComponent ? (
+              <EntryComponent database="system" table={tab.tableName} />
+            ) : (
+              <div className="p-4 text-muted-foreground">
+                Introspection component not found for {tab.tableName}
+              </div>
+            )}
           </div>
         );
       }

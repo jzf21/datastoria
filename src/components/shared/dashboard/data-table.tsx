@@ -3,7 +3,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/compon
 import { Formatter, type FormatName } from "@/lib/formatter";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Loader2 } from "lucide-react";
 import React, {
   forwardRef,
   useCallback,
@@ -557,16 +557,14 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
       const fieldOption = visibleColumns.find((col) => col.name === fieldName);
       if (!fieldOption || fieldOption.sortable === false) return null;
 
-      if (sort?.column !== fieldName) {
-        return <ArrowUpDown className="inline-block w-4 h-4 ml-1 opacity-50" />;
+      if (sort?.column !== fieldName || !sort.direction) {
+        return null;
       }
+
       if (sort.direction === "asc") {
-        return <ArrowUp className="inline-block w-4 h-4 ml-1" />;
+        return <ChevronUp className="inline-block w-3 h-3 ml-1" />;
       }
-      if (sort.direction === "desc") {
-        return <ArrowDown className="inline-block w-4 h-4 ml-1" />;
-      }
-      return <ArrowUpDown className="inline-block w-4 h-4 ml-1 opacity-50" />;
+      return <ChevronDown className="inline-block w-3 h-3 ml-1" />;
     },
     [visibleColumns, sort]
   );
@@ -980,6 +978,9 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
                     cellPaddingClass,
                     getCellAlignmentClass(fieldOption),
                     fieldOption.sortable !== false && "cursor-pointer hover:bg-muted/50",
+                    fieldOption.name === sort?.column &&
+                      sort?.direction &&
+                      "text-blue-600 dark:text-blue-400 font-medium",
                     stickyHeader &&
                       "sticky top-0 z-10 bg-background shadow-[0_1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.1)]"
                   )}

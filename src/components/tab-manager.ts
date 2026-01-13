@@ -10,6 +10,7 @@ export type TabType =
   | "node"
   | "dashboard"
   | "query-log"
+  | "introspection"
   | "chat";
 
 export interface BaseTabInfo {
@@ -52,6 +53,11 @@ export interface QueryLogTabInfo extends BaseTabInfo {
   eventDate?: string;
 }
 
+export interface IntrospectionTabInfo extends BaseTabInfo {
+  type: "introspection";
+  tableName: string;
+}
+
 export interface ChatTabInfo extends BaseTabInfo {
   type: "chat";
   chatId?: string;
@@ -66,6 +72,7 @@ export type TabInfo =
   | DatabaseTabInfo
   | NodeTabInfo
   | QueryLogTabInfo
+  | IntrospectionTabInfo
   | ChatTabInfo;
 
 export interface OpenTabEventDetail {
@@ -75,6 +82,8 @@ export interface OpenTabEventDetail {
   database?: string;
   table?: string;
   engine?: string;
+  // Introspection tab fields
+  tableName?: string;
   // Dashboard tab fields
   host?: string;
   // Query log tab fields
@@ -168,6 +177,16 @@ export class TabManager {
   static openNodeTab(host: string, tabId?: string): void {
     const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
       detail: { type: "node", host, tabId },
+    });
+    TabManager.dispatchOrQueue(event);
+  }
+
+  /**
+   * Emit an open introspection tab event
+   */
+  static openIntrospectionTab(tableName: string, tabId?: string): void {
+    const event = new CustomEvent<OpenTabEventDetail>(TabManager.OPEN_TAB_EVENT, {
+      detail: { type: "introspection", tableName, tabId },
     });
     TabManager.dispatchOrQueue(event);
   }

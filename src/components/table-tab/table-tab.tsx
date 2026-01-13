@@ -11,7 +11,6 @@ import { DataSampleView } from "./data-sample-view";
 import { PartHistoryView } from "./part-history-view";
 import { PartitionSizeView } from "./partition-view";
 import { QueryHistoryView } from "./query-history-view";
-import { getSystemTableTabs } from "./system-table/system-table-registry";
 import { TableDependenciesView } from "./table-dependencies-view";
 import { TableMetadataView } from "./table-metadata-view";
 import { TableOverviewView } from "./table-overview-view";
@@ -49,15 +48,6 @@ const ENGINE_TABS_MAP = new Map<string, Set<string>>([
 ]);
 
 const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
-  // Check if this is a system table and if it has custom rendering
-  const isSystemDatabase = useMemo(() => database.toLowerCase() === "system", [database]);
-  const customSystemTabs = useMemo(() => {
-    if (isSystemDatabase) {
-      return getSystemTableTabs(table);
-    }
-    return undefined;
-  }, [isSystemDatabase, table]);
-
   // Hide Overview and Partitions tabs if engine starts with "System"
   const isSystemTable = useMemo(
     () => (engine?.startsWith("System") || engine?.startsWith("MySQL")) ?? false,
@@ -94,12 +84,8 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   }, [isSystemTable, baseAvailableTabs]);
 
   const initialTab = useMemo(() => {
-    // If custom system tabs exist, use the first one
-    if (customSystemTabs && customSystemTabs.length > 0) {
-      return `custom-${0}`;
-    }
     return availableTabs.has("overview") ? "overview" : "metadata";
-  }, [availableTabs, customSystemTabs]);
+  }, [availableTabs]);
   const [currentTab, setCurrentTab] = useState<string>(initialTab);
 
   // Track which tabs have been loaded (to load data only once)
@@ -201,52 +187,6 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
     },
     [handleRefresh]
   );
-
-  // If custom system tabs exist, render them
-  if (customSystemTabs && customSystemTabs.length > 0) {
-    const hasMultipleTabs = customSystemTabs.length > 1;
-
-    return (
-      <div className="h-full w-full flex flex-col overflow-hidden">
-        <Tabs
-          value={currentTab}
-          onValueChange={setCurrentTab}
-          className="flex flex-col flex-1 overflow-hidden"
-        >
-          {hasMultipleTabs && (
-            <div className="flex justify-between items-center gap-2 m-2">
-              <TabsList>
-                {customSystemTabs.map(([displayText], index) => (
-                  <TabsTrigger
-                    key={`custom-${index}`}
-                    value={`custom-${index}`}
-                    className="border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:rounded-b-none data-[state=active]:bg-transparent"
-                  >
-                    {displayText}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          )}
-          <div className="flex-1 relative overflow-hidden">
-            {customSystemTabs.map(([, Component], index) => {
-              const tabValue = `custom-${index}`;
-              return (
-                <div
-                  key={tabValue}
-                  className={`absolute inset-0 overflow-auto ${currentTab === tabValue ? "block" : "hidden"}`}
-                  role="tabpanel"
-                  aria-hidden={currentTab !== tabValue}
-                >
-                  <Component database={database} table={table} />
-                </div>
-              );
-            })}
-          </div>
-        </Tabs>
-      </div>
-    );
-  }
 
   // Default rendering for non-custom system tables
   const hasMultipleTabs = availableTabs.size > 1;

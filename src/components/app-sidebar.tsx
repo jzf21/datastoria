@@ -1,7 +1,7 @@
 import { AppLogo } from "@/components/app-logo";
 import { useConnection } from "@/components/connection/connection-context";
 import { ConnectionSelector } from "@/components/connection/connection-selector";
-import { SYSTEM_TABLE_REGISTRY } from "@/components/table-tab/system-table/system-table-registry";
+import { SYSTEM_TABLE_REGISTRY } from "@/components/introspection/system-table-registry";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -114,13 +114,13 @@ function SystemTableIntrospectionSidebarMenuItem() {
       icon={<Telescope className="h-5 w-5" />}
       content={() => (
         <div className="space-y-1">
-          {Array.from(SYSTEM_TABLE_REGISTRY.keys()).map((tableName) => (
+          {Array.from(SYSTEM_TABLE_REGISTRY.entries()).map(([tableName, entry]) => (
             <button
               key={tableName}
               className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
-              onClick={() => TabManager.openTableTab("system", tableName)}
+              onClick={() => TabManager.openIntrospectionTab(tableName)}
             >
-              system.{tableName}
+              {entry.title}
             </button>
           ))}
         </div>

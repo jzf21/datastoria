@@ -30,15 +30,12 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
         type: "table",
         id: `data-sample-${database}-${table}`,
         width: 100,
-        miscOption: { enableIndexColumn: true },
+        miscOption: { enableIndexColumn: true, enableShowRowDetail: true },
         headOption: {
           isSticky: true,
         },
         query: {
           sql: `SELECT * FROM ${fullTableName} LIMIT 1000`,
-          headers: {
-            "Content-Type": "text/plain",
-          },
           params: {
             default_format: "JSON",
             output_format_json_quote_64bit_integers: 0,
