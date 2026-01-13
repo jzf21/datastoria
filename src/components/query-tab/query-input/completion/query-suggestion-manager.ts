@@ -4,20 +4,21 @@ import type { Ace } from "ace-builds";
 import { marked } from "marked";
 import { QuerySnippetManager } from "../snippet/QuerySnippetManager";
 
-// Register the custom extension for :::note blocks
+// Register the custom extension for :::type blocks (like :::note, :::warning)
 marked.use({
   extensions: [
     {
-      name: "note",
+      name: "admonition",
       level: "block",
       start(src) {
-        return src.match(/^\s*:::note/)?.index;
+        return src.match(/^\s*:::([a-zA-Z]+)/)?.index;
       },
       tokenizer(src) {
-        const rule = /^(\s*):::note\s*\n([\s\S]*?)\n\s*:::/;
+        const rule = /^(\s*):::([a-zA-Z]+)\s*\n([\s\S]*?)\n\s*:::/;
         const match = rule.exec(src);
         if (match) {
-          let text = match[2];
+          const type = match[2];
+          let text = match[3];
           // Remove indentation from the content if present (based on the opening tag's indentation)
           const indentation = match[1];
           if (indentation) {
@@ -28,9 +29,10 @@ marked.use({
           }
 
           const token = {
-            type: "note",
+            type: "admonition",
             raw: match[0],
             text: text.trim(),
+            displayType: type,
             tokens: [],
           };
           // Parse the content inside the note as markdown
@@ -39,7 +41,9 @@ marked.use({
         }
       },
       renderer(token) {
-        return `<div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-content">${(this.parser.parse(token.tokens || []) as string).trim()}</div></div>`;
+        const type = token.displayType || "note";
+        const title = type.charAt(0).toUpperCase() + type.slice(1);
+        return `<div class="admonition ${type}"><div class="admonition-title">${title}</div><div class="admonition-content">${(this.parser.parse(token.tokens || []) as string).trim()}</div></div>`;
       },
     },
   ],
