@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { DateTimeExtension } from "./datetime-utils";
 import "./number-utils"; // Import to register Number prototype extensions
+import { hostNameManager } from "./host-name-manager";
 import { StringUtils } from "./string-utils";
 
 // Helper function to format a value for display in table
@@ -164,6 +165,7 @@ export type FormatName =
   | "map" // For Map types - shows Map(N entries) with click-to-expand table dialog
   | "complexType" // For complex types (Array, Tuple, JSON) - shows truncated JSON with click-to-expand dialog
   | "truncatedText"
+  | "shortHostName"
   | "inline_sql"; // render the SQL in place // For long text - shows truncated text with click-to-expand dialog, accepts truncation length via formatArgs
 
 // Formatter function interface - matches the signature used by Formatter class
@@ -455,6 +457,10 @@ export class Formatter {
           {truncatedValue}
         </span>
       );
+    };
+
+    this._formatters["shortHostName"] = (v) => {
+      return hostNameManager.getShortHostname(String(v));
     };
 
     this._formatters["inline_sql"] = (v) => this.inlineSqlFormat(v);

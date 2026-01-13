@@ -47,7 +47,10 @@ export function QueryLogInspectorTableView({ queryLogs, meta }: QueryLogInspecto
         format: formatQueryLogType,
       },
       // Host
-      { name: "host" },
+      {
+        name: "host",
+        format: "shortHostName",
+      },
       // IDs
       {
         name: "query_id",
@@ -128,7 +131,10 @@ export function QueryLogInspectorTableView({ queryLogs, meta }: QueryLogInspecto
   // 3. Define field options for the detailed table
   const detailedFieldOptions: FieldOption[] = useMemo(() => {
     const options: FieldOption[] = [
-      { name: "host" },
+      {
+        name: "host",
+        format: "shortHostName",
+      },
       { name: "start_time_microseconds", align: "center" },
       { name: "written_rows", align: "center", format: "comma_number" },
       { name: "written_bytes", align: "center", format: "binary_size" },
@@ -165,7 +171,7 @@ export function QueryLogInspectorTableView({ queryLogs, meta }: QueryLogInspecto
     <div className="w-full flex flex-col gap-6 py-2">
       <CollapsibleSection title="Query Logs by Host">
         <DataTable
-          showIndexColumn
+          enableIndexColumn
           data={queryLogs}
           meta={meta || []}
           fieldOptions={fieldOptions}
@@ -175,7 +181,7 @@ export function QueryLogInspectorTableView({ queryLogs, meta }: QueryLogInspecto
 
       <CollapsibleSection title="Detailed Metrics & Profile Events">
         <DataTable
-          showIndexColumn
+          enableClientSorting
           data={detailedTableData}
           meta={detailedMeta}
           fieldOptions={detailedFieldOptions}

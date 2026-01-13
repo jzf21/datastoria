@@ -597,7 +597,7 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
             console.error(`Formatter ${fieldOption.format} not found`);
             return <span className="text-muted-foreground">{String(value)}</span>;
           } else {
-            formatted = formatter(value, fieldOption.formatArgs);
+            formatted = formatter(value, fieldOption.formatArgs, context);
           }
         }
 

@@ -15,13 +15,10 @@ import { Maximize2, RotateCw, Search, ZoomIn, ZoomOut } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { QueryResponseErrorView } from "../query-tab/query-response/query-response-error-view";
 import { replaceTimeSpanParams } from "../shared/dashboard/sql-time-utils";
-import {
-  QueryLogInspectorGraphView,
-  type GraphControlsRef,
-} from "./query-log-inspector-graph-view";
 import { QueryLogInspectorTableView } from "./query-log-inspector-table-view";
 import { transformQueryLogsToTree } from "./query-log-inspector-timeline-types";
 import QueryLogInspectorTimelineView from "./query-log-inspector-timeline-view";
+import { QueryLogInspectorTopoView, type GraphControlsRef } from "./query-log-inspector-topo-view";
 
 // Sub-component: Unified Header
 interface HeaderControlsProps {
@@ -414,7 +411,7 @@ ORDER BY start_time_microseconds
               role="tabpanel"
               aria-hidden={activeTab !== "topo"}
             >
-              <QueryLogInspectorGraphView ref={graphControlsRef} queryLogs={queryLogs} />
+              <QueryLogInspectorTopoView ref={graphControlsRef} queryLogs={queryLogs} />
             </div>
           </div>
         </Tabs>

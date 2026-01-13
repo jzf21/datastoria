@@ -1,4 +1,5 @@
 import { colorGenerator, type Color } from "@/lib/color-generator";
+import { hostNameManager } from "@/lib/host-name-manager";
 
 // Query log tree node structure for timeline
 export interface QueryLogTreeNode {
@@ -75,14 +76,14 @@ export function transformQueryLogsToTree(queryLogs: any[]): {
     const host = log.host || "Unknown";
     const queryType = log.type || "Unknown";
     const queryId = log.query_id || "";
-    const displayName = `${host}`;
+    const displayName = hostNameManager.getShortHostname(host);
     const color = colorGenerator.getColor(host);
 
     const node: QueryLogTreeNode = {
       id: `node-${nodeIndex++}`,
       queryLog: log,
       _display: displayName,
-      _search: `${host}}`.toLowerCase(),
+      _search: displayName.toLowerCase(),
       _matchedIndex: -1,
       _matchedLength: 0,
       _color: color,
@@ -141,7 +142,6 @@ export function transformQueryLogsToTree(queryLogs: any[]): {
   // Sort root nodes by event time
   rootNodes.sort((a, b) => a.eventTime - b.eventTime);
 
-  console.log("rootNodes", rootNodes);
   return {
     tree: rootNodes,
     flatList,

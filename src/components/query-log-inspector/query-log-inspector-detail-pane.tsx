@@ -3,7 +3,7 @@ import type { FieldOption } from "@/components/shared/dashboard/dashboard-model"
 import { DataTable } from "@/components/shared/dashboard/data-table";
 import { ThemedSyntaxHighlighter } from "@/components/themed-syntax-highlighter";
 import { Button } from "@/components/ui/button";
-import { Formatter } from "@/lib/formatter";
+import { Formatter, type ObjectFormatter } from "@/lib/formatter";
 import { StringUtils } from "@/lib/string-utils";
 import { X } from "lucide-react";
 import React, { memo, useMemo } from "react";
@@ -51,7 +51,7 @@ function formatProfileEventsValue(value: unknown): string | React.ReactNode {
 
 // Component: Query Log Detail Pane
 interface QueryLogDetailPaneProps {
-  selectedQueryLog: any;
+  selectedQueryLog: Record<string, unknown>;
   onClose: () => void;
   sourceNode?: string;
   targetNode?: string;
@@ -102,10 +102,23 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
       .map((key) => ({ field: key, value: selectedQueryLog[key] }));
 
     const meta = [{ name: "field" }, { name: "value" }];
-    const fieldOptions: FieldOption[] = [];
+    const fieldOptions: FieldOption[] = [
+      {
+        name: "value",
+
+        // The table is a transposed table (only field and value columns)
+        // So we can't use 'shortHostName' formatter name directly
+        format: (v: unknown, _args?: unknown[], context?: Record<string, unknown>) => {
+          if (context?.field === "host") {
+            return Formatter.getInstance().getFormatter("shortHostName")(v);
+          }
+          return v as string | React.ReactNode;
+        },
+      },
+    ];
 
     return (
-      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="max-h-[400px]" />
+      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />
     );
   }, [selectedQueryLog]);
 
@@ -121,10 +134,12 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
       .map(([key, value]) => ({ setting: key, value }));
 
     const meta = [{ name: "setting" }, { name: "value" }];
-    const fieldOptions: FieldOption[] = [{ name: "value", format: formatSettingsValue as any }];
+    const fieldOptions: FieldOption[] = [
+      { name: "value", format: formatSettingsValue as ObjectFormatter },
+    ];
 
     return (
-      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="max-h-[500px]" />
+      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />
     );
   }, [selectedQueryLog]);
 
@@ -141,11 +156,11 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
 
     const meta = [{ name: "event" }, { name: "value" }];
     const fieldOptions: FieldOption[] = [
-      { name: "value", format: formatProfileEventsValue as any },
+      { name: "value", format: formatProfileEventsValue as ObjectFormatter },
     ];
 
     return (
-      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="max-h-[600px]" />
+      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />
     );
   }, [selectedQueryLog]);
 
@@ -225,15 +240,17 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
       className="bg-background shadow-lg flex flex-col h-full"
     >
       {/* Header with close button */}
-      <div className="flex items-center justify-between pl-3 py-2 border-b flex-shrink-0 h-10">
-        <h4 className="truncate font-semibold text-sm">Query Id: {selectedQueryLog.query_id}</h4>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-          <X className="h-4 w-4" />
+      <div className="flex items-center justify-between pl-3 pr-1 py-2 border-b flex-shrink-0 h-10">
+        <h4 className="truncate font-semibold text-sm">
+          Query Id: {String(selectedQueryLog.query_id)}
+        </h4>
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-6 w-6">
+          <X className="!h-3 !w-3" />
         </Button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pb-16">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pb-32">
         {/* Overview Section */}
         <CollapsibleSection title="Overview" className="border-0 rounded-none" defaultOpen={true}>
           <div className="px-3 py-1">
@@ -241,8 +258,21 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
               <DataTable
                 data={overviewData.map(([key, value]) => ({ field: key, value }))}
                 meta={[{ name: "field" }, { name: "value" }]}
-                fieldOptions={[]}
-                className="max-h-[350px]"
+                fieldOptions={[
+                  {
+                    name: "value",
+                    format: (v: unknown, _args?: unknown[], context?: Record<string, unknown>) => {
+                      if (
+                        context?.field === "Query Sent From" ||
+                        context?.field === "Query Executed On"
+                      ) {
+                        return Formatter.getInstance().getFormatter("shortHostName")(v);
+                      }
+                      return v as string | React.ReactNode;
+                    },
+                  },
+                ]}
+                className="h-auto"
               />
             ) : (
               <div className="text-sm text-muted-foreground">No overview data available</div>
@@ -259,7 +289,7 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
                 language="sql"
                 showLineNumbers={true}
               >
-                {StringUtils.prettyFormatQuery(selectedQueryLog.query || "")}
+                {StringUtils.prettyFormatQuery(String(selectedQueryLog.query || ""))}
               </ThemedSyntaxHighlighter>
             </div>
           </div>
@@ -283,8 +313,6 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
         <CollapsibleSection title="Settings" className="border-0 rounded-none" defaultOpen={false}>
           <div className="px-3 py-1">{renderSettingsTable}</div>
         </CollapsibleSection>
-
-        <div className="h-[200px]"></div>
       </div>
     </Panel>
   );

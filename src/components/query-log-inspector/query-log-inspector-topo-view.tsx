@@ -1,5 +1,5 @@
 import type { GraphEdge, GraphNode } from "@/components/shared/graphviz/Graph";
-import { shortenHostNameForDisplay } from "@/lib/string-utils";
+import { hostNameManager } from "@/lib/host-name-manager";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -32,7 +32,7 @@ import {
 } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryLogDetailPane } from "./query-log-inspector-detail-pane";
-import { QueryLogGraphNodePane } from "./query-log-inspector-graph-node-pane";
+import { QueryLogInspectorTopoNodePane } from "./query-log-inspector-topo-node-pane";
 
 // Graph controls ref type
 export interface GraphControlsRef {
@@ -474,11 +474,11 @@ const QueryLogGraphFlow = (props: QueryLogGraphFlowProps) => {
 };
 
 // Sub-component: Graph Content
-interface QueryLogInspectorGraphProps {
+interface QueryLogInspectorTopoProps {
   queryLogs: any[];
 }
 
-export const QueryLogInspectorGraphView = forwardRef<GraphControlsRef, QueryLogInspectorGraphProps>(
+export const QueryLogInspectorTopoView = forwardRef<GraphControlsRef, QueryLogInspectorTopoProps>(
   ({ queryLogs }, ref) => {
     const [graphNodes, setGraphNodes] = useState<Map<string, GraphNode>>(new Map());
     const [graphEdges, setGraphEdges] = useState<GraphEdge[]>([]);
@@ -530,7 +530,7 @@ export const QueryLogInspectorGraphView = forwardRef<GraphControlsRef, QueryLogI
         if (!nodes.has(hostId)) {
           nodes.set(hostId, {
             id: hostId,
-            label: shortenHostNameForDisplay(host),
+            label: hostNameManager.getShortHostname(host),
             targets: [],
           });
         }
@@ -751,7 +751,10 @@ export const QueryLogInspectorGraphView = forwardRef<GraphControlsRef, QueryLogI
               targetNode={targetNode}
             />
           ) : selectedNode ? (
-            <QueryLogGraphNodePane selectedNode={selectedNode} onClose={handleCloseNodeDetail} />
+            <QueryLogInspectorTopoNodePane
+              selectedNode={selectedNode}
+              onClose={handleCloseNodeDetail}
+            />
           ) : null}
         </PanelGroup>
       );
@@ -781,4 +784,4 @@ export const QueryLogInspectorGraphView = forwardRef<GraphControlsRef, QueryLogI
   }
 );
 
-QueryLogInspectorGraphView.displayName = "GraphContent";
+QueryLogInspectorTopoView.displayName = "GraphContent";

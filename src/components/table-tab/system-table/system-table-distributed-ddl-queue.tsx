@@ -194,7 +194,7 @@ const DDLDistributedQueueHostLogTable = memo(
           data={records as any}
           meta={tableMeta}
           fieldOptions={fieldOptions}
-          showIndexColumn
+          enableIndexColumn
           stickyHeader
           headerClassName="text-[10px]"
           className="max-h-[300px]"
@@ -446,7 +446,7 @@ const DistributedDDLQueueAggregateView = memo(
               direction: "asc",
             }}
             fieldOptions={fieldOptions}
-            showIndexColumn
+            enableIndexColumn
             isLoading={isLoading}
             onRowClick={(row) => setSelectedEntryId(row.entry as string)}
             selectedRowId={selectedEntryId}
@@ -582,7 +582,7 @@ const DistributedDDLQueueRawView = memo(({ data, isLoading }: DistributedDDLQueu
       data={data as any}
       meta={tableMeta}
       fieldOptions={fieldOptions}
-      showIndexColumn
+      enableIndexColumn
       isLoading={isLoading}
       stickyHeader
       className="flex-1"
