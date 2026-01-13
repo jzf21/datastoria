@@ -11,16 +11,26 @@ marked.use({
       name: "note",
       level: "block",
       start(src) {
-        return src.match(/^:::note/)?.index;
+        return src.match(/^\s*:::note/)?.index;
       },
       tokenizer(src) {
-        const rule = /^:::note\s*\n([\s\S]*?)\n:::/;
+        const rule = /^(\s*):::note\s*\n([\s\S]*?)\n\s*:::/;
         const match = rule.exec(src);
         if (match) {
+          let text = match[2];
+          // Remove indentation from the content if present (based on the opening tag's indentation)
+          const indentation = match[1];
+          if (indentation) {
+            const lines = text.split("\n");
+            text = lines
+              .map((line) => (line.startsWith(indentation) ? line.slice(indentation.length) : line))
+              .join("\n");
+          }
+
           const token = {
             type: "note",
             raw: match[0],
-            text: match[1].trim(),
+            text: text.trim(),
             tokens: [],
           };
           // Parse the content inside the note as markdown
@@ -144,27 +154,47 @@ export class QuerySuggestionManager {
     title: string,
     markdownContent: string,
     type?: string,
-    extraHtml?: string
+    extraHtml: string = ""
   ): string {
-    if (!markdownContent && !extraHtml) return "";
+    if (title === "max_concurrent_queries") {
+      console.log("max_concurrent_queries", markdownContent, extraHtml);
+    }
+    if (markdownContent === undefined || markdownContent === null) {
+      return extraHtml;
+    }
 
-    const contentHtml = markdownContent
-      ? QuerySuggestionManager.markdownToHtml(markdownContent, type)
-      : "";
+    //
+    // Dedent the content to avoid it being treated as a code block
+    // Actually this is not well formatted text
+    //
+    const lines = markdownContent.split("\n");
+    let minIndent = Infinity;
+    for (const line of lines) {
+      // If the line is not empty
+      if (/\S/.test(line)) {
+        const indent = line.match(/^\s*/)![0].length;
+        if (indent < minIndent) {
+          minIndent = indent;
+        }
+      }
+    }
+    if (minIndent < Infinity && minIndent > 0) {
+      markdownContent = lines.map((line) => line.slice(minIndent)).join("\n");
+    }
+    markdownContent = markdownContent.trim();
 
-    if (!contentHtml && !extraHtml) return "";
+    const descriptionHtml = QuerySuggestionManager.markdownToHtml(markdownContent, type);
 
-    const parts = [
-      '<div class="ace-tooltip-head">',
-      title,
-      "</div>",
+    return (
+      '<div class="ace-tooltip-head">' +
+      title +
+      "</div>" +
       // Use max-height: 320px for scrollable content, but allow it to shrink for short content
-      '<div class="ace-tooltip-scrollable">',
-      contentHtml,
-      extraHtml || "",
-      "</div>",
-    ];
-    return parts.join("");
+      '<div class="ace-tooltip-scrollable">' +
+      descriptionHtml +
+      (extraHtml || "") +
+      "</div>"
+    );
   }
 
   public onConnectionSelected(connection: Connection) {
@@ -192,8 +222,17 @@ export class QuerySuggestionManager {
     this.engineCompletion = [];
 
     // Helper function to process completion items
+    /**
+     * @param eachRowObject [name, type, score, description, extra description]
+     */
     const processCompletionItem = (eachRowObject: any) => {
       const type = eachRowObject[1];
+
+      let extraHtml = "";
+      if (eachRowObject.length > 4 && eachRowObject[4] !== undefined) {
+        extraHtml = eachRowObject[4];
+      }
+
       const completion: CompletionItem = {
         caption: eachRowObject[0],
         value: eachRowObject[0],
@@ -202,7 +241,8 @@ export class QuerySuggestionManager {
         docHTML: QuerySuggestionManager.createDescriptionHTML(
           eachRowObject[0],
           eachRowObject[3] || "",
-          eachRowObject[1]
+          eachRowObject[1],
+          extraHtml
         ),
       };
 
@@ -334,15 +374,15 @@ SELECT * FROM (
 
     // Query 4: Settings
     connection
-      .query(
-        `SELECT name, 'setting', -60, concat(description, '\n\nCurrent value: ', value) FROM system.settings ORDER BY name`,
-        {
-          default_format: "JSONCompact",
-        }
-      )
+      .query(`SELECT name, 'setting', -60, description, value FROM system.settings ORDER BY name`, {
+        default_format: "JSONCompact",
+      })
       .response.then((response) => {
         const returnList = response.data.json<JSONCompactFormatResponse>().data;
-        returnList.forEach((eachRowObject: unknown[]) => {
+        returnList.forEach((eachRowObject: any) => {
+          if (eachRowObject.length > 4 && eachRowObject[4] !== undefined) {
+            eachRowObject[4] = `<div style="margin-top: 8px; font-weight: bold;">Current value: ${eachRowObject[4]}</div>`;
+          }
           processCompletionItem(eachRowObject);
         });
       })
@@ -353,14 +393,17 @@ SELECT * FROM (
     // Query 5: Merge Tree Settings
     connection
       .query(
-        `SELECT name, 'merge_tree_setting', -100, concat(description, '\n\nCurrent value: ', value) FROM system.merge_tree_settings ORDER BY name`,
+        `SELECT name, 'merge_tree_setting', -100, description, value FROM system.merge_tree_settings ORDER BY name`,
         {
           default_format: "JSONCompact",
         }
       )
       .response.then((response) => {
         const returnList = response.data.json<JSONCompactFormatResponse>().data;
-        returnList.forEach((eachRowObject: unknown[]) => {
+        returnList.forEach((eachRowObject: any) => {
+          if (eachRowObject.length > 4 && eachRowObject[4] !== undefined) {
+            eachRowObject[4] = `<div style="margin-top: 8px; font-weight: bold;">Current value: ${eachRowObject[4]}</div>`;
+          }
           processCompletionItem(eachRowObject);
         });
       })
@@ -370,14 +413,17 @@ SELECT * FROM (
 
     connection
       .query(
-        `SELECT name, 'server_setting', -100, concat(description, '\n\nCurrent value: ', value) FROM system.server_settings ORDER BY name`,
+        `SELECT name, 'server_setting', -100, description, value FROM system.server_settings ORDER BY name`,
         {
           default_format: "JSONCompact",
         }
       )
       .response.then((response) => {
         const returnList = response.data.json<JSONCompactFormatResponse>().data;
-        returnList.forEach((eachRowObject: unknown[]) => {
+        returnList.forEach((eachRowObject: any) => {
+          if (eachRowObject.length > 4 && eachRowObject[4] !== undefined) {
+            eachRowObject[4] = `<div style="margin-top: 8px; font-weight: bold;">Current value: ${eachRowObject[4]}</div>`;
+          }
           processCompletionItem(eachRowObject);
         });
       })
