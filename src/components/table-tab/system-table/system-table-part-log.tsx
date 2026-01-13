@@ -1,7 +1,6 @@
 "use client";
 
 import { useConnection } from "@/components/connection/connection-context";
-import { formatQueryLogType } from "@/components/query-log-inspector/query-log-inspector-table-view";
 import DashboardFilterComponent, {
   type SelectedFilter,
 } from "@/components/shared/dashboard/dashboard-filter";
@@ -22,7 +21,7 @@ import type { JSONCompactFormatResponse } from "@/lib/connection/connection";
 import { cn } from "@/lib/utils";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
-interface SystemTableQueryLogProps {
+interface SystemTablePartLogProps {
   database: string;
   table: string;
 }
@@ -37,133 +36,97 @@ const FILTER_SPECS: FilterSpec[] = [
   } as DateTimeFilterSpec,
   {
     filterType: "select",
-    name: "type",
-    displayText: "type",
+    name: "event_type",
+    displayText: "event_type",
     onPreviousFilters: true,
     defaultPattern: {
       comparator: "!=",
-      values: ["QueryStart"],
+      values: ["RemovePart"],
     },
     datasource: {
       type: "inline",
       values: [
-        { label: "QueryStart", value: "QueryStart" },
-        { label: "QueryFinish", value: "QueryFinish" },
-        { label: "ExceptionBeforeStart", value: "ExceptionBeforeStart" },
-        { label: "ExceptionWhileProcessing", value: "ExceptionWhileProcessing" },
+        { label: "NewPart", value: "NewPart" },
+        { label: "MergeParts", value: "MergeParts" },
+        { label: "DownloadPart", value: "DownloadPart" },
+        { label: "RemovePart", value: "RemovePart" },
+        { label: "MutatePart", value: "MutatePart" },
+        { label: "MovePart", value: "MovePart" },
       ],
     },
   },
   {
     filterType: "select",
-    name: "query_kind",
-    displayText: "query_kind",
+    name: "database",
+    displayText: "database",
     onPreviousFilters: true,
     datasource: {
       type: "sql",
-      sql: `SELECT DISTINCT query_kind
-FROM system.query_log
+      sql: `SELECT DISTINCT database
+FROM system.part_log
 WHERE ({filterExpression:String})
     AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
     AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
     AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
-    AND query_kind <> ''
-ORDER BY query_kind
+    AND database <> ''
+ORDER BY database
 LIMIT 100`,
     },
   },
   {
     filterType: "select",
-    name: "databases",
-    displayText: "databases",
-    onPreviousFilters: true,
-    expressionTemplate: {
-      "=": "has({name}, {value})",
-      "!=": "NOT has({name}, {value})",
-      in: "hasAny({name}, {valuesArray})",
-      "not in": "NOT hasAny({name}, {valuesArray})",
-    },
-    datasource: {
-      type: "sql",
-      sql: `SELECT DISTINCT arrayJoin(databases) as database FROM (
-SELECT DISTINCT databases
-FROM system.query_log
-WHERE ({filterExpression:String})
-    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
-LIMIT 100)
-ORDER BY database
-`,
-    },
-  } as SelectorFilterSpec,
-  {
-    filterType: "select",
-    name: "tables",
-    displayText: "tables",
-    onPreviousFilters: true,
-    supportedComparators: ["=", "!=", "in", "not in"],
-    expressionTemplate: {
-      "=": "has({name}, {value})",
-      "!=": "NOT has({name}, {value})",
-      in: "hasAny({name}, {valuesArray})",
-      "not in": "NOT hasAny({name}, {valuesArray})",
-    },
-    datasource: {
-      type: "sql",
-      sql: `SELECT DISTINCT arrayJoin(tables) as table FROM (
-SELECT DISTINCT tables
-FROM system.query_log
-WHERE ({filterExpression:String})
-    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
-LIMIT 100)
-ORDER BY table
-`,
-    },
-  } as SelectorFilterSpec,
-  {
-    filterType: "select",
-    name: "exception_code",
-    displayText: "exception_code",
+    name: "table",
+    displayText: "table",
     onPreviousFilters: true,
     datasource: {
       type: "sql",
       sql: `
-SELECT DISTINCT exception_code
-FROM system.query_log
+SELECT DISTINCT table
+FROM system.part_log
 WHERE ({filterExpression:String})
     AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
     AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
     AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
-ORDER BY exception_code
-LIMIT 100
 `,
     },
   } as SelectorFilterSpec,
   {
     filterType: "select",
-    name: "initial_user",
-    displayText: "initial_user",
+    name: "part_type",
+    displayText: "part_type",
     onPreviousFilters: true,
     datasource: {
       type: "sql",
-      // NOTE: don't use ORDER BY 1, some old release does not support this well
       sql: `
-SELECT DISTINCT initial_user
-FROM system.query_log
+SELECT DISTINCT part_type
+FROM system.part_log
+WHERE ({filterExpression:String})
+    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32}))
+    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
+    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+ORDER BY part_type
+`,
+    },
+  } as SelectorFilterSpec,
+  {
+    filterType: "select",
+    name: "error",
+    displayText: "error",
+    onPreviousFilters: true,
+    datasource: {
+      type: "sql",
+      sql: `
+SELECT DISTINCT error
+FROM system.part_log
 WHERE ({filterExpression:String})
     AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
     AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
     AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
-    AND initial_user <> ''
-ORDER BY initial_user
+ORDER BY error
 LIMIT 100
 `,
     },
@@ -173,20 +136,20 @@ LIMIT 100
 const DISTRIBUTION_QUERY = `
 SELECT
     toStartOfInterval(event_time, interval {rounding:UInt32} second) as t,
-    type,
+    event_type,
     count(1) as count
-FROM system.query_log
+FROM system.part_log
 WHERE 
   {filterExpression:String}
   AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
   AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
   AND event_time >= {from:String} 
   AND event_time <= {to:String}
-GROUP BY t, type
-ORDER BY t, type`;
+GROUP BY t, event_type
+ORDER BY t, event_type`;
 
 const TABLE_QUERY = `
-SELECT * FROM system.query_log 
+SELECT * FROM system.part_log 
 WHERE 
   {filterExpression:String}
   AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
@@ -195,7 +158,7 @@ WHERE
 AND event_time <= {to:String}
 ORDER BY event_time DESC`;
 
-const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTableQueryLogProps) => {
+const SystemTablePartLog = ({ database: _database, table: _table }: SystemTablePartLogProps) => {
   const { connection } = useConnection();
 
   // Refs
@@ -208,7 +171,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
   const chartDescriptor = useMemo<TimeseriesDescriptor>(() => {
     return {
       type: "bar",
-      titleOption: { title: `Query Count Distribution`, showTitle: true, align: "left" },
+      titleOption: { title: `Part Log Distribution`, showTitle: true, align: "left" },
       query: {
         sql: DISTRIBUTION_QUERY,
       },
@@ -218,7 +181,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
       fieldOptions: {
         t: { name: "t", type: "datetime" },
         count: { name: "count", type: "number" },
-        type: { name: "type", type: "string" },
+        event_type: { name: "event_type", type: "string" },
       },
       stacked: true,
       height: 150,
@@ -228,7 +191,7 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
   const tableDescriptor = useMemo<TableDescriptor>(() => {
     return {
       type: "table",
-      titleOption: { title: `Query Log Records`, showTitle: true, align: "left" },
+      titleOption: { title: `Part Log Records`, showTitle: true, align: "left" },
       query: {
         sql: TABLE_QUERY,
       },
@@ -240,7 +203,6 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
       headOption: { isSticky: true },
       miscOption: { enableIndexColumn: true, enableShowRowDetail: true, enableCompactMode: true },
       fieldOptions: {
-        type: { format: formatQueryLogType },
         initial_query_id: {
           width: 250,
           position: 1,
@@ -451,4 +413,4 @@ const SystemTableQueryLog = ({ database: _database, table: _table }: SystemTable
   );
 };
 
-export default SystemTableQueryLog;
+export default SystemTablePartLog;

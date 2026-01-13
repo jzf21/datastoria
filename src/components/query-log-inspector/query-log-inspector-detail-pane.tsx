@@ -117,9 +117,7 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
       },
     ];
 
-    return (
-      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />
-    );
+    return <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />;
   }, [selectedQueryLog]);
 
   // Render settings table
@@ -138,9 +136,7 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
       { name: "value", format: formatSettingsValue as ObjectFormatter },
     ];
 
-    return (
-      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />
-    );
+    return <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />;
   }, [selectedQueryLog]);
 
   // Render profile events table
@@ -159,9 +155,7 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
       { name: "value", format: formatProfileEventsValue as ObjectFormatter },
     ];
 
-    return (
-      <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />
-    );
+    return <DataTable data={data} meta={meta} fieldOptions={fieldOptions} className="h-auto" />;
   }, [selectedQueryLog]);
 
   // Memoize formatters to avoid recreating on every render

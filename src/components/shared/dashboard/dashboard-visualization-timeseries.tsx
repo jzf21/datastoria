@@ -617,7 +617,6 @@ export const TimeseriesVisualization = React.forwardRef<
     if (onChartSelection) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chartInstance.on("click", { componentType: "series" } as any, (p: any) => {
-        console.log("[TimeseriesVisualization] Chart click event:", p);
         if (!p || typeof p?.dataIndex !== "number") {
           return;
         }

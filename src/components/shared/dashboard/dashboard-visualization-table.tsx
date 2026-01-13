@@ -26,28 +26,30 @@ function replaceOrderByClause(
 ): string {
   if (!orderByColumn || !orderDirection) {
     // Remove ORDER BY clause if sorting is cleared
-    return sql.replace(
-      /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*/gi,
-      ""
-    );
+    // This regex looks for ORDER BY followed by one or more column expressions
+    // until it hits a LIMIT clause or the end of the string.
+    const removeRegex =
+      /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*(?=\s+LIMIT|\s*$)/gi;
+    return sql.replace(removeRegex, "");
   }
 
   const orderByClause = `ORDER BY ${orderByColumn} ${orderDirection.toUpperCase()}`;
   const hasOrderBy = /\s+ORDER\s+BY\s+/i.test(sql);
 
   if (hasOrderBy) {
+    // Replace the existing ORDER BY clause
     const replaceRegex =
       /\s+ORDER\s+BY\s+[^\s]+(?:\s+(?:ASC|DESC))?(?:\s*,\s*[^\s]+\s+(?:ASC|DESC)?)*(?=\s+LIMIT|\s*$)/gi;
     return sql.replace(replaceRegex, ` ${orderByClause}`);
-  } else {
-    const limitRegex = /\s+LIMIT\s+\d+/i;
-    if (limitRegex.test(sql)) {
-      limitRegex.lastIndex = 0;
-      return sql.replace(limitRegex, ` ${orderByClause}$&`);
-    } else {
-      return sql.trim() + ` ${orderByClause}`;
-    }
   }
+
+  // If no ORDER BY exists, add it before LIMIT if present, otherwise at the end
+  const limitRegex = /\s+LIMIT\s+\d+/i;
+  if (limitRegex.test(sql)) {
+    return sql.replace(limitRegex, ` ${orderByClause}$&`);
+  }
+
+  return sql.trim() + ` ${orderByClause}`;
 }
 
 // SQL utility function for pagination
@@ -96,6 +98,14 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
       column: descriptor.sortOption?.initialSort?.column || null,
       direction: descriptor.sortOption?.initialSort?.direction || null,
     });
+
+    // Use a ref to store the latest sort state to avoid stale closures in exposed methods
+    const sortRef = useRef(sort);
+
+    // Sync ref with state
+    useEffect(() => {
+      sortRef.current = sort;
+    }, [sort]);
 
     // Pagination state (moved from facade)
     const currentPageRef = useRef(0);
@@ -156,6 +166,8 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
     const handleSortChange = useCallback(
       (column: string, direction: "asc" | "desc" | null) => {
         const newSort = { column, direction };
+        // Update ref immediately to avoid stale closures in following logic
+        sortRef.current = newSort;
         setSort(newSort);
 
         // Notify facade if server-side sorting is enabled
@@ -307,7 +319,7 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
                     e.preventDefault();
                   }}
                 >
-                  <Check className={cn("h-3 w-3", col.isVisible ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("!h-3 !w-3", col.isVisible ? "opacity-100" : "opacity-0")} />
                   {col.title}
                 </DashboardDropdownMenuItem>
               );
@@ -337,10 +349,15 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
     const prepareDataFetchSql = useCallback(
       (sql: string, pageNumber: number = 0): string => {
         let finalSql = sql;
+        const currentSort = sortRef.current;
 
         // Apply server-side sorting if enabled
-        if (descriptor.sortOption?.serverSideSorting && sort.column && sort.direction) {
-          finalSql = replaceOrderByClause(finalSql, sort.column, sort.direction);
+        if (
+          descriptor.sortOption?.serverSideSorting &&
+          currentSort.column &&
+          currentSort.direction
+        ) {
+          finalSql = replaceOrderByClause(finalSql, currentSort.column, currentSort.direction);
         }
 
         // Apply pagination if server-side pagination is enabled
@@ -355,27 +372,30 @@ export const TableVisualization = React.forwardRef<TableVisualizationRef, TableV
         descriptor.sortOption?.serverSideSorting,
         descriptor.pagination?.mode,
         descriptor.pagination?.pageSize,
-        sort.column,
-        sort.direction,
       ]
     );
 
     // Expose methods via ref (must be after RenderShowColumns is defined)
     React.useImperativeHandle(ref, () => ({
-      getDropdownItems: () => (
-        <>
-          <DropdownMenuSub>
-            <DashboardDropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
-              Show/Hide Columns
-            </DashboardDropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <RenderShowColumns />
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-        </>
-      ),
+      getDropdownItems: () => {
+        if (dataTableRef.current === null || dataTableRef.current.getAllColumns().length == 0) {
+          return null;
+        }
+        return (
+          <>
+            <DropdownMenuSub>
+              <DashboardDropdownMenuSubTrigger onClick={(e) => e.stopPropagation()}>
+                Show/Hide Columns
+              </DashboardDropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  <RenderShowColumns />
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+          </>
+        );
+      },
       resetPagination,
       prepareDataFetchSql,
     }));

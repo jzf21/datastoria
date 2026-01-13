@@ -1,5 +1,6 @@
 import SystemTableDashboards from "./system-table-dashboards";
 import SystemTableDistributedDDLQueue from "./system-table-distributed-ddl-queue";
+import SystemTablePartLog from "./system-table-part-log";
 import SystemTableQueryLog from "./system-table-query-log";
 
 /**
@@ -22,12 +23,15 @@ export const SYSTEM_TABLE_REGISTRY = new Map<string, SystemTableTabEntry[]>([
   ["dashboards", [["Dashboard", SystemTableDashboards]]],
   ["distributed_ddl_queue", [["DDL Queue", SystemTableDistributedDDLQueue]]],
   ["query_log", [["Query Log", SystemTableQueryLog]]],
+  ["part_log", [["Part Log", SystemTablePartLog]]],
 ]);
 
 function normalizeSystemTableName(tableName: string): string {
-  // e.g. query_log_0, query_log_1, ...
+  // e.g. query_log_0, part_log_0, ...
   if (/^query_log_\d+$/.test(tableName)) {
     return "query_log";
+  } else if (/^part_log_\d+$/.test(tableName)) {
+    return "part_log";
   }
   return tableName;
 }
