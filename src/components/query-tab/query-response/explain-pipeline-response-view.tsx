@@ -492,7 +492,7 @@ const ExplainPipelineResponseViewComponent = ({
 
   return (
     <Tabs value={selectedSubView} onValueChange={setSelectedSubView} className="mt-2">
-      <div className="w-full border-b bg-background">
+      <div className="w-full bg-background">
         <TabsList className="inline-flex min-w-full justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
           {error && (
             <TabsTrigger

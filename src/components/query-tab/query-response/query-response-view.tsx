@@ -80,7 +80,7 @@ export function QueryResponseView({
   // For all other views, use the standard Result + Response Headers tab structure
   return (
     <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-      <div className="w-full border-b bg-background">
+      <div className="w-full bg-background">
         <TabsList className="inline-flex min-w-full justify-start rounded-none border-0 h-auto p-0 bg-transparent flex-nowrap">
           <TabsTrigger
             value="result"
