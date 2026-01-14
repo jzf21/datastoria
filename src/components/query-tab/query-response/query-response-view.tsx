@@ -110,7 +110,7 @@ export function QueryResponseView({
           <div className="relative">
             {view === "table" ? (
               <QueryResponseTableView queryResponse={queryResponse} />
-            ) : view === "plan" || view === "estimate" ? (
+            ) : view === "plan" ? (
               <ExplainQueryResponseView queryRequest={queryRequest} queryResponse={queryResponse} />
             ) : view === "syntax" ? (
               <ExplainSyntaxResponseView
@@ -118,6 +118,7 @@ export function QueryResponseView({
                 queryResponse={queryResponse}
               />
             ) : (
+              // Normal SQL Response and EXPLAIN ESTIMATE
               <QueryResponseTextView queryResponse={queryResponse} />
             )}
           </div>
