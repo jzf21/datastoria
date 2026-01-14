@@ -1,4 +1,3 @@
-import { CopyButton } from "@/components/ui/copy-button";
 import { type TreeDataItem } from "@/components/ui/tree";
 import { type Connection } from "@/lib/connection/connection";
 import { hostNameManager } from "@/lib/host-name-manager";
@@ -18,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { SchemaTreeBadge, SchemaTreeHostSelector } from "./schema-tree-host-selector";
+import { ColumnTooltip, DatabaseTooltip, HostTooltip, TableTooltip } from "./schema-tree-tooltips";
 import type {
   ColumnNodeData,
   DatabaseNodeData,
@@ -143,53 +143,7 @@ function toColumnTreeNode(column: {
 
   // Create the tag - show base type for Enum, full type for others
   const tagContent = enumInfo ? enumInfo.baseType : columnType;
-  const tag = <span className="ml-2 text-[10px] text-muted-foreground">{tagContent}</span>;
-
-  // Tooltip structure: column name, column type, enum info (if available), comment (if available)
-  const labelTooltip = (() => {
-    const hasEnumPairs = enumInfo && enumInfo.pairs.length > 0;
-    const hasComment = !!columnComment;
-
-    return (
-      <div className="text-xs space-y-1 max-w-[400px]">
-        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
-          <div className="font-medium text-muted-foreground">Column</div>
-          <div className="text-foreground break-all flex items-center gap-1 min-w-0">
-            <span>{columnName}</span>
-            <CopyButton
-              value={columnName}
-              className="relative top-0 right-0 h-4 w-4 shrink-0 [&_svg]:h-2.5 [&_svg]:w-2.5"
-            />
-          </div>
-          <div className="font-medium text-muted-foreground">Type</div>
-          <div className="text-foreground break-all min-w-0">{columnType}</div>
-        </div>
-
-        {/* Enum info */}
-        {hasEnumPairs && (
-          <div className="pt-1 mt-1 border-t space-y-1">
-            <div className="font-medium text-muted-foreground">{enumInfo.baseType}</div>
-            <div className="space-y-1">
-              {enumInfo.pairs.map(([key, value], index) => (
-                <div key={index} className="font-mono break-words">
-                  <span className="text-muted-foreground break-all">{key}</span>
-                  <span className="mx-2">=</span>
-                  <span className="break-all">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Comment */}
-        {hasComment && (
-          <div className="pt-1 mt-1 border-t">
-            <div className="text-foreground whitespace-pre-wrap break-words">{columnComment}</div>
-          </div>
-        )}
-      </div>
-    );
-  })();
+  const tag = () => <span className="ml-2 text-[10px] text-muted-foreground">{tagContent}</span>;
 
   return {
     id: `column:${column.name}`,
@@ -198,7 +152,7 @@ function toColumnTreeNode(column: {
     type: "leaf" as const,
     icon: getColumnIcon(columnType),
     tag: tag,
-    labelTooltip: labelTooltip,
+    labelTooltip: () => <ColumnTooltip column={column} />,
     data: {
       type: "column",
       name: columnName,
@@ -221,31 +175,6 @@ function toTableTreeNode(table: {
   const fullName = `${databaseName}.${tableName}`;
   const tableComment = table.tableComment || null;
 
-  // Build comprehensive tooltip for table
-  const labelTooltip = (
-    <div className="text-xs space-y-1">
-      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
-        <div className="font-medium text-muted-foreground">Table</div>
-        <div className="text-foreground break-all flex items-center gap-1 min-w-0">
-          <span>{fullName}</span>
-          <CopyButton
-            value={fullName}
-            className="relative top-0 right-0 h-4 w-4 shrink-0 [&_svg]:h-2.5 [&_svg]:w-2.5"
-          />
-        </div>
-        <div className="font-medium text-muted-foreground">Engine</div>
-        <div className="text-foreground break-all min-w-0">
-          {table.fullTableEngine || table.tableEngine}
-        </div>
-      </div>
-      {tableComment && (
-        <div className="pt-1 mt-1 border-t">
-          <div className="text-foreground whitespace-pre-wrap break-words">{tableComment}</div>
-        </div>
-      )}
-    </div>
-  );
-
   return {
     id: `table:${fullName}`,
     labelContent: tableName,
@@ -254,7 +183,7 @@ function toTableTreeNode(table: {
     type: "folder", // Has columns as children
     children: [],
     tag: <SchemaTreeBadge>{table.tableEngine || ""}</SchemaTreeBadge>,
-    labelTooltip: labelTooltip,
+    labelTooltip: () => <TableTooltip table={table} />,
     data: {
       type: "table",
       database: databaseName,
@@ -277,31 +206,6 @@ function toDatabaseTreeNode(db: {
 }): TreeDataItem {
   const dbName = String(db.name || "Unknown");
 
-  // Build comprehensive tooltip for database
-  const labelTooltip = (
-    <div className="text-xs space-y-1">
-      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
-        <div className="font-medium text-muted-foreground">Database</div>
-        <div className="text-foreground break-all flex items-center gap-1 min-w-0">
-          <span>{dbName}</span>
-          <CopyButton
-            value={dbName}
-            className="relative top-0 right-0 h-4 w-4 shrink-0 [&_svg]:h-2.5 [&_svg]:w-2.5"
-          />
-        </div>
-        <div className="font-medium text-muted-foreground">Engine</div>
-        <div className="text-foreground break-all min-w-0">{db.engine}</div>
-        <div className="font-medium text-muted-foreground">Tables</div>
-        <div className="text-foreground min-w-0">{db.tableCount}</div>
-      </div>
-      {db.comment && (
-        <div className="pt-1 mt-1 border-t">
-          <div className="text-foreground whitespace-pre-wrap break-words">{db.comment}</div>
-        </div>
-      )}
-    </div>
-  );
-
   return {
     id: `db:${dbName}`,
     labelContent: dbName,
@@ -314,7 +218,7 @@ function toDatabaseTreeNode(db: {
         {db.engine || ""} | {db.tableCount}
       </SchemaTreeBadge>
     ),
-    labelTooltip: labelTooltip,
+    labelTooltip: () => <DatabaseTooltip db={db} />,
     data: {
       type: "database",
       name: dbName,
@@ -539,32 +443,6 @@ export function buildSchemaTree(
   // Default no-op handler if not provided
   const hostChangeHandler = onHostChange || (() => {});
 
-  // Build comprehensive tooltip for host
-  const hostTooltip = (
-    <div className="text-xs space-y-1">
-      <div className="font-medium text-muted-foreground">{connection.name}</div>
-      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
-        <div className="font-medium text-muted-foreground">URL</div>
-        <div className="text-foreground break-all flex items-center gap-1 min-w-0">
-          <span>{connection.url}</span>
-          <CopyButton
-            value={connection.url}
-            className="relative top-0 right-0 h-4 w-4 shrink-0 [&_svg]:h-2.5 [&_svg]:w-2.5"
-          />
-        </div>
-        <div className="font-medium text-muted-foreground">User</div>
-        <div className="text-foreground break-all min-w-0">{connection.user}</div>
-        <div className="font-medium text-muted-foreground">Current Node</div>
-        <div className="text-foreground break-all min-w-0">{fullServerName}</div>
-        <div className="col-span-2 pt-1 mt-1 border-t" />
-        <div className="font-medium text-muted-foreground">Databases</div>
-        <div className="text-foreground">{databaseNodes.length}</div>
-        <div className="font-medium text-muted-foreground">Tables</div>
-        <div className="text-foreground">{totalTables}</div>
-      </div>
-    </div>
-  );
-
   const hostNode: TreeDataItem = {
     id: "host",
     labelContent: (
@@ -583,7 +461,16 @@ export function buildSchemaTree(
         {databaseNodes.length} DBs | {totalTables} Tables
       </SchemaTreeBadge>
     ),
-    labelTooltip: connection.cluster ? undefined : hostTooltip,
+    labelTooltip: connection.cluster
+      ? undefined
+      : () => (
+          <HostTooltip
+            connection={connection}
+            fullServerName={fullServerName}
+            databaseCount={databaseNodes.length}
+            tableCount={totalTables}
+          />
+        ),
     data: {
       type: "host",
       shortName: shortServerName,

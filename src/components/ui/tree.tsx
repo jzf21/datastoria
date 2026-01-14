@@ -29,7 +29,7 @@ interface TreeDataItem {
   // Custom tag/badge to render alongside the node label
   tag?: React.ReactNode | (() => React.ReactNode);
   // Tooltip for the node label
-  labelTooltip?: React.ReactNode;
+  labelTooltip?: React.ReactNode | (() => React.ReactNode);
   // Tooltip for the tag/badge
   tagTooltip?: React.ReactNode;
   // Tooltip for the entire node - if provided, the entire row will be wrapped in a HoverCard
@@ -111,10 +111,18 @@ const renderTag = (tag?: React.ReactNode | (() => React.ReactNode)): React.React
   return typeof tag === "function" ? tag() : tag;
 };
 
+// Helper function to resolve potential function content
+const resolveContent = (content?: React.ReactNode | (() => React.ReactNode)): React.ReactNode => {
+  if (typeof content === "function") {
+    return content();
+  }
+  return content;
+};
+
 // Helper function to render tooltip wrapper
 const renderTooltip = (
   children: React.ReactNode,
-  tooltipContent?: React.ReactNode,
+  tooltipContent?: React.ReactNode | (() => React.ReactNode),
   options?: {
     side?: "top" | "right" | "bottom" | "left";
     align?: "start" | "center" | "end";
@@ -134,6 +142,12 @@ const renderTooltip = (
     onClick,
   } = options || {};
 
+  const resolvedTooltipContent = resolveContent(tooltipContent);
+
+  if (!resolvedTooltipContent) {
+    return children;
+  }
+
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>{children}</HoverCardTrigger>
@@ -150,7 +164,7 @@ const renderTooltip = (
           e.stopPropagation();
         }}
       >
-        {tooltipContent}
+        {resolvedTooltipContent}
       </HoverCardContent>
     </HoverCard>
   );
@@ -679,10 +693,7 @@ const Tree = React.forwardRef<TreeRef, TreeProps>(
                         </Badge>
                       )}
                     </span>,
-                    node.labelTooltip,
-                    {
-                      className: "w-auto min-w-[150px] max-w-[350px] p-2",
-                    }
+                    node.labelTooltip
                   )}
                   {/* Tag */}
                   {renderTooltip(
