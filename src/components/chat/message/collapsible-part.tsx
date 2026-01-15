@@ -24,6 +24,10 @@ export function CollapsiblePart({
   const startTimeRef = useRef<number | null>(null);
   const prevStateRef = useRef<string | undefined>(state);
 
+  useEffect(() => {
+    setIsExpanded(defaultExpanded);
+  }, [defaultExpanded]);
+
   // Track timing when state changes
   useEffect(() => {
     const prevState = prevStateRef.current;

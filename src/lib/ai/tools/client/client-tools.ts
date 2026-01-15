@@ -1,0 +1,173 @@
+/**
+ * Client-Side Tools for ClickHouse
+ *
+ * These tools are executed on the client via the onToolCall callback.
+ * They provide schema introspection and query execution capabilities.
+ */
+import { tool, type InferToolInput, type InferToolOutput, type UIMessage } from "ai";
+import * as z from "zod";
+import type { AppUIMessage } from "../../common-types";
+import type { ToolExecutor } from "./client-tool-types";
+import { collectSqlOptimizationEvidenceExecutor } from "./collect-sql-optimization-evidence";
+import { executeSqlExecutor } from "./execute-sql";
+import { getTableColumnsExecutor } from "./get-table-columns";
+import { getTablesExecutor } from "./get-tables";
+import { validateSqlExecutor } from "./validate-sql";
+
+export type ValidateSqlToolInput = {
+  sql: string;
+};
+
+export type ValidateSqlToolOutput = {
+  success: boolean;
+  error?: string;
+};
+
+export const ClientTools = {
+  get_table_columns: tool({
+    description:
+      "Use this tool if you need to get the list of columns in one or more tables. You can query multiple tables at once by providing an array of tables. IMPORTANT: If the user provides a fully qualified table name (e.g., 'system.metric_log'), you MUST split it into database='system' and table='metric_log'. The 'table' field should ONLY contain the table name without the database prefix.",
+    inputSchema: z.object({
+      tablesAndSchemas: z
+        .array(
+          z.object({
+            table: z
+              .string()
+              .describe(
+                "The table name ONLY (without database prefix). For 'system.metric_log', use 'metric_log'."
+              ),
+            database: z
+              .string()
+              .describe("The database name. For 'system.metric_log', use 'system'."),
+          })
+        )
+        .min(1)
+        .describe(
+          "An array of tables to query. Each entry must have separate 'database' and 'table' fields. If given a fully qualified name like 'database.table', split it into database='database' and table='table'."
+        ),
+    }),
+    outputSchema: z.array(
+      z.object({
+        database: z.string(),
+        table: z.string(),
+        columns: z.array(
+          z.object({
+            name: z.string(),
+            type: z.string(),
+            comment: z.string().optional(),
+          })
+        ),
+      })
+    ),
+  }),
+  get_tables: tool({
+    description:
+      "Use this tool if you need to get the list of tables in a database. Optionally filter by database name.",
+    inputSchema: z.object({
+      database: z
+        .string()
+        .optional()
+        .describe(
+          "The name of the database to query. If not provided, returns tables from all databases."
+        ),
+    }),
+    outputSchema: z.array(
+      z.object({
+        database: z.string(),
+        table: z.string(),
+        engine: z.string(),
+        comment: z.string().nullable(),
+      })
+    ),
+  }),
+  execute_sql: tool({
+    description:
+      "Execute SQL query on ClickHouse database (client-side execution). Use this tool to select data from the database to improve your response.",
+    inputSchema: z.object({
+      sql: z.string().describe("The SQL query to execute"),
+    }),
+    outputSchema: z.object({
+      columns: z.array(z.object({ name: z.string(), type: z.string() })),
+      rows: z.array(z.any()).optional(),
+      rowCount: z.number(),
+      sampleRow: z.any().optional(),
+      error: z.string().optional(),
+    }),
+  }),
+  validate_sql: tool({
+    description:
+      "Validate ClickHouse SQL query syntax without executing it. Returns error message if invalid.",
+    inputSchema: z.object({
+      sql: z.string().describe("The SQL query to validate"),
+    }) satisfies z.ZodType<ValidateSqlToolInput>,
+    outputSchema: z.object({
+      success: z.boolean(),
+      error: z.string().optional(),
+    }) satisfies z.ZodType<ValidateSqlToolOutput>,
+  }),
+  collect_sql_optimization_evidence: tool({
+    description:
+      "Collect ClickHouse evidence for SQL optimization and return a normalized EvidenceContext. This tool gathers query logs, EXPLAIN plans, table schemas, and statistics needed for optimization analysis.",
+    inputSchema: z.object({
+      sql: z.string().optional().describe("SQL text to analyze (preferred if available)."),
+      query_id: z
+        .string()
+        .optional()
+        .describe("ClickHouse query_id to retrieve logs for (optional)."),
+      goal: z
+        .enum(["latency", "memory", "bytes", "dashboard", "other"])
+        .optional()
+        .describe("Optimization goal (latency|memory|bytes|dashboard|other)."),
+      mode: z
+        .enum(["light", "full"])
+        .default("light")
+        .describe("light: minimal safe evidence; full: includes more stats/settings."),
+      time_range: z
+        .object({
+          from: z.string().describe("ISO timestamp or date."),
+          to: z.string().describe("ISO timestamp or date."),
+        })
+        .optional(),
+      requested: z
+        .object({
+          required: z.array(z.string()).optional(),
+          optional: z.array(z.string()).optional(),
+        })
+        .optional()
+        .describe("Fields requested by EvidenceRequest."),
+    }),
+    outputSchema: z.custom<import("../../common-types").EvidenceContext>(),
+  }),
+};
+
+/**
+ * Tool names for easy referencing without hardcoded strings
+ */
+export const CLIENT_TOOL_NAMES = {
+  // Client-side introspection and execution tools
+  GET_TABLE_COLUMNS: "get_table_columns",
+  GET_TABLES: "get_tables",
+  EXECUTE_SQL: "execute_sql",
+  VALIDATE_SQL: "validate_sql",
+  COLLECT_SQL_OPTIMIZATION_EVIDENCE: "collect_sql_optimization_evidence",
+} as const;
+
+export function convertToAppUIMessage(message: UIMessage): AppUIMessage {
+  return message as AppUIMessage;
+}
+
+/**
+ * Tool registry - maps tool names to their executor functions
+ */
+export const ClientToolExecutors: {
+  [K in keyof typeof ClientTools]: ToolExecutor<
+    InferToolInput<(typeof ClientTools)[K]>,
+    InferToolOutput<(typeof ClientTools)[K]>
+  >;
+} = {
+  get_table_columns: getTableColumnsExecutor,
+  get_tables: getTablesExecutor,
+  execute_sql: executeSqlExecutor,
+  validate_sql: validateSqlExecutor,
+  collect_sql_optimization_evidence: collectSqlOptimizationEvidenceExecutor,
+};

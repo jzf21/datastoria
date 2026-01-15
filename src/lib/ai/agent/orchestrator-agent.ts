@@ -1,12 +1,13 @@
 import type { DatabaseContext } from "@/components/chat/chat-context";
-import { CLIENT_TOOL_NAMES, ClientTools as clientTools } from "@/lib/ai/client-tools";
 import { LanguageModelProviderFactory } from "@/lib/ai/llm/llm-provider-factory";
+import { CLIENT_TOOL_NAMES, ClientTools as clientTools } from "@/lib/ai/tools/client/client-tools";
 import { convertToModelMessages, streamText } from "ai";
+import { createGenerateSqlTool, SERVER_TOOL_GENERATE_SQL } from "./sql-generation-agent";
+import { createSqlOptimizationTool, SERVER_TOOL_OPTIMIZE_SQL } from "./sql-optimization-agent";
 import {
-  createGenerateSqlTool,
   createGenerateVisualizationTool,
-  SERVER_TOOL_NAMES,
-} from "./server-tools";
+  SERVER_TOOL_GENEREATE_VISUALIZATION,
+} from "./visualization-agent";
 
 /**
  * Model Configuration
@@ -125,6 +126,8 @@ You route requests to tools and MUST follow these rules.
 - generate_visualization: produce a visualization plan (based on SQL and intent).
 - get_tables: list tables.
 - get_table_columns: list columns. **IMPORTANT**: When calling this tool, always split fully qualified table names (e.g., "system.metric_log") into separate database and table fields: {database: "system", table: "metric_log"}.
+- collect_sql_optimization_evidence: collect ClickHouse evidence for SQL optimization (preferred; returns EvidenceContext).
+- optimize_sql: SQL optimization sub-agent that analyzes evidence and provides recommendations.
 
 ### Routing (STRICT)
 1) Visualization intent (any of: "visualize", "chart", "plot", "graph", "timeseries", "timeseries chart", "time series", "time series chart", "trend", "over time")
@@ -158,6 +161,29 @@ You route requests to tools and MUST follow these rules.
       c) **VALIDATION (MANDATORY)**: Call validate_sql with the generated SQL (whether from generate_sql or yourself)
       d) After validation passes: call execute_sql
       e) If visualization requested: call generate_visualization with the validated SQL
+5) SQL Optimization intent (keywords: "optimize", "slow", "performance", "timeout", "tuning", "optimization")
+   → **OPTIMIZATION LANE (Hard Gate)**:
+      - **FIRST: Extract SQL/query_id from user's message:**
+        * Look for SQL in code blocks: \`\`\`sql ... \`\`\` or \`\`\` ... \`\`\`
+        * Look for SQL in plain text after phrases like "this query:", "the query:", "query:", "SQL:", etc.
+        * Look for query_id patterns: "query_id abc123", "query_id='abc123'", etc.
+        * SQL may appear on the same line or following lines after the optimization request
+        * Extract the FULL SQL query including all clauses (SELECT, FROM, WHERE, ORDER BY, LIMIT, etc.)
+      
+      - **THEN: Check if SQL or query_id was found:**
+        * If SQL found in message → Extract it and proceed (treat as having SQL)
+        * If query_id found in message → Extract it and proceed (treat as having query_id)
+        * If BOTH are missing after extraction → Ask user for SQL or query_id and STOP. (Do NOT call optimize_sql.)
+        * If at least one found → Call optimize_sql with:
+          * relevant chat slice (which contains the extracted SQL/query_id)
+          * EvidenceContext if present; else empty.
+          * When calling collect_sql_optimization_evidence, pass the extracted SQL/query_id in the tool input.
+   
+   → **EVIDENCE COLLECTION LOOP**:
+      - If optimize_sql returns a JSON block with type="EvidenceRequest":
+        * Call collect_sql_optimization_evidence with its required/optional fields and the extracted sql/query_id from the user's message.
+        * Then call optimize_sql again with the returned EvidenceContext.
+      - Else: Return final recommendations to user.
 
 ### Constraints (MANDATORY)
 - **Schema Discovery**: ALWAYS check "Available Tables" context before calling "get_table_columns" or "get_tables".
@@ -183,6 +209,9 @@ You route requests to tools and MUST follow these rules.
 Before final answer: 
 - If user asked for visualization and generate_visualization was not called → call generate_visualization.
 - If SQL will be used for visualization and validate_sql was not called → call validate_sql first.
+- If user asked for optimization and optimize_sql was not called → extract SQL/query_id from user's message first, then call optimize_sql if found.
+- **CRITICAL for optimization**: Always extract SQL from user's message before checking if it's missing. SQL may be in code blocks or plain text.
+- Do not invent evidence. Do not run execute_sql for benchmarking unless user explicitly asks.
 `;
 }
 
@@ -239,13 +268,16 @@ export async function createOrchestratorAgent({
     tools: {
       // Server-side tools (created with model config to ensure sub-agents use the same model)
       // Pass full context to ensure all context information (user, database, tables, currentQuery) is available
-      [SERVER_TOOL_NAMES.GENERATE_SQL]: createGenerateSqlTool(modelConfig, context),
-      [SERVER_TOOL_NAMES.GENEREATE_VISUALIZATION]: createGenerateVisualizationTool(modelConfig),
+      [SERVER_TOOL_GENERATE_SQL]: createGenerateSqlTool(modelConfig, context),
+      [SERVER_TOOL_GENEREATE_VISUALIZATION]: createGenerateVisualizationTool(modelConfig),
+      [SERVER_TOOL_OPTIMIZE_SQL]: createSqlOptimizationTool(modelConfig, context),
       // Client-side tools (no execute function)
       [CLIENT_TOOL_NAMES.GET_TABLES]: clientTools.get_tables,
       [CLIENT_TOOL_NAMES.GET_TABLE_COLUMNS]: clientTools.get_table_columns,
       [CLIENT_TOOL_NAMES.VALIDATE_SQL]: clientTools.validate_sql,
       [CLIENT_TOOL_NAMES.EXECUTE_SQL]: clientTools.execute_sql,
+      [CLIENT_TOOL_NAMES.COLLECT_SQL_OPTIMIZATION_EVIDENCE]:
+        clientTools.collect_sql_optimization_evidence,
     },
   });
 }

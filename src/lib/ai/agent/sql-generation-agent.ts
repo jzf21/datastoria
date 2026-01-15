@@ -1,9 +1,10 @@
-import { Output, streamText } from "ai";
+import { Output, streamText, tool } from "ai";
 import { z } from "zod";
 import type { DatabaseContext } from "../../../components/chat/chat-context";
-import { ClientTools, type ValidateSqlToolInput } from "../client-tools";
-import { LanguageModelProviderFactory } from "../llm/llm-provider-factory";
+import { isMockMode, LanguageModelProviderFactory } from "../llm/llm-provider-factory";
+import { ClientTools, type ValidateSqlToolInput } from "../tools/client/client-tools";
 import type { InputModel } from "./orchestrator-agent";
+import { mockSqlGenerationAgent } from "./sql-generation-agent.mock";
 
 /**
  * SQL Generation Agent Output Schema
@@ -19,6 +20,89 @@ export const sqlSubAgentOutputSchema = z.object({
 });
 
 export type SQLSubAgentOutput = z.infer<typeof sqlSubAgentOutputSchema>;
+
+/**
+ * Server-side tool name for SQL generation
+ */
+export const SERVER_TOOL_GENERATE_SQL = "generate_sql" as const;
+
+/**
+ * Server-side tool: SQL Generation
+ * Calls the SQL sub-agent to generate ClickHouse queries
+ * @param inputModel - Model configuration to use for the sub-agent
+ * @param context - Database context (user, database, tables, currentQuery) to pass to sub-agent
+ */
+export function createGenerateSqlTool(inputModel: InputModel, context?: DatabaseContext) {
+  return tool({
+    description: "Generate ClickHouse SQL query based on user question and schema context",
+    inputSchema: z.object({
+      userQuestion: z.string().describe("The user's question or data request"),
+      schemaHints: z
+        .object({
+          database: z.string().optional().describe("Current database name"),
+          tables: z
+            .array(
+              z.object({
+                name: z.string(),
+                columns: z.array(z.string()),
+              })
+            )
+            .optional()
+            .describe("Available tables and their columns"),
+        })
+        .optional()
+        .describe("Schema context to help generate accurate SQL"),
+      context: z
+        .object({
+          currentQuery: z.string().optional(),
+          database: z.string().optional(),
+          tables: z
+            .array(
+              z.object({
+                name: z.string(),
+                columns: z.array(z.string()),
+              })
+            )
+            .optional(),
+          clickHouseUser: z.string().optional(),
+        })
+        .optional()
+        .describe("Full database context including user, database, tables, and current query"),
+      history: z
+        .array(
+          z.object({
+            role: z.string(),
+            content: z.string(),
+          })
+        )
+        .optional()
+        .describe("Previous turns of the SQL generation/discovery process"),
+    }),
+    execute: async ({ userQuestion, schemaHints, history, context: providedContext }) => {
+      // Merge provided context with the one from tool creation (provided context takes precedence)
+      const mergedContext: DatabaseContext | undefined = providedContext
+        ? { ...context, ...providedContext }
+        : context;
+      // Use mock generation agent in mock mode to avoid recursive LLM calls
+      const result = isMockMode
+        ? await mockSqlGenerationAgent({
+            userQuestion,
+            schemaHints,
+            context: mergedContext,
+            history,
+            inputModel: inputModel,
+          })
+        : await sqlGenerationAgent({
+            userQuestion,
+            schemaHints,
+            context: mergedContext,
+            history,
+            inputModel: inputModel,
+          });
+      return result;
+    },
+  });
+}
 
 /**
  * SQL Generation Agent Input

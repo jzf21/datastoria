@@ -1,4 +1,4 @@
-import { SERVER_TOOL_NAMES } from "@/lib/ai/agent/server-tools";
+import { SERVER_TOOL_GENERATE_SQL } from "@/lib/ai/agent/sql-generation-agent";
 import type { AppUIMessage } from "@/lib/ai/common-types";
 import { memo } from "react";
 import type { ToolPart } from "../chat-message-types";
@@ -15,7 +15,7 @@ export const MessageToolGenerateSql = memo(function GenerateSqlPart({
   const state = toolPart.state;
 
   return (
-    <CollapsiblePart toolName={SERVER_TOOL_NAMES.GENERATE_SQL} state={state}>
+    <CollapsiblePart toolName={SERVER_TOOL_GENERATE_SQL} state={state}>
       {output?.sql && (
         <>
           <div className="text-[10px] text-muted-foreground">output:</div>

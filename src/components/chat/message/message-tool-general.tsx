@@ -2,6 +2,7 @@ import type { AppUIMessage } from "@/lib/ai/common-types";
 import { memo } from "react";
 import type { ToolPart } from "../chat-message-types";
 import { CollapsiblePart } from "./collapsible-part";
+import { ToolProgressIndicator } from "./tool-progress-indicator";
 
 export const MessageToolGeneral = memo(function MessageToolGeneral({
   toolName,
@@ -13,8 +14,19 @@ export const MessageToolGeneral = memo(function MessageToolGeneral({
   const toolPart = part as ToolPart;
   const state = toolPart.state;
 
+  // Extract toolCallId from the part - try multiple possible locations
+  const toolCallId =
+    (toolPart as { toolCallId?: string }).toolCallId ||
+    (toolPart as { id?: string }).id ||
+    (toolPart as unknown as { toolCall?: { toolCallId?: string } }).toolCall?.toolCallId ||
+    "";
+
   return (
     <CollapsiblePart toolName={toolName} state={state}>
+      {/* Show progress indicator when tool is running */}
+      {state === "input-available" && toolCallId && (
+        <ToolProgressIndicator toolCallId={toolCallId} />
+      )}
       {toolPart.input != null && (
         <div className="mt-1 max-h-[300px] overflow-auto text-[10px] text-muted-foreground">
           <div className="mb-0.5">input:</div>

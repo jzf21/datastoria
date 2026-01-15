@@ -50,7 +50,9 @@ export function ChatPanelProvider({ children }: { children: React.ReactNode }) {
     timestamp: number;
     forceNewChat?: boolean;
   } | null>(null);
-  const [initialInput, setInitialInputState] = useState<{ text: string; chatId?: string } | null>(null);
+  const [initialInput, setInitialInputState] = useState<{ text: string; chatId?: string } | null>(
+    null
+  );
 
   const toggle = () => {
     setIsVisible((prev) => !prev);

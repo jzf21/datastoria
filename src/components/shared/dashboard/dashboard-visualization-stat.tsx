@@ -507,7 +507,9 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
     );
 
     const processData = useCallback(
-      (rows: Record<string, unknown>[]): { value: string | number; minimap: MinimapDataPoint[] } => {
+      (
+        rows: Record<string, unknown>[]
+      ): { value: string | number; minimap: MinimapDataPoint[] } => {
         if (!rows || rows.length === 0) {
           return { value: 0, minimap: [] };
         }

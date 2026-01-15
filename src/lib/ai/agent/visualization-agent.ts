@@ -1,7 +1,8 @@
-import { Output, streamText } from "ai";
+import { Output, streamText, tool } from "ai";
 import { z } from "zod";
-import { LanguageModelProviderFactory } from "../llm/llm-provider-factory";
+import { isMockMode, LanguageModelProviderFactory } from "../llm/llm-provider-factory";
 import type { InputModel } from "./orchestrator-agent";
+import { mockVisualizationAgent } from "./visualization-agent.mock";
 
 /**
  * Visualization Agent Input
@@ -84,6 +85,32 @@ export const visualizationAgentCompleteOutputSchema = visualizationAgentOutputSc
 });
 
 export type VisualizationAgentOutput = z.infer<typeof visualizationAgentCompleteOutputSchema>;
+
+/**
+ * Server-side tool name for visualization generation
+ */
+export const SERVER_TOOL_GENEREATE_VISUALIZATION = "generate_visualization" as const;
+
+/**
+ * Server-side tool: Visualization Planning
+ * Calls the visualization agent to determine appropriate visualization
+ * @param inputModel - Model configuration to use for the agent
+ */
+export function createGenerateVisualizationTool(inputModel: InputModel) {
+  return tool({
+    description: "Analyze query logic and determine the best visualization type",
+    inputSchema: z.object({
+      userQuestion: z.string().describe("The original user question"),
+      sql: z.string().describe("The SQL query to visualize"),
+    }),
+    execute: async ({ userQuestion, sql }) => {
+      const result = isMockMode
+        ? await mockVisualizationAgent({ userQuestion, sql, inputModel: inputModel })
+        : await visualizationAgent({ userQuestion, sql, inputModel: inputModel });
+      return result;
+    },
+  });
+}
 
 /**
  * Visualization Agent

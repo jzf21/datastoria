@@ -104,12 +104,15 @@ export function ChatPanel({
   const { connection } = useConnection();
 
   // Create a new chat instance
-  const createChat = useCallback(async (id: string, connectionId: string) => {
-    const newChat = await ChatFactory.create({ id, databaseId: connectionId });
-    setChat(newChat);
-    chatViewRef.current = null;
-    setIsChatViewReady(false);
-  }, []);
+  const createChat = useCallback(
+    async (id: string, connection: ReturnType<typeof useConnection>["connection"]) => {
+      const newChat = await ChatFactory.create({ id, connection });
+      setChat(newChat);
+      chatViewRef.current = null;
+      setIsChatViewReady(false);
+    },
+    []
+  );
 
   // Load or create initial chat session
   useEffect(() => {
@@ -144,12 +147,11 @@ export function ChatPanel({
 
       // Create chat instance
       if (idToLoad) {
-        await createChat(idToLoad, connectionId);
+        await createChat(idToLoad, connection);
       }
     };
     loadSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection?.connectionId, chatId, chat, initialInput]);
+  }, [connection, chatId, chat, initialInput]);
 
   // Handle pending command when chat already exists (panel was already open)
   useEffect(() => {
@@ -164,14 +166,8 @@ export function ChatPanel({
     previousChatIdRef.current = chat.id;
     processedPendingCommandRef.current = commandKey;
     setChatId(newChatId);
-    createChat(newChatId, connection.connectionId);
-  }, [
-    pendingCommand?.forceNewChat,
-    pendingCommand?.timestamp,
-    connection?.connectionId,
-    chat,
-    createChat,
-  ]);
+    createChat(newChatId, connection);
+  }, [pendingCommand?.forceNewChat, pendingCommand?.timestamp, connection, chat, createChat]);
 
   // Update context builder when props change
   useEffect(() => {
@@ -215,7 +211,7 @@ export function ChatPanel({
     const newChatId = uuidv7();
     previousChatIdRef.current = chat?.id || null;
     setChatId(newChatId);
-    await createChat(newChatId, connection.connectionId);
+    await createChat(newChatId, connection);
   }, [chat, connection?.connectionId, createChat]);
 
   // Handle sending pending messages

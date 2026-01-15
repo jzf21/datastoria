@@ -6,8 +6,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CLIENT_TOOL_NAMES } from "@/lib/ai/client-tools";
 import type { AppUIMessage } from "@/lib/ai/common-types";
+import { CLIENT_TOOL_NAMES } from "@/lib/ai/tools/client/client-tools";
 import { memo } from "react";
 import type { ToolPart } from "../chat-message-types";
 import { CollapsiblePart } from "./collapsible-part";

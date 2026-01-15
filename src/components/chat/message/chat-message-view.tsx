@@ -1,8 +1,10 @@
 import { TypingDots } from "@/components/ui/typing-dots";
 import { UserProfileImage } from "@/components/user-profile-image";
-import { SERVER_TOOL_NAMES } from "@/lib/ai/agent/server-tools";
-import { CLIENT_TOOL_NAMES } from "@/lib/ai/client-tools";
+import { SERVER_TOOL_GENERATE_SQL } from "@/lib/ai/agent/sql-generation-agent";
+import { SERVER_TOOL_OPTIMIZE_SQL } from "@/lib/ai/agent/sql-optimization-agent";
+import { SERVER_TOOL_GENEREATE_VISUALIZATION } from "@/lib/ai/agent/visualization-agent";
 import type { AppUIMessage, TokenUsage } from "@/lib/ai/common-types";
+import { CLIENT_TOOL_NAMES } from "@/lib/ai/tools/client/client-tools";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import { cn } from "@/lib/utils";
 import NumberFlow from "@number-flow/react";
@@ -13,6 +15,7 @@ import type { ChatMessage } from "./chat-messages";
 import { ErrorMessageDisplay } from "./message-error";
 import { MessageMarkdown } from "./message-markdown";
 import { MessageReasoning } from "./message-reasoning";
+import { MessageToolCollectSqlOptimizationEvidence } from "./message-tool-collect-sql-optimization-evidence";
 import { MessageToolExecuteSql } from "./message-tool-execute-sql";
 import { MessageToolGeneral } from "./message-tool-general";
 import { MessageToolGenerateSql } from "./message-tool-generate-sql";
@@ -109,9 +112,9 @@ function ChatMessagePart({ part, isUser }: { part: AppUIMessage["parts"][0]; isU
     toolName = part.type.replace("tool-", "");
   }
 
-  if (toolName === SERVER_TOOL_NAMES.GENERATE_SQL) {
+  if (toolName === SERVER_TOOL_GENERATE_SQL) {
     return <MessageToolGenerateSql part={part} />;
-  } else if (toolName === SERVER_TOOL_NAMES.GENEREATE_VISUALIZATION) {
+  } else if (toolName === SERVER_TOOL_GENEREATE_VISUALIZATION) {
     return <MessageToolGenerateVisualization part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.EXECUTE_SQL) {
     return <MessageToolExecuteSql part={part} />;
@@ -121,6 +124,8 @@ function ChatMessagePart({ part, isUser }: { part: AppUIMessage["parts"][0]; isU
     return <MessageToolGetTableColumns part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.GET_TABLES) {
     return <MessageToolGetTables part={part} />;
+  } else if (toolName === CLIENT_TOOL_NAMES.COLLECT_SQL_OPTIMIZATION_EVIDENCE) {
+    return <MessageToolCollectSqlOptimizationEvidence part={part} />;
   } else if (toolName) {
     return <MessageToolGeneral toolName={toolName} part={part} />;
   }

@@ -87,7 +87,7 @@ export function ConnectionSelector({ isOpen, onClose, className }: ConnectionSel
     // This allows switching even when initialization failed (pendingConfig exists but connection is old)
     const isDifferentFromCurrent = newConnection.name !== connection?.name;
     const isDifferentFromPending = newConnection.name !== pendingConfig?.name;
-    
+
     if (isDifferentFromCurrent || isDifferentFromPending) {
       switchConnection(newConnection);
     }

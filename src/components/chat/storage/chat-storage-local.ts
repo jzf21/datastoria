@@ -132,7 +132,8 @@ export class LocalStorageChatStorage implements ChatStorage {
   async getMessages(chatId: string): Promise<Message[]> {
     const messagesMap = this.getMessagesForChat(chatId);
 
-    // Convert object to array, parse dates, and sort by createdAt
+    // Convert object to array, parse dates, and sort by message id.
+    // Message ids are UUIDv7, which are lexicographically sortable in chronological order.
     return (
       Object.values(messagesMap)
         .map((message) => ({
@@ -140,8 +141,8 @@ export class LocalStorageChatStorage implements ChatStorage {
           createdAt: new Date(message.createdAt),
           updatedAt: new Date(message.updatedAt),
         }))
-        // Sort by createdAt to ensure consistent ordering
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        // Sort by UUIDv7 id to ensure stable chronological ordering
+        .sort((a, b) => a.id.localeCompare(b.id))
     );
   }
 

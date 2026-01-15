@@ -4,13 +4,17 @@ import { ChatFactory } from "@/components/chat/chat-factory";
 import { OpenHistoryButton } from "@/components/chat/history/open-history-button";
 import { SqlExecutionProvider } from "@/components/chat/sql-execution-context";
 import { chatStorage } from "@/components/chat/storage/chat-storage";
-import { ChatView, DEFAULT_CHAT_QUESTIONS, type ChatViewHandle } from "@/components/chat/view/chat-view";
+import {
+  ChatView,
+  DEFAULT_CHAT_QUESTIONS,
+  type ChatViewHandle,
+} from "@/components/chat/view/chat-view";
 import { useChatPanel } from "@/components/chat/view/use-chat-panel";
 import { useConnection } from "@/components/connection/connection-context";
 import { TabManager } from "@/components/tab-manager";
+import { Button } from "@/components/ui/button";
 import type { AppUIMessage } from "@/lib/ai/common-types";
 import type { Chat } from "@ai-sdk/react";
-import { Button } from "@/components/ui/button";
 import { Loader2, Minimize2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v7 as uuidv7 } from "uuid";
@@ -69,7 +73,7 @@ export function ChatTab({ initialChatId, active, initialPrompt, autoRun, tabId }
       // Create chat instance
       if (!isCreatingChatRef.current && idToLoad) {
         try {
-          const newChat = await ChatFactory.create({ id: idToLoad, databaseId: connectionId });
+          const newChat = await ChatFactory.create({ id: idToLoad, connection });
           setChat(newChat);
         } catch (e) {
           console.error("Failed to load chat", e);
@@ -103,7 +107,7 @@ export function ChatTab({ initialChatId, active, initialPrompt, autoRun, tabId }
     // Set flag to prevent useEffect from creating duplicate chat
     isCreatingChatRef.current = true;
     // Create new chat first, then update state
-    ChatFactory.create({ id: newChatId, databaseId: connection?.connectionId }).then((newChat) => {
+    ChatFactory.create({ id: newChatId, connection }).then((newChat) => {
       setChatId(newChatId);
       setChat(newChat);
       isCreatingChatRef.current = false;

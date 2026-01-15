@@ -596,6 +596,7 @@ export function QueryListView(props: QueryListViewProps) {
         }
         const chat = await ChatFactory.create({
           id,
+          connection,
           skipStorage: false,
           getCurrentSessionId: () => currentSessionIdRef.current,
           getMessageSessionId: (messageId: string) =>

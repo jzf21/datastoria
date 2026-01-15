@@ -7,7 +7,15 @@ import type { AppUIMessage, TokenUsage } from "@/lib/ai/common-types";
 import "@/lib/number-utils"; // Ensure formatTimeDiff is available
 
 import { useChat, type Chat } from "@ai-sdk/react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ChatContext } from "../chat-context";
 import { ChatInput, type ChatInputHandle } from "../input/chat-input";
 import { getTableContextByMentions } from "../input/mention-utils";

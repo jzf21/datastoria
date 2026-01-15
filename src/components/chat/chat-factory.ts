@@ -1,16 +1,39 @@
 import { ModelManager } from "@/components/settings/models/model-manager";
-import { SERVER_TOOL_NAMES } from "@/lib/ai/agent/server-tools";
-import { CLIENT_TOOL_NAMES, ClientToolExecutors } from "@/lib/ai/client-tools";
+import { SERVER_TOOL_GENERATE_SQL } from "@/lib/ai/agent/sql-generation-agent";
+import { SERVER_TOOL_OPTIMIZE_SQL } from "@/lib/ai/agent/sql-optimization-agent";
+import { SERVER_TOOL_GENEREATE_VISUALIZATION } from "@/lib/ai/agent/visualization-agent";
 import type { AppUIMessage } from "@/lib/ai/common-types";
 import { MODELS } from "@/lib/ai/llm/llm-provider-factory";
+import type { StageStatus, ToolProgressCallback } from "@/lib/ai/tools/client/client-tool-types";
+import { CLIENT_TOOL_NAMES, ClientToolExecutors } from "@/lib/ai/tools/client/client-tools";
+import { useToolProgressStore, type ToolProgress } from "@/lib/ai/tools/client/tool-progress-store";
 import { Connection } from "@/lib/connection/connection";
-import { ConnectionManager } from "@/lib/connection/connection-manager";
 import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { v7 as uuidv7 } from "uuid";
 import { ChatContext, type DatabaseContext } from "./chat-context";
 import type { Message } from "./chat-message-types";
 import { chatStorage } from "./storage/chat-storage";
+
+/**
+ * Create a progress callback for tool execution
+ * Updates the progress store with stage information
+ */
+function createToolProgressCallback(
+  toolCallId: string,
+  toolName: string,
+  progressStore: ReturnType<typeof useToolProgressStore.getState>
+): ToolProgressCallback {
+  return (stage: string, progress: number, status?: StageStatus, error?: string) => {
+    progressStore.updateProgress(toolCallId, {
+      toolName,
+      stage,
+      progress,
+      stageStatus: status, // This will add to stages history
+      stageError: error,
+    } as ToolProgress);
+  };
+}
 
 /**
  * Extract title from message text: first 10 tokens, maximum 64 characters
@@ -82,9 +105,9 @@ export class ChatFactory {
   /**
    * Create or retrieve a chat instance
    */
-  static async create(options?: {
+  static async create(options: {
     id?: string;
-    databaseId?: string;
+    connection: Connection;
     skipStorage?: boolean;
     apiEndpoint?: string;
     getCurrentSessionId?: () => string | undefined;
@@ -95,12 +118,16 @@ export class ChatFactory {
       apiKey: string;
     };
   }): Promise<Chat<AppUIMessage>> {
-    const chatId = options?.id || uuidv7();
-    const skipStorage = options?.skipStorage ?? false;
-    const apiEndpoint = options?.apiEndpoint ?? "/api/chat";
-    const getCurrentSessionId = options?.getCurrentSessionId;
-    const getMessageSessionId = options?.getMessageSessionId;
-    const modelConfig = options?.model;
+    const chatId = options.id || uuidv7();
+    const skipStorage = options.skipStorage ?? false;
+    const apiEndpoint = options.apiEndpoint ?? "/api/chat";
+    const getCurrentSessionId = options.getCurrentSessionId;
+    const getMessageSessionId = options.getMessageSessionId;
+    const modelConfig = options.model;
+    const connection = options.connection;
+
+    // Clear all progress when a new session starts
+    useToolProgressStore.getState().clearAllProgress();
 
     // Load existing messages from storage (skip for single-use chats)
     const existingMessages = skipStorage ? [] : await chatStorage.getMessages(chatId);
@@ -136,19 +163,17 @@ export class ChatFactory {
               })
               .map((msg) => {
                 const mAny = msg as any;
-                const createdAt = mAny.createdAt
-                  ? new Date(mAny.createdAt)
-                  : mAny.metadata?.createdAt
-                    ? new Date(mAny.metadata.createdAt)
-                    : new Date();
+                // Use current local time for createdAt (only used for display, not sorting)
+                // Messages are sorted by UUIDv7 message ID, which maintains chronological order
+                const now = new Date();
 
                 return {
                   id: msg.id,
                   chatId: chatId,
                   role: msg.role,
                   parts: msg.parts || [{ type: "text", text: mAny.content || "" }],
-                  createdAt: createdAt,
-                  updatedAt: new Date(),
+                  createdAt: now,
+                  updatedAt: now,
                   usage: undefined,
                 } as Message;
               });
@@ -169,7 +194,7 @@ export class ChatFactory {
 
                 chatData = {
                   chatId: chatId,
-                  databaseId: options?.databaseId,
+                  databaseId: connection.connectionId,
                   title,
                   createdAt: now,
                   updatedAt: now,
@@ -244,8 +269,9 @@ export class ChatFactory {
         const { toolName, toolCallId, input } = toolCall;
 
         if (
-          toolName === SERVER_TOOL_NAMES.GENERATE_SQL ||
-          toolName === SERVER_TOOL_NAMES.GENEREATE_VISUALIZATION
+          toolName === SERVER_TOOL_GENERATE_SQL ||
+          toolName === SERVER_TOOL_GENEREATE_VISUALIZATION ||
+          toolName === SERVER_TOOL_OPTIMIZE_SQL
         ) {
           return;
         }
@@ -264,29 +290,15 @@ export class ChatFactory {
         }
 
         const executor = ClientToolExecutors[toolName as keyof typeof ClientToolExecutors];
-        const config = ConnectionManager.getInstance().getLastSelectedOrFirst();
-        if (!config) {
-          console.error("No ClickHouse connection available");
-          chat.addToolResult({
-            tool: toolName as any,
-            toolCallId,
-            output: { error: "No ClickHouse connection available" },
-          });
-          return;
-        }
 
-        const connection = Connection.create(config);
+        // Get progress store for tools that support progress tracking
+        const progressStore = useToolProgressStore.getState();
 
         try {
-          const output = await executor(input as any, connection);
-          const outputStr = JSON.stringify(output);
-          const outputSizeKB = (outputStr.length / 1024).toFixed(2);
-          console.log(`🔧 Tool ${toolName} output size: ${outputSizeKB}KB`);
+          // Create progress callback for all tools (tools that don't use it will simply ignore it)
+          const progressCallback = createToolProgressCallback(toolCallId, toolName, progressStore);
 
-          if (outputStr.length > 500 * 1024) {
-            console.warn(`⚠️ Large tool output detected for ${toolName}: ${outputSizeKB}KB`);
-          }
-
+          const output = await executor(input as any, connection, progressCallback);
           chat.addToolResult({
             tool: toolName as any,
             toolCallId,
@@ -294,6 +306,7 @@ export class ChatFactory {
           });
         } catch (error) {
           console.error(`Error executing tool ${toolName}:`, error);
+
           chat.addToolResult({
             tool: toolName as any,
             toolCallId,
@@ -310,11 +323,10 @@ export class ChatFactory {
             const uiMessage = message as AppUIMessage;
             const messageAny = message as any;
             const usage = messageAny.metadata?.usage || messageAny.usage || uiMessage.usage;
-            const messageCreatedAt = messageAny.createdAt
-              ? new Date(messageAny.createdAt)
-              : messageAny.metadata?.createdAt
-                ? new Date(messageAny.metadata.createdAt)
-                : new Date();
+
+            // Use current local time for createdAt (only used for display, not sorting)
+            // Messages are sorted by UUIDv7 message ID, which maintains chronological order
+            const messageCreatedAt = new Date();
 
             const messageToSave: Message = {
               id: message.id,
@@ -329,24 +341,28 @@ export class ChatFactory {
             await chatStorage.saveMessage(messageToSave);
 
             let chat = await chatStorage.getChat(chatId);
-
             if (!chat) {
-              const now = new Date();
               let title: string | undefined;
-
               if (messageToSave.role === "user") {
+                // For first user message, extract title from message
                 title = extractTitleFromMessage(messageToSave);
               }
 
+              const now = new Date();
               chat = {
                 chatId: chatId,
-                databaseId: options?.databaseId,
+                databaseId: connection.connectionId,
                 title,
                 createdAt: now,
                 updatedAt: now,
               };
             }
 
+            // Always update the chat's updatedAt timestamp when a message is saved.
+            // This ensures:
+            // 1. The chat appears at the top of the history list (sorted by updatedAt)
+            // 2. The "last updated" time displayed in the UI is accurate
+            // 3. Chats are correctly grouped by time periods (Today, Yesterday, etc.)
             await chatStorage.saveChat({
               ...chat,
               updatedAt: new Date(),

@@ -182,7 +182,7 @@ export const MessageMarkdownSql = memo(function MessageMarkdownSql({
               view="table"
             />
           )}
-          <div className="mt-5">
+          <div className={cn(queryResponse ? "mt-5" : "")}>
             <QueryExecutionTimer isExecuting={isExecuting} />
           </div>
         </div>
