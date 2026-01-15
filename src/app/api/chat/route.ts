@@ -117,16 +117,20 @@ function extractErrorMessage(error: unknown): string {
  */
 export async function POST(req: Request) {
   try {
-    // Get user ID from next-auth session cookie
-    let _userId: string | undefined;
-    try {
-      const session = await auth();
-      // Extract user ID from session (email is stored in token subject)
-      _userId = session?.user?.email || undefined;
-    } catch (error) {
-      // If auth is not enabled or session is invalid, _userId will be undefined
-      console.log("Could not get user from session:", error);
+    // Ensure user is authenticated (middleware should handle this, but double-check for safety)
+    const session = await auth();
+    if (!session?.user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", message: "Authentication required" }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
+
+    // Extract user ID from session (email is stored in token subject)
+    const _userId = session.user.email || undefined;
 
     // Parse request body with size validation
     let apiRequest: ChatRequest;
