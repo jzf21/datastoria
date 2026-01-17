@@ -51,6 +51,9 @@ export function ChatTab({ initialChatId, active, initialPrompt, autoRun, tabId }
     const chat = await chatStorage.getChat(chatIdToLoad);
     if (chat) {
       TabManager.updateTabTitle(tabId, chat.title);
+    } else if (tabId) {
+      // New chat - set title to "New Chat"
+      TabManager.updateTabTitle(tabId, "New Chat");
     }
 
     const newChatController = await ChatFactory.create({
@@ -59,7 +62,7 @@ export function ChatTab({ initialChatId, active, initialPrompt, autoRun, tabId }
       connection: connection!,
     });
     setChatController(newChatController);
-  }, []);
+  }, [tabId, connection]);
 
   // Initial chat loading
   useEffect(() => {
@@ -104,9 +107,12 @@ export function ChatTab({ initialChatId, active, initialPrompt, autoRun, tabId }
 
     // Create new chat
     const newChatId = uuidv7();
+    if (tabId) {
+      TabManager.updateTabTitle(tabId, "New Chat");
+    }
     const newChat = await ChatFactory.create({ id: newChatId, connection: connection! });
     setChatController(newChat);
-  }, [chatController, connection]);
+  }, [chatController, connection, tabId]);
 
   /**
    * When a chat is selected from history, update the chatId

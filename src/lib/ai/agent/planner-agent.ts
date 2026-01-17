@@ -147,19 +147,13 @@ export async function callPlanAgent(
   messages: ModelMessage[],
   modelConfig: InputModel
 ): Promise<PlanResult> {
-  console.log("[identifyIntent] Called with", messages.length, "messages");
-
   // Target the latest user message
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
 
   // 0. Tool Result Continuation: If the last message is a tool result,
   // we MUST continue with the agent that initiated the call.
   const lastMessage = messages[messages.length - 1];
-  console.log("[identifyIntent] Last message role:", lastMessage?.role);
   if (lastMessage?.role === "tool") {
-    console.log(
-      "[identifyIntent] Tool result continuation detected, searching for previous intent"
-    );
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
 
@@ -174,10 +168,6 @@ export async function callPlanAgent(
               const agent =
                 Object.values(SUB_AGENTS).find((a) => lastAgentId.includes(a.id)) ||
                 SUB_AGENTS.general;
-              console.log(
-                "[identifyIntent] Early return: Resuming agent from identify_intent tool result, agent:",
-                agent.id
-              );
               return {
                 intent: agent.id as Intent,
                 reasoning: "Resuming agent from identify_intent tool result",
@@ -197,10 +187,6 @@ export async function callPlanAgent(
           const lastAgentId = metadata.agentName.toLowerCase();
           const agent =
             Object.values(SUB_AGENTS).find((a) => lastAgentId.includes(a.id)) || SUB_AGENTS.general;
-          console.log(
-            "[identifyIntent] Early return: Resuming agent from provider metadata, agent:",
-            agent.id
-          );
           return {
             intent: agent.id as Intent,
             reasoning: "Resuming agent from provider metadata",
@@ -218,10 +204,6 @@ export async function callPlanAgent(
             const agent =
               Object.values(SUB_AGENTS).find((a) => lastAgentId.includes(a.id)) ||
               SUB_AGENTS.general;
-            console.log(
-              "[identifyIntent] Early return: Resuming agent from execution trace, agent:",
-              agent.id
-            );
             return {
               intent: agent.id as Intent,
               reasoning: "Resuming agent from execution trace in content",
@@ -236,7 +218,6 @@ export async function callPlanAgent(
   }
 
   if (!lastUserMessage) {
-    console.log("[identifyIntent] Early return: No user message found");
     return {
       intent: "general",
       reasoning: "No user message found",
@@ -260,7 +241,6 @@ export async function callPlanAgent(
   // 1. Keyword Overrides
   for (const agent of Object.values(SUB_AGENTS)) {
     if (content.startsWith(`${agent.keyword} `) || content === agent.keyword) {
-      console.log("[identifyIntent] Early return: Keyword override detected, agent:", agent.id);
       return {
         intent: agent.id as Intent,
         reasoning: "Keyword override",
@@ -274,7 +254,6 @@ export async function callPlanAgent(
   // 1.5 Generic Heuristics (e.g., Visualization)
   for (const agent of Object.values(SUB_AGENTS)) {
     if (agent.heuristics && agent.heuristics.test(content)) {
-      console.log("[identifyIntent] Early return: Heuristics detected, agent:", agent.id);
       return {
         intent: agent.id as Intent,
         reasoning: `${agent.id} heuristics detected`,
@@ -304,9 +283,6 @@ export async function callPlanAgent(
 
         if (isStickyFollowup) {
           if (lastAgent.includes("optimizer")) {
-            console.log(
-              "[identifyIntent] Early return: Execution trace stickiness, agent: optimizer"
-            );
             return {
               intent: "optimizer",
               reasoning: "Execution trace stickiness",
@@ -316,9 +292,6 @@ export async function callPlanAgent(
             };
           }
           if (lastAgent.includes("generator")) {
-            console.log(
-              "[identifyIntent] Early return: Execution trace stickiness, agent: generator"
-            );
             return {
               intent: "generator",
               reasoning: "Execution trace stickiness",
@@ -328,9 +301,6 @@ export async function callPlanAgent(
             };
           }
           if (lastAgent.includes("general")) {
-            console.log(
-              "[identifyIntent] Early return: Execution trace stickiness, agent: general"
-            );
             return {
               intent: "general",
               reasoning: "Execution trace stickiness",
@@ -345,12 +315,6 @@ export async function callPlanAgent(
   }
 
   const isFirstMessage = messages.filter((m) => m.role === "user").length <= 1;
-  console.log(
-    "[identifyIntent] Proceeding to LLM call. isFirstMessage:",
-    isFirstMessage,
-    "content length:",
-    content.length
-  );
 
   const agentDescriptions = Object.values(SUB_AGENTS)
     .map((agent) => `- '${agent.id}': ${agent.description}`)
@@ -384,7 +348,6 @@ Respond with the appropriate intent and reasoning${
   );
 
   try {
-    console.log("[identifyIntent] Calling generateText with model:", modelConfig.modelId);
     const { output, usage: llmUsage } = await generateText({
       model,
       output: Output.object({
@@ -392,7 +355,6 @@ Respond with the appropriate intent and reasoning${
       }),
       prompt: `${routerPrompt}\n\nCONVERSATION HISTORY (Pruned):\n${summarizeMessages(messages)}`,
     });
-    console.log("[identifyIntent] generateText completed");
 
     // Convert LanguageModelUsage to TokenUsage
     const usage: TokenUsage | undefined = llmUsage
@@ -414,7 +376,6 @@ Respond with the appropriate intent and reasoning${
     // Validate and log title for first messages
     if (isFirstMessage) {
       if (!output.title || output.title.trim() === "") {
-        console.warn("LLM did not generate title for first message. Output:", output);
         // Generate a fallback title from the user message
         const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
         if (lastUserMessage) {
@@ -430,14 +391,10 @@ Respond with the appropriate intent and reasoning${
           // Extract first few words as fallback title
           const words = userContent.trim().split(/\s+/).slice(0, 5);
           output.title = words.join(" ") || "New Conversation";
-          console.log("Generated fallback title:", output.title);
         }
-      } else {
-        console.log("LLM generated title for first message:", output.title);
       }
     }
 
-    console.log("Intent identification usage:", usage, output);
     return {
       ...(output as any),
       agent: SUB_AGENTS[output.intent] || SUB_AGENTS.general,

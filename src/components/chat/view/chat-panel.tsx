@@ -112,6 +112,9 @@ export function ChatPanel({
       const chatData = await chatStorage.getChat(chatIdToLoad);
       if (chatData) {
         setChatTitle(chatData.title);
+      } else {
+        // New chat - set title to "New Chat"
+        setChatTitle("New Chat");
       }
 
       const newChat = await ChatFactory.create({
@@ -146,6 +149,7 @@ export function ChatPanel({
         // If explicitly forcing new chat, create a new chat
         idToLoad = uuidv7();
         previousChatIdRef.current = null;
+        setChatTitle("New Chat");
         // Mark this command as processed to prevent duplicate handling
         const commandKey = `${currentPendingCommand.timestamp}-${currentPendingCommand.forceNewChat}`;
         processedPendingCommandRef.current = commandKey;
@@ -166,6 +170,7 @@ export function ChatPanel({
         } else {
           // Create a new one
           idToLoad = uuidv7();
+          setChatTitle("New Chat");
         }
       }
 
@@ -191,23 +196,10 @@ export function ChatPanel({
     const newChatId = uuidv7();
     previousChatIdRef.current = chat.id;
     processedPendingCommandRef.current = commandKey;
+    setChatTitle("New Chat");
     loadChat(newChatId);
   }, [pendingCommand?.forceNewChat, pendingCommand?.timestamp, connection, chat, loadChat]);
 
-  // // Handle pending command when chat already exists (panel was already open)
-  // useEffect(() => {
-  //   if (!connection?.connectionId || !chat || !pendingCommand?.forceNewChat) return;
-
-  //   // Skip if we've already processed this pending command
-  //   const commandKey = `${pendingCommand.timestamp}-${pendingCommand.forceNewChat}`;
-  //   if (processedPendingCommandRef.current === commandKey) return;
-
-  //   // Create new chat
-  //   const newChatId = uuidv7();
-  //   previousChatIdRef.current = chat.id;
-  //   processedPendingCommandRef.current = commandKey;
-  //   loadChat(newChatId);
-  // }, [pendingCommand?.forceNewChat, pendingCommand?.timestamp, connection, chat, loadChat]);
 
   // Update context builder when props change
   useEffect(() => {
@@ -250,6 +242,7 @@ export function ChatPanel({
     // Create new chat
     const newChatId = uuidv7();
     previousChatIdRef.current = chat?.id || null;
+    setChatTitle("New Chat");
     await loadChat(newChatId);
   }, [chat, connection?.connectionId, loadChat]);
 

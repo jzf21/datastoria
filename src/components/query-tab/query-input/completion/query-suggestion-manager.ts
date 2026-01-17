@@ -160,9 +160,6 @@ export class QuerySuggestionManager {
     type?: string,
     extraHtml: string = ""
   ): string {
-    if (title === "max_concurrent_queries") {
-      console.log("max_concurrent_queries", markdownContent, extraHtml);
-    }
     if (markdownContent === undefined || markdownContent === null) {
       return extraHtml;
     }

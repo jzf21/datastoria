@@ -67,6 +67,7 @@ export interface EvidenceContext {
     memory_usage?: number;
     result_rows?: number;
     exception?: string | null;
+    profile_events?: Record<string, number>;
   };
   settings?: Record<string, string | number>;
   constraints?: string[];

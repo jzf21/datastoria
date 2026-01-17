@@ -131,7 +131,6 @@ export const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatV
     if (!messages) return [];
 
     const msgs = (messages as AppUIMessage[]).map((m) => {
-      console.log("m", m);
       const mAny = m as any;
       const ts = mAny.createdAt ? new Date(mAny.createdAt).getTime() : Date.now();
       let parts = m.parts;

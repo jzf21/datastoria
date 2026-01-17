@@ -1,7 +1,6 @@
 import { useConnection } from "@/components/connection/connection-context";
 import { OpenDatabaseTabButton } from "@/components/table-tab/open-database-tab-button";
 import { OpenTableTabButton } from "@/components/table-tab/open-table-tab-button";
-import { CopyButton } from "@/components/ui/copy-button";
 import { cn } from "@/lib/utils";
 import { memo, useEffect, useMemo, useRef } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -212,7 +211,6 @@ export const MessageMarkdown = memo(function MessageMarkdown({
 
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none text-sm relative">
-      <CopyButton value={text} />
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {text}
       </ReactMarkdown>

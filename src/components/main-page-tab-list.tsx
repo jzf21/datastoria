@@ -196,13 +196,14 @@ export const MainPageTabList = memo(function MainPageTabList({
     TabManager.sendActiveTabChange(activeTab, tabInfo);
   }, [activeTab, tabs, pendingTabId]);
 
-  // Close all tabs when connection changes or is updated
+  // Open query tab and node tab when connection is available (initial load or connection change)
   useEffect(() => {
     const currentConnectionId = selectedConnection?.connectionId ?? null;
     const previousConnectionId = previousConnectionKeyRef.current;
 
-    // Close tabs if connection key changed (switching connections or connection was updated)
-    if (previousConnectionId !== null && previousConnectionId !== currentConnectionId) {
+    // Open tabs if connection changed OR on initial load with connection
+    // This handles both: initial load (previousConnectionId is null) and connection switching
+    if (previousConnectionId !== currentConnectionId && currentConnectionId !== null) {
       const openTabs: TabInfo[] = tabs.filter((t) => t.type === "query");
 
       // Find the activated query tab, if not founded, activate the last one

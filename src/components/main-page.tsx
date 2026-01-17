@@ -417,7 +417,7 @@ export function MainPage() {
 
       <PanelGroup direction="horizontal" className="h-full w-full min-w-0">
         {/* Left Panel: Schema Tree View */}
-        <Panel defaultSize={20} minSize={10} className="bg-background">
+        <Panel defaultSize={20} minSize={0} className="bg-background">
           <SchemaTreeView initialSchemaData={loadedSchemaData} />
         </Panel>
 

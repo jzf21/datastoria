@@ -33,12 +33,11 @@ export const MessageToolCollectSqlOptimizationEvidence = memo(
       return toolCallId ? state.progresses.get(toolCallId) : undefined;
     });
 
-    const showProgress = state === "input-available";
     return (
       <CollapsiblePart
         toolName={CLIENT_TOOL_NAMES.COLLECT_SQL_OPTIMIZATION_EVIDENCE}
         state={state}
-        defaultExpanded={true}
+        defaultExpanded={state !== "output-available"}
       >
         {/* Show input parameters */}
         {input && (
@@ -62,12 +61,12 @@ export const MessageToolCollectSqlOptimizationEvidence = memo(
               </>
             )}
             {input.query_id && (
-              <div className="mb-1">
+              <div className="">
                 <span className="font-medium">Query ID:</span> {input.query_id}
               </div>
             )}
             {input.goal && (
-              <div className="mb-1">
+              <div className="">
                 <span className="font-medium">input.goal:</span> {input.goal}
               </div>
             )}
@@ -75,7 +74,7 @@ export const MessageToolCollectSqlOptimizationEvidence = memo(
         )}
 
         {/* Show progress indicator when tool is running */}
-        {showProgress && <ToolProgressIndicator toolCallId={toolCallId} />}
+        <ToolProgressIndicator toolCallId={toolCallId} />
 
         {/* Show output/evidence summary */}
         {toolPart.output != null && (
