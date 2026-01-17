@@ -83,7 +83,7 @@ interface ChatPanelProps {
   currentDatabase?: string;
   availableTables?: Array<{
     name: string;
-    columns: string[];
+    columns: Array<{ name: string; type: string }> | string[];
   }>;
   onClose?: () => void;
 }

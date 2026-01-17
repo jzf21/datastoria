@@ -1,9 +1,17 @@
 import { auth } from "@/auth";
 import type { DatabaseContext } from "@/components/chat/chat-context";
-import { createOrchestratorAgent } from "@/lib/ai/agent/orchestrator-agent";
+import {
+  callPlanAgent,
+  SERVER_TOOL_PLAN,
+  SUB_AGENTS,
+  type InputModel,
+  type Intent,
+  type SubAgent,
+} from "@/lib/ai/agent/planner-agent";
+import type { TokenUsage } from "@/lib/ai/common-types";
 import { LanguageModelProviderFactory } from "@/lib/ai/llm/llm-provider-factory";
 import { APICallError } from "@ai-sdk/provider";
-import { RetryError } from "ai";
+import { convertToModelMessages, RetryError, type ModelMessage } from "ai";
 import { v7 as uuidv7 } from "uuid";
 
 // Force dynamic rendering (no static generation)
@@ -108,12 +116,9 @@ function extractErrorMessage(error: unknown): string {
 /**
  * POST /api/chat
  *
- * Agent-based chat endpoint with orchestrator + sub-agents
- *
- * This endpoint uses the Agent API to coordinate:
- * 1. SQL generation (via generate_sql tool → SQL sub-agent)
- * 2. SQL execution (via run_sql tool → client-side)
- * 3. Visualization planning (via generate_visualization tool → viz sub-agent)
+ * This endpoint implements a Two-Step Dispatcher Pattern:
+ * 1. Intent Routing (Call 1): Identifies the user's goal (SQL gen, optimization, viz, etc.)
+ * 2. Expert Delegation (Call 2): Streams the response from a specialized sub-agent.
  */
 export async function POST(req: Request) {
   try {
@@ -166,11 +171,18 @@ export async function POST(req: Request) {
       });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const messages: any[] = apiRequest.messages;
-    if (!messages || messages.length === 0) {
-      return new Response("Missing messages", { status: 400 });
-    }
+    // 2. Convert UIMessages to ModelMessages (CoreMessage[]) early
+    // This is needed for identifyIntent and determining if it's a continuation
+    const modelMessages = await convertToModelMessages(apiRequest.messages as any[]);
+    // Detect continuation: if the last message is a tool result
+    const isContinuation =
+      modelMessages.length > 0 && modelMessages[modelMessages.length - 1].role === "tool";
+
+    // IMPORTANT: If this is a continuation (tool result), we MUST reuse the previous assistant's message ID.
+    // This ensures the turnaround is attributed to the same message turn in the UI and history.
+    const rawMessages = apiRequest.messages as any[];
+    const lastAssistant = [...rawMessages].reverse().find((m) => m.role === "assistant");
+    const messageId = isContinuation && lastAssistant?.id ? lastAssistant.id : uuidv7();
 
     // Get the appropriate model (mock or real based on USE_MOCK_LLM env var)
     // Use provided model config if available, otherwise auto-select
@@ -207,60 +219,194 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create orchestrator agent with all tools (both server-side and client-side)
-    const result = await createOrchestratorAgent({
-      messages,
-      modelConfig,
-      context,
-    });
+    const encoder = new TextEncoder();
 
-    // Convert to UI message stream (same format as original API)
-    const stream = result.toUIMessageStream({
-      originalMessages: messages,
-      generateMessageId: () => uuidv7(),
-      // Extract message metadata (usage) and send it to the client
-      messageMetadata: ({ part }) => {
-        // Only add metadata on finish events
-        if (part.type === "finish") {
-          return {
-            usage: {
-              inputTokens: part.totalUsage.inputTokens || 0,
-              outputTokens: part.totalUsage.outputTokens || 0,
-              totalTokens: part.totalUsage.totalTokens || 0,
-              reasoningTokens: part.totalUsage.reasoningTokens || 0,
-              cachedInputTokens: part.totalUsage.cachedInputTokens || 0,
-            },
-          };
-        }
-      },
-      onFinish: async () => {
-        // Stream completed successfully
-      },
-      onError: (error) => {
-        console.error("Chat error:", error);
+    // Create a stream that sends early status updates then pipes the real stream
+    const responseStream = new ReadableStream({
+      async start(controller) {
+        let agent: SubAgent;
+        let routerUsage: TokenUsage | undefined;
+
         try {
-          return extractErrorMessage(error);
-        } catch (parseError) {
-          // If anything goes wrong during error extraction, log and use default
-          console.error("Error extracting error message:", parseError);
-          return "Sorry, I encountered an error. Please try again.";
+          if (isContinuation) {
+            // 1. Skip Thinking UI for continuations but still send start event
+            const messageStart = JSON.stringify({ type: "start", messageId });
+            controller.enqueue(encoder.encode(`data: ${messageStart}\n\n`));
+
+            // Find the latest identify_intent tool call from getIntent
+            // Search backwards through messages to find the most recent identify_intent tool result
+            let foundIntent: Intent | undefined;
+
+            for (let i = modelMessages.length - 1; i >= 0; i--) {
+              const msg = modelMessages[i];
+              if (msg.role === "tool") {
+                // Handle both array and single tool message formats
+                const toolParts = Array.isArray(msg.content) ? msg.content : [msg.content];
+                for (const toolPart of toolParts) {
+                  const toolMsg = toolPart as {
+                    type?: string;
+                    toolName?: string;
+                    toolCallId?: string;
+                    output?: { type?: string; value?: unknown } | unknown;
+                    result?: unknown;
+                    content?: unknown;
+                  };
+
+                  // Check if this is an identify_intent tool call
+                  if (
+                    toolMsg.toolName === "identify_intent" ||
+                    toolMsg.toolCallId?.startsWith("router-")
+                  ) {
+                    // Extract output - handle different formats
+                    let output: { intent?: string; usage?: TokenUsage } | undefined;
+
+                    if (toolMsg.output) {
+                      // AI SDK format: output can be { type: "json", value: {...} } or just the value
+                      if (
+                        typeof toolMsg.output === "object" &&
+                        "type" in toolMsg.output &&
+                        "value" in toolMsg.output
+                      ) {
+                        output = toolMsg.output.value as {
+                          intent?: string;
+                          usage?: TokenUsage;
+                        };
+                      } else {
+                        output = toolMsg.output as { intent?: string; usage?: TokenUsage };
+                      }
+                    } else if (toolMsg.result) {
+                      output = toolMsg.result as { intent?: string; usage?: TokenUsage };
+                    } else if (toolMsg.content) {
+                      // Try parsing content if it's a string
+                      if (typeof toolMsg.content === "string") {
+                        try {
+                          output = JSON.parse(toolMsg.content) as {
+                            intent?: string;
+                            usage?: TokenUsage;
+                          };
+                        } catch {
+                          // Ignore parse errors
+                        }
+                      } else {
+                        output = toolMsg.content as { intent?: string; usage?: TokenUsage };
+                      }
+                    }
+
+                    if (output?.intent) {
+                      foundIntent = output.intent as Intent;
+                      break;
+                    }
+                  }
+                }
+                if (foundIntent) break;
+              }
+            }
+
+            // Fallback to general agent if intent not found
+            if (!foundIntent) {
+              foundIntent = "general";
+            }
+
+            agent = SUB_AGENTS[foundIntent] || SUB_AGENTS.general;
+          } else {
+            const result = await doPlan(
+              controller,
+              encoder,
+              messageId,
+              modelMessages,
+              modelConfig
+            );
+            agent = result.agent;
+            routerUsage = result.usage;
+          }
+
+          // 2. Delegate to Expert Sub-Agent
+          // The selected agent (returned from getIntent) now takes over the conversation turn.
+          const subAgentResult = await agent.stream({
+            messages: modelMessages,
+            modelConfig,
+            context,
+          });
+
+          // 4. Convert to UI message stream
+          // We use sendStart: false and sendReasoning: false because we already handled that part
+          const stream = subAgentResult.toUIMessageStream({
+            originalMessages: apiRequest.messages,
+            generateMessageId: () => messageId,
+            sendStart: false,
+            // Extract message metadata (usage) and send it to the client
+            messageMetadata: ({ part }: { part: any }) => {
+              // Only add metadata on finish events
+              if (part.type === "finish") {
+                // Combine router usage (from identifyIntent) with sub-agent usage
+                const subAgentUsage = part.totalUsage || {};
+                return {
+                  // Sum router and agent usage together
+                  usage: {
+                    inputTokens: (subAgentUsage.inputTokens || 0) + (routerUsage?.inputTokens || 0),
+                    outputTokens:
+                      (subAgentUsage.outputTokens || 0) + (routerUsage?.outputTokens || 0),
+                    totalTokens: (subAgentUsage.totalTokens || 0) + (routerUsage?.totalTokens || 0),
+                    reasoningTokens:
+                      (subAgentUsage.reasoningTokens || 0) + (routerUsage?.reasoningTokens || 0),
+                    cachedInputTokens:
+                      (subAgentUsage.cachedInputTokens || 0) +
+                      (routerUsage?.cachedInputTokens || 0),
+                  },
+
+                  // Track router usage separately for debugging purpose
+                  routerUsage: routerUsage,
+                };
+              }
+            },
+            onError: (error: any) => {
+              console.error("Chat error:", error);
+              try {
+                return extractErrorMessage(error);
+              } catch (parseError) {
+                console.error("Error extracting error message:", parseError);
+                return "Sorry, I encountered an error. Please try again.";
+              }
+            },
+          });
+
+          // 5. Pipe the rest of the stream
+          const reader = stream.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+            } catch (e) {
+              // If the controller is closed (e.g. client disconnected), stop piping
+              if (e instanceof TypeError && e.message.includes("closed")) {
+                break;
+              }
+              throw e;
+            }
+          }
+        } catch (error) {
+          console.error("Chat API stream error:", error);
+          const errorMsg = extractErrorMessage(error);
+          const errorChunk = JSON.stringify({ type: "error", errorText: errorMsg });
+
+          try {
+            controller.enqueue(encoder.encode(`data: ${errorChunk}\n\n`));
+          } catch {
+            // Ignore errors if controller is already closed
+          }
+        } finally {
+          try {
+            controller.close();
+          } catch {
+            // Ignore errors if already closed
+          }
         }
       },
     });
 
-    // Return SSE stream (same format as original API)
-    const sseStream = stream
-      .pipeThrough(
-        new TransformStream({
-          transform(chunk, controller) {
-            const data = JSON.stringify(chunk);
-            controller.enqueue(`data: ${data}\n\n`);
-          },
-        })
-      )
-      .pipeThrough(new TextEncoderStream());
-
-    return new Response(sseStream, {
+    return new Response(responseStream, {
       status: 200,
       headers: {
         "Content-Type": "text/event-stream; charset=utf-8",
@@ -284,4 +430,65 @@ export async function POST(req: Request) {
       }
     );
   }
+}
+
+/**
+ * The output that will be sent to client side
+ */
+export interface PlanOutput {
+  intent: Intent;
+  title: string | undefined;
+  usage: TokenUsage | undefined;
+}
+
+/**
+ * Helper to handle the "Thinking" phase of the request.
+ * Performs the first LLM call to identify intent and streams reasoning status to the client.
+ */
+async function doPlan(
+  controller: ReadableStreamDefaultController<any>,
+  encoder: TextEncoder,
+  messageId: string,
+  messages: ModelMessage[],
+  modelConfig: InputModel
+): Promise<{ intent: Intent; agent: any; usage?: TokenUsage }> {
+  // The length MUST be <= 40
+  const toolCallId = `router-${uuidv7().replace(/-/g, "")}`;
+
+  // 1. Send start events
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "start", messageId })}\n\n`));
+
+  // 2. Send simulated tool call start
+  controller.enqueue(
+    encoder.encode(
+      `data: ${JSON.stringify({
+        type: "tool-input-available",
+        toolCallId,
+        toolName: SERVER_TOOL_PLAN,
+        input: {},
+        dynamic: true,
+      })}\n\n`
+    )
+  );
+
+  // 3. Identify Intent (this performs the FIRST LLM call)
+  const { intent, title, agent, usage } = await callPlanAgent(messages, modelConfig);
+
+  // 4. Send tool call result with metadata
+  controller.enqueue(
+    encoder.encode(
+      `data: ${JSON.stringify({
+        type: "tool-output-available",
+        toolCallId,
+        output: {
+          intent,
+          title: title || undefined,
+          usage: usage || undefined,
+        } as PlanOutput,
+        dynamic: true,
+      })}\n\n`
+    )
+  );
+
+  return { intent, agent, usage };
 }

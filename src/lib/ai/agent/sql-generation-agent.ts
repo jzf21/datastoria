@@ -1,9 +1,9 @@
-import { Output, streamText, tool } from "ai";
+import { Output, streamText, tool, type ModelMessage } from "ai";
 import { z } from "zod";
 import type { DatabaseContext } from "../../../components/chat/chat-context";
 import { isMockMode, LanguageModelProviderFactory } from "../llm/llm-provider-factory";
-import { ClientTools, type ValidateSqlToolInput } from "../tools/client/client-tools";
-import type { InputModel } from "./orchestrator-agent";
+import { ClientTools as clientTools } from "../tools/client/client-tools";
+import type { InputModel } from "./planner-agent";
 import { mockSqlGenerationAgent } from "./sql-generation-agent.mock";
 
 /**
@@ -27,6 +27,159 @@ export type SQLSubAgentOutput = z.infer<typeof sqlSubAgentOutputSchema>;
 export const SERVER_TOOL_GENERATE_SQL = "generate_sql" as const;
 
 /**
+ * Build user context section for SQL generation prompts
+ */
+function buildUserContextSection(context?: DatabaseContext): string {
+  const clickHouseUser = context?.clickHouseUser;
+  if (!clickHouseUser) return "";
+
+  return `\n## Current ClickHouse User (CRITICAL - USE THIS FOR USER-RELATED QUERIES)
+**Authenticated user: ${clickHouseUser}**
+
+**MANDATORY INSTRUCTIONS FOR USER-RELATED QUERIES:**
+- When the user asks about their own data, user permissions, or user-specific information, ALWAYS use "${clickHouseUser}" as the user value
+- DO NOT use functions like current_user(), USER(), or any placeholder values
+- DO NOT hardcode different usernames or ask for the username
+- When filtering by user, use: WHERE user = '${clickHouseUser}' or WHERE username = '${clickHouseUser}' (adjust column name as needed)
+- This is the authoritative user identity - use it directly in your SQL queries
+- Examples:
+  * "Show my queries" → WHERE user = '${clickHouseUser}'
+  * "What tables can I access?" → Use ${clickHouseUser} in permission checks
+  * "My recent activity" → Filter by user = '${clickHouseUser}'`;
+}
+
+/**
+ * Build current query context section for SQL generation prompts
+ */
+function buildCurrentQuerySection(context?: DatabaseContext): string {
+  if (!context?.currentQuery) return "";
+
+  return `\n## Current Query Context
+The user may be asking about or modifying this existing query:
+\`\`\`sql
+${context.currentQuery}
+\`\`\`
+Consider this query when generating the new SQL.`;
+}
+
+/**
+ * Build SQL generation system prompt with shared logic
+ * Returns both the prompt and context sections for reuse
+ */
+function buildSqlGenerationPrompt({
+  context,
+  schemaHints,
+  previousValidationError,
+  allowSchemaDiscovery = false,
+  includeValidationInstructions = true,
+}: {
+  context?: DatabaseContext;
+  schemaHints?: {
+    database?: string;
+    tables?: Array<{
+      name: string;
+      columns: Array<{ name: string; type: string }>;
+    }>;
+  };
+  previousValidationError?: string;
+  allowSchemaDiscovery?: boolean;
+  includeValidationInstructions?: boolean;
+}): {
+  prompt: string;
+  userContextSection: string;
+  currentQuerySection: string;
+} {
+  // Build schema context from schemaHints (for backward compatibility) or context
+  const schemaContext = [];
+  const database = schemaHints?.database || context?.database;
+  // Use schemaHints tables if available (has type info), otherwise fall back to context tables (string[] format)
+  const tables = schemaHints?.tables || (context?.tables as Array<{ name: string; columns: string[] }> | undefined);
+
+  if (database) {
+    schemaContext.push(`Current database: ${database}`);
+  }
+  if (tables && tables.length > 0) {
+    schemaContext.push("Available tables:");
+    tables.forEach((table) => {
+      // Handle both old format (string[]) and new format (Array<{name, type}>)
+      const columnList =
+        table.columns.length > 0 && typeof table.columns[0] === "string"
+          ? (table.columns as unknown as string[]).join(", ")
+          : (table.columns as unknown as Array<{ name: string; type: string }>)
+              .map((col) => `${col.name} (${col.type})`)
+              .join(", ");
+      schemaContext.push(`- ${table.name}: ${columnList}`);
+    });
+  }
+
+  // Build context sections using shared helpers
+  const userContextSection = buildUserContextSection(context);
+  const currentQuerySection = buildCurrentQuerySection(context);
+
+  // Add validation error context if this is a retry
+  const validationErrorSection = previousValidationError
+    ? `\n## Previous Validation Error (CRITICAL - FIX THIS)
+A previous SQL generation attempt failed validation with this error:
+${previousValidationError}
+
+**MANDATORY**: You MUST fix the SQL to address this error. Analyze the error carefully:
+- Check table/column names if the error mentions "does not exist" or "unknown"
+- Fix syntax errors if the error mentions syntax issues
+- Adjust ClickHouse-specific syntax if needed
+- Verify the schema context matches the tables/columns you're using
+- If the error mentions enum values (e.g., "maybe you meant: ['MutatePart']"), check the column type in the schema context and use the exact enum value shown there
+
+Generate a corrected SQL query that will pass validation.`
+    : "";
+
+  const schemaDiscoverySection = allowSchemaDiscovery
+    ? `\n## Schema Discovery
+- You have access to schema discovery tools: 'get_tables' and 'get_table_columns'.
+- If you need schema information that's not provided, use these tools to discover it.
+- Call 'get_tables' to list available tables in a database.
+- Call 'get_table_columns' to get detailed column information for a specific table.`
+    : `\n## Important
+- You do NOT have access to schema discovery tools (get_tables, get_table_columns).
+- The orchestrator has already gathered all necessary schema information.
+- Use the Schema Context provided above to generate the SQL.
+- If schema information is missing, note it in your response and return needs_clarification=true.`;
+
+  const validationSection = includeValidationInstructions
+    ? `\n## Validation
+- You have access to the \`validate_sql\` tool to verify your SQL syntax.
+- **MANDATORY**: Before providing the final SQL, you MUST call \`validate_sql\` to verify its syntax.
+- **RETRY LOGIC**: If validation fails, you MUST retry up to 3 times:
+  1. Analyze the validation error message carefully
+  2. Fix the SQL query based on the error (e.g., correct syntax, fix table/column names, adjust ClickHouse-specific syntax)
+  3. Call 'validate_sql' again with the corrected SQL
+  4. Repeat this process up to 3 total attempts
+  5. Only if all 3 attempts fail, return needs_clarification=true and explain the error to the user
+- Only return the final SQL after successful validation (after any successful attempt within the 3 retries).`
+    : "";
+
+  return {
+    prompt: `You are a ClickHouse SQL expert. Your goal is to generate a SQL query to answer the user's question.
+
+## Requirements
+- Generate ONLY valid ClickHouse SQL syntax
+- Always use LIMIT clauses for SQL queries which will be executed to fetch data.
+- Use bounded time windows for time-series queries (e.g., last 24 hours, last 7 days)
+- For performance queries, use system tables: system.query_log, system.processes, system.metrics, etc.
+- **CRITICAL**: Do NOT include a trailing semicolon (;) at the end of SQL queries. The SQL should end without any semicolon.
+- **Enum Column Filtering**: When filtering by columns with enum types, you MUST:
+  * Check the schema context to find the exact enum values for that column (the column type will show the enum definition, e.g., Enum8('MutatePart' = 1, 'MergePart' = 2))
+  * Use the exact enum literal value as shown in the column type definition - enum values are CASE-SENSITIVE
+  * Do NOT guess enum values or use variations - only use values that appear in the enum type definition
+${userContextSection}${currentQuerySection}${validationErrorSection}
+## Schema Context
+${schemaContext.length > 0 ? schemaContext.join("\n") : "No schema context provided. Generate SQL based on the user question."}
+${schemaDiscoverySection}${validationSection}`,
+    userContextSection,
+    currentQuerySection,
+  };
+}
+
+/**
  * Server-side tool: SQL Generation
  * Calls the SQL sub-agent to generate ClickHouse queries
  * @param inputModel - Model configuration to use for the sub-agent
@@ -37,6 +190,12 @@ export function createGenerateSqlTool(inputModel: InputModel, context?: Database
     description: "Generate ClickHouse SQL query based on user question and schema context",
     inputSchema: z.object({
       userQuestion: z.string().describe("The user's question or data request"),
+      previousValidationError: z
+        .string()
+        .optional()
+        .describe(
+          "If this is a retry after validation failure, include the validation error message here to help fix the SQL"
+        ),
       schemaHints: z
         .object({
           database: z.string().optional().describe("Current database name"),
@@ -44,11 +203,16 @@ export function createGenerateSqlTool(inputModel: InputModel, context?: Database
             .array(
               z.object({
                 name: z.string(),
-                columns: z.array(z.string()),
+                columns: z.array(
+                  z.object({
+                    name: z.string(),
+                    type: z.string(),
+                  })
+                ),
               })
             )
             .optional()
-            .describe("Available tables and their columns"),
+            .describe("Available tables and their columns with types"),
         })
         .optional()
         .describe("Schema context to help generate accurate SQL"),
@@ -60,7 +224,12 @@ export function createGenerateSqlTool(inputModel: InputModel, context?: Database
             .array(
               z.object({
                 name: z.string(),
-                columns: z.array(z.string()),
+                columns: z.array(
+                  z.object({
+                    name: z.string(),
+                    type: z.string(),
+                  })
+                ),
               })
             )
             .optional(),
@@ -68,35 +237,33 @@ export function createGenerateSqlTool(inputModel: InputModel, context?: Database
         })
         .optional()
         .describe("Full database context including user, database, tables, and current query"),
-      history: z
-        .array(
-          z.object({
-            role: z.string(),
-            content: z.string(),
-          })
-        )
-        .optional()
-        .describe("Previous turns of the SQL generation/discovery process"),
     }),
-    execute: async ({ userQuestion, schemaHints, history, context: providedContext }) => {
+    execute: async ({
+      userQuestion,
+      previousValidationError,
+      schemaHints,
+      context: providedContext,
+    }) => {
       // Merge provided context with the one from tool creation (provided context takes precedence)
-      const mergedContext: DatabaseContext | undefined = providedContext
-        ? { ...context, ...providedContext }
+      // Note: providedContext may have new format with column types, but DatabaseContext expects string[]
+      // We'll pass it through and handle the conversion in buildSqlGenerationPrompt
+      const mergedContext = providedContext
+        ? ({ ...context, ...providedContext } as DatabaseContext)
         : context;
       // Use mock generation agent in mock mode to avoid recursive LLM calls
       const result = isMockMode
         ? await mockSqlGenerationAgent({
             userQuestion,
+            previousValidationError,
             schemaHints,
             context: mergedContext,
-            history,
             inputModel: inputModel,
           })
         : await sqlGenerationAgent({
             userQuestion,
+            previousValidationError,
             schemaHints,
             context: mergedContext,
-            history,
             inputModel: inputModel,
           });
       return result;
@@ -109,12 +276,15 @@ export function createGenerateSqlTool(inputModel: InputModel, context?: Database
  */
 export interface SQLGenerationAgentInput {
   userQuestion: string;
+  previousValidationError?: string;
   schemaHints?: {
     database?: string;
-    tables?: Array<{ name: string; columns: string[] }>;
+    tables?: Array<{
+      name: string;
+      columns: Array<{ name: string; type: string }>;
+    }>;
   };
   context?: DatabaseContext;
-  history?: any[]; // CoreMessage[]
   inputModel: InputModel;
 }
 
@@ -126,11 +296,20 @@ export interface SQLGenerationAgentInput {
  * - ClickHouse-specific SQL syntax
  * - Performance optimization (LIMIT, bounded time windows)
  * - System table queries for diagnostics
+ *
+ * Note: This agent generates SQL without validation. Validation is handled externally
+ * by the caller (e.g., when used as a tool via createGenerateSqlTool).
  */
 export async function sqlGenerationAgent(
   input: SQLGenerationAgentInput
 ): Promise<SQLSubAgentOutput> {
-  const { userQuestion, schemaHints, context, history, inputModel: modelConfig } = input;
+  const {
+    userQuestion,
+    previousValidationError,
+    schemaHints,
+    context,
+    inputModel: modelConfig,
+  } = input;
 
   if (!modelConfig) {
     throw new Error("modelConfig is required for sqlGenerationAgent");
@@ -139,81 +318,17 @@ export async function sqlGenerationAgent(
   // Use model-specific default temperature
   const temperature = LanguageModelProviderFactory.getDefaultTemperature(modelConfig.modelId);
 
-  // Build schema context from schemaHints (for backward compatibility) or context
-  const schemaContext = [];
-  const database = schemaHints?.database || context?.database;
-  const tables = schemaHints?.tables || context?.tables;
+  // Build shared system prompt (no validation instructions, no schema discovery)
+  // Add JSON output format instructions to the prompt
+  const { prompt: basePrompt } = buildSqlGenerationPrompt({
+    context,
+    schemaHints,
+    previousValidationError,
+    allowSchemaDiscovery: false,
+    includeValidationInstructions: false, // Always generate un-validated SQL
+  });
 
-  if (database) {
-    schemaContext.push(`Current database: ${database}`);
-  }
-  if (tables && tables.length > 0) {
-    schemaContext.push("Available tables:");
-    tables.forEach((table) => {
-      schemaContext.push(`- ${table.name}: ${table.columns.join(", ")}`);
-    });
-  }
-
-  // Build user context section with explicit instructions
-  const clickHouseUser = context?.clickHouseUser;
-  const userContextSection = clickHouseUser
-    ? `\n## Current ClickHouse User (CRITICAL - USE THIS FOR USER-RELATED QUERIES)
-**Authenticated user: ${clickHouseUser}**
-
-**MANDATORY INSTRUCTIONS FOR USER-RELATED QUERIES:**
-- When the user asks about their own data, user permissions, or user-specific information, ALWAYS use "${clickHouseUser}" as the user value
-- DO NOT use functions like current_user(), USER(), or any placeholder values
-- DO NOT hardcode different usernames or ask for the username
-- When filtering by user, use: WHERE user = '${clickHouseUser}' or WHERE username = '${clickHouseUser}' (adjust column name as needed)
-- This is the authoritative user identity - use it directly in your SQL queries
-- Examples:
-  * "Show my queries" → WHERE user = '${clickHouseUser}'
-  * "What tables can I access?" → Use ${clickHouseUser} in permission checks
-  * "My recent activity" → Filter by user = '${clickHouseUser}'`
-    : "";
-
-  // Add current query context if available
-  const currentQuerySection = context?.currentQuery
-    ? `\n## Current Query Context
-The user may be asking about or modifying this existing query:
-\`\`\`sql
-${context.currentQuery}
-\`\`\`
-Consider this query when generating the new SQL.`
-    : "";
-
-  const systemPromptDiscovery = `You are a ClickHouse SQL expert. Your goal is to generate a SQL query to answer the user's question.
-
-## Requirements
-- Generate ONLY valid ClickHouse SQL syntax
-- Always use LIMIT clauses for SQL queries which will be executed to fetch data.
-- Use bounded time windows for time-series queries (e.g., last 24 hours, last 7 days)
-- For performance queries, use system tables: system.query_log, system.processes, system.metrics, etc.
-${userContextSection}${currentQuerySection}
-## Schema Context
-${schemaContext.length > 0 ? schemaContext.join("\n") : "No schema context provided. Generate SQL based on the user question."}
-
-## Validation
-- You have access to the \`validate_sql\` tool to verify your SQL syntax.
-- **MANDATORY**: Before providing the final SQL, you MUST call \`validate_sql\` to verify its syntax.
-- If validation fails, fix the SQL and validate again.
-- Only return the final SQL after successful validation.
-
-## Important
-- You do NOT have access to schema discovery tools (get_tables, get_table_columns).
-- The orchestrator has already gathered all necessary schema information.
-- Use the Schema Context provided above to generate the SQL.
-- If schema information is missing, note it in your response and return needs_clarification=true.`;
-
-  const systemPromptFinal = `You are a ClickHouse SQL expert. Review the user's question, the discovered schema, and the validation result, then generate the final SQL output in JSON format.
-
-## Requirements
-- Generate ONLY valid ClickHouse SQL syntax
-- Use LIMIT clauses
-- Format SQL with 2-space indentation
-- Use full qualified table names (e.g., database.table)
-- Ensure the SQL has been validated via \`validate_sql\` in the previous step.
-${userContextSection}${currentQuerySection}
+  const systemPrompt = `${basePrompt}
 
 ## Output Format
 1. Return ONLY valid JSON matching this schema:
@@ -235,161 +350,22 @@ ${userContextSection}${currentQuerySection}
     );
 
     // Build base messages for processing
-    // If history is provided, we assume it contains the full context (including previous tool results)
-    // Sanitizing history to ensure it's valid CoreMessage[] for AI SDK
-    const sanitizedHistory: any[] =
-      history && history.length > 0
-        ? history.map((msg, i) => {
-            // Handle legacy or mis-formatted tool results
-            if (msg.role === "function" || msg.role === "tool") {
-              // CoreToolMessage expects content to be an array of ToolResultPart
-              // Parse the content if it's a JSON string
-              let resultValue = msg.content;
-              if (typeof msg.content === "string") {
-                try {
-                  resultValue = JSON.parse(msg.content);
-                } catch {
-                  // Keep as string if not valid JSON
-                  resultValue = msg.content;
-                }
-              }
+    const messages = [{ role: "user" as const, content: userQuestion }];
 
-              // Format output according to AI SDK spec
-              // output must be {type: 'text'|'json', value: any}
-              const output =
-                typeof resultValue === "string"
-                  ? { type: "text" as const, value: resultValue }
-                  : { type: "json" as const, value: resultValue };
-
-              return {
-                role: "tool",
-                content: [
-                  {
-                    type: "tool-result",
-                    toolCallId: (msg as any).toolCallId || `call_${i}`,
-                    toolName: (msg as any).toolName || "unknown_tool",
-                    output: output,
-                  },
-                ],
-              };
-            }
-
-            // Ensure assistant messages that were results of tool calls are properly marked
-            if (
-              msg.role === "assistant" &&
-              (msg.content?.includes("Performing:") || msg.content?.includes("Action:"))
-            ) {
-              // If it was a proxy for a tool call, we might need to add a dummy tool_call
-              // but for now, let's just leave it as text.
-              // The SDK is okay with assistant text followed by tool results if IDs match.
-              // To be safe, if the next message is a tool result we just created an ID for,
-              // we should probably add a matching tool_call here.
-            }
-
-            return msg;
-          })
-        : [{ role: "user", content: userQuestion }];
-
-    // Handle case where history starts with a tool result (orphan)
-    // We must prepend a dummy assistant message that "called" this tool
-    if (sanitizedHistory.length > 0 && sanitizedHistory[0].role === "tool") {
-      const toolResult = sanitizedHistory[0].content[0];
-      sanitizedHistory.unshift({
-        role: "assistant",
-        content: [
-          { type: "text", text: "Resuming conversation..." },
-          {
-            type: "tool-call",
-            toolCallId: toolResult.toolCallId,
-            toolName: toolResult.toolName,
-            args: {},
-          },
-        ],
-      });
-    }
-
-    // Re-align IDs for tool call/result pairs if necessary
-    for (let i = 0; i < sanitizedHistory.length - 1; i++) {
-      if (sanitizedHistory[i].role === "assistant" && sanitizedHistory[i + 1].role === "tool") {
-        const toolResult = sanitizedHistory[i + 1].content[0];
-
-        // Construct the tool-call part to append to the assistant message
-        const toolCallPart = {
-          type: "tool-call",
-          toolCallId: toolResult.toolCallId,
-          toolName: toolResult.toolName,
-          args: {},
-        };
-
-        // Convert content to array if it's a string, or append if it's already an array
-        if (typeof sanitizedHistory[i].content === "string") {
-          sanitizedHistory[i].content = [
-            { type: "text", text: sanitizedHistory[i].content || "" },
-            toolCallPart,
-          ];
-        } else if (Array.isArray(sanitizedHistory[i].content)) {
-          // Check if tool call already exists to avoid duplication
-          const exists = sanitizedHistory[i].content.some(
-            (p: any) => p.type === "tool-call" && p.toolCallId === toolResult.toolCallId
-          );
-          if (!exists) {
-            sanitizedHistory[i].content.push(toolCallPart);
-          }
-        }
-
-        // Ensure no conflicting toolCalls property exists
-        if (sanitizedHistory[i].toolCalls) {
-          delete sanitizedHistory[i].toolCalls;
-        }
-      }
-    }
-
-    const messages: any[] = sanitizedHistory;
-
-    // Step 1: Processing (Validation only - orchestrator handles schema discovery)
-    // Use streamText instead of generateText to avoid proxy timeouts
-    const processResult = streamText({
-      model,
-      messages: [{ role: "system", content: systemPromptDiscovery }, ...messages],
-      tools: {
-        // Only validation tool - NO schema discovery tools
-        validate_sql: ClientTools.validate_sql,
-      },
-      temperature,
-    });
-
-    // Wait for the stream to complete and get the last step
-    const allSteps = await processResult.steps;
-    const processStep = allSteps[allSteps.length - 1];
-
-    // If the model requested validation, communicate back to orchestrator
-    if (processStep.toolCalls && processStep.toolCalls.length > 0) {
-      return {
-        // Return the generated SQL to client for observability
-        sql: (processStep.toolCalls[0].input as ValidateSqlToolInput).sql,
-        notes: "I am currently validating syntax of the generated SQL.",
-        assumptions: [],
-        needs_clarification: false,
-        questions: ["Performing: validating SQL syntax"],
-      };
-    }
-
-    // Step 2: Final JSON generation
-    // Use streamText instead of generateText to avoid proxy timeouts
+    // Generate SQL directly without validation (no validate_sql tool)
     const result = streamText({
       model,
       output: Output.object({
         schema: sqlSubAgentOutputSchema,
       }),
       messages: [
-        { role: "system", content: systemPromptFinal },
+        { role: "system", content: systemPrompt },
         ...messages,
-        { role: "assistant", content: processStep.text },
       ],
       temperature,
     });
 
-    // Wait for the complete validated output from the stream
+    // Wait for the complete output from the stream
     const validated = await result.output;
 
     return validated;
@@ -422,4 +398,59 @@ ${userContextSection}${currentQuerySection}
       questions: ["Could you try asking your question again?"],
     };
   }
+}
+
+/**
+ * Streaming SQL Generation Agent
+ *
+ * For use in the Two-Call Dispatcher pattern.
+ */
+export async function streamSqlGeneration({
+  messages,
+  modelConfig,
+  context,
+}: {
+  messages: ModelMessage[];
+  modelConfig: InputModel;
+  context?: DatabaseContext;
+}) {
+  const [model] = LanguageModelProviderFactory.createModel(
+    modelConfig.provider,
+    modelConfig.modelId,
+    modelConfig.apiKey
+  );
+
+  const temperature = LanguageModelProviderFactory.getDefaultTemperature(modelConfig.modelId);
+
+  // Build shared system prompt (standalone mode: with schema discovery and validation)
+  const { prompt: basePrompt } = buildSqlGenerationPrompt({
+    context,
+    allowSchemaDiscovery: true,
+    includeValidationInstructions: true, // Include validation for standalone agent
+  });
+
+  // Add output format constraints for markdown output
+  const systemPrompt = `${basePrompt}
+
+## Output Format
+- Present your final SQL query in a markdown code block with \`\`\`sql syntax highlighting
+- Example format:
+\`\`\`sql
+SELECT * FROM table
+WHERE condition = 'value'
+LIMIT 10
+\`\`\`
+- Include a brief explanation before or after the SQL code block
+- Use markdown formatting for clarity and readability`;
+
+  return streamText({
+    model,
+    messages: [{ role: "system", content: systemPrompt }, ...messages],
+    tools: {
+      get_tables: clientTools.get_tables,
+      get_table_columns: clientTools.get_table_columns,
+      validate_sql: clientTools.validate_sql,
+    },
+    temperature,
+  });
 }

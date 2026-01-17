@@ -93,6 +93,7 @@ export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(
           type: "table",
           description: tableInfo.comment,
           search: name.toLowerCase(),
+          badge: tableInfo.engine || undefined,
         } as ChatInputSuggestionItem;
       });
     }, [connection?.metadata?.tableNames]);

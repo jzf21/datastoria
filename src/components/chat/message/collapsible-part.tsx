@@ -12,12 +12,14 @@ export function CollapsiblePart({
   defaultExpanded = false,
   state,
   keepChildrenMounted = false,
+  success,
 }: {
   toolName: string;
   children?: React.ReactNode;
   defaultExpanded?: boolean;
   state?: string;
   keepChildrenMounted?: boolean;
+  success?: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [duration, setDuration] = useState<number | null>(null);
@@ -49,7 +51,11 @@ export function CollapsiblePart({
   }, [state]);
 
   // Determine if tool is complete
-  const isError = state?.includes("error") || state === "output-error";
+  // Use external success value if provided, otherwise use state-based logic
+  const isError =
+    success !== undefined
+      ? !success
+      : state?.includes("error") || state === "output-error";
   const isComplete = state === "output-available" || state === "done" || isError;
 
   // Get status text based on state

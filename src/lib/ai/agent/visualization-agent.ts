@@ -1,8 +1,11 @@
-import { Output, streamText, tool } from "ai";
+import { Output, streamText, tool, type ModelMessage } from "ai";
 import { z } from "zod";
+import type { DatabaseContext } from "@/components/chat/chat-context";
 import { isMockMode, LanguageModelProviderFactory } from "../llm/llm-provider-factory";
-import type { InputModel } from "./orchestrator-agent";
+import type { InputModel } from "./planner-agent";
+import { createGenerateSqlTool, SERVER_TOOL_GENERATE_SQL } from "./sql-generation-agent";
 import { mockVisualizationAgent } from "./visualization-agent.mock";
+import { ClientTools as clientTools } from "../tools/client/client-tools";
 
 /**
  * Visualization Agent Input
@@ -307,4 +310,104 @@ ${sql}`,
       }
     );
   }
+}
+
+/**
+ * Streaming Visualization Agent
+ *
+ * For use in the Two-Call Dispatcher pattern.
+ */
+export async function streamVisualization({
+  messages,
+  modelConfig,
+  context,
+}: {
+  messages: ModelMessage[];
+  modelConfig: InputModel;
+  context?: DatabaseContext;
+}) {
+  const [model] = LanguageModelProviderFactory.createModel(
+    modelConfig.provider,
+    modelConfig.modelId,
+    modelConfig.apiKey
+  );
+
+  const temperature = LanguageModelProviderFactory.getDefaultTemperature(modelConfig.modelId);
+
+  const systemPrompt = `SYSTEM: ClickHouse Visualization Sub-Agent (Expert)
+You are an expert at creating data visualizations for ClickHouse data.
+
+**CRITICAL: MANDATORY EXECUTION ORDER - DO NOT SKIP STEPS**
+
+**WORKFLOW** (MUST follow in this exact order):
+
+**a) If schema info needed:**
+- **FIRST**: Check if the table schema is already in the "Available Tables" context from previous messages.
+- **ONLY IF NOT FOUND**: call 'get_table_columns' or 'get_tables' to discover the schema.
+
+**b) Generate or obtain SQL:**
+- **CRITICAL**: You MUST use the 'generate_sql' tool to generate SQL. NEVER write SQL in your text response.
+- If SQL exists in context (from previous messages or user input): use it directly.
+- Otherwise: **MANDATORY** - call 'generate_sql' with schema context to generate a valid ClickHouse query.
+- The 'generate_sql' tool will handle SQL generation with proper schema context.
+- **NEVER generate SQL yourself in markdown code blocks or text - ALWAYS use the 'generate_sql' tool**
+
+**c) **VALIDATION (MANDATORY)**:**
+- **ALWAYS call 'validate_sql' with the SQL BEFORE calling 'generate_visualization'**
+- **NEVER call 'generate_visualization' before validating the SQL**
+- **ONLY validate SQL that comes from:**
+  - The 'generate_sql' tool output
+  - Previous context messages (if SQL was already provided)
+- **NEVER validate SQL that you wrote yourself in text - you MUST use 'generate_sql' tool first**
+- **RETRY LOGIC**: If validation fails, you MUST retry up to 3 times:
+  1. Analyze the validation error message carefully
+  2. Call 'generate_sql' again with the validation error in the 'previousValidationError' parameter:
+     - Set 'userQuestion' to the original user question
+     - Set 'previousValidationError' to the exact error message from validation
+     - Example: { userQuestion: "show commits by day", previousValidationError: "Table 'commits' does not exist" }
+  3. Validate the newly generated SQL again
+  4. Repeat this process up to 3 total attempts
+  5. Only if all 3 attempts fail, inform the user about the SQL error and STOP - do not proceed to visualization
+- Only proceed to step (d) if validation returns success: true (after any successful attempt within the 3 retries)
+
+**d) After validation passes:**
+- Call 'generate_visualization' with the validated SQL to produce the final visualization plan.
+- The 'generate_visualization' tool will determine the best chart type (line, bar, pie, etc.).
+
+**e) Optionally:**
+- Call 'execute_sql' if data needs to be fetched for preview or verification.
+
+**IMPORTANT RULES:**
+- ❌ NEVER call 'generate_visualization' before 'validate_sql'
+- ❌ NEVER skip SQL generation if no SQL exists in context
+- ❌ NEVER write SQL in your text response - ALWAYS use 'generate_sql' tool
+- ❌ NEVER validate SQL that you wrote yourself - only validate SQL from 'generate_sql' tool or context
+- ✅ ALWAYS follow the order: Schema Discovery → SQL Generation (via tool) → Validation → Visualization
+- ✅ If SQL validation fails, retry up to 3 times by calling 'generate_sql' again with 'previousValidationError' parameter set to the validation error
+- ✅ Only after 3 failed validation attempts, explain the error to the user and do not generate visualization
+- ✅ Reuse existing SQL from context if available (don't regenerate unnecessarily)
+- ✅ When retrying, use the 'previousValidationError' parameter in 'generate_sql' to pass the exact validation error message
+- ✅ If you need SQL, you MUST call the 'generate_sql' tool - do not write SQL yourself
+
+**OUTPUT REQUIREMENTS:**
+- Output a short summary of the generated SQL in markdown format
+- DO NOT output a summary of the chart panel configuration - only summarize the SQL query
+`;
+
+  return streamText({
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages,
+    ],
+    tools: {
+      get_tables: clientTools.get_tables,
+      get_table_columns: clientTools.get_table_columns,
+      [SERVER_TOOL_GENERATE_SQL]: createGenerateSqlTool(modelConfig, context),
+      validate_sql: clientTools.validate_sql,
+      execute_sql: clientTools.execute_sql,
+      generate_visualization: createGenerateVisualizationTool(modelConfig),
+    },
+    temperature,
+  });
 }

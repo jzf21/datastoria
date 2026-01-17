@@ -54,15 +54,29 @@ function extractTableNames(result: SchemaLoadResult): {
           database: row.database,
           table: row.table,
           comment: row.tableComment || null,
+          engine: row.tableEngine || null,
           columns: [],
         });
       }
 
-      // Add column if it exists
+      // Add column if it exists (with type information if available)
       if (row.columnName) {
         const tableInfo = tableNames.get(qualifiedName);
-        if (tableInfo && tableInfo.columns) {
-          tableInfo.columns.push(row.columnName);
+        if (tableInfo) {
+          // Initialize columns as array of objects if not already initialized
+          if (!tableInfo.columns) {
+            tableInfo.columns = [];
+          }
+          // If columns is string[], convert to object format
+          if (Array.isArray(tableInfo.columns) && tableInfo.columns.length > 0 && typeof tableInfo.columns[0] === "string") {
+            const oldColumns = tableInfo.columns as string[];
+            tableInfo.columns = oldColumns.map((name) => ({ name, type: "Unknown" }));
+          }
+          // Add new column with type
+          (tableInfo.columns as Array<{ name: string; type: string }>).push({
+            name: row.columnName,
+            type: row.columnType || "Unknown",
+          });
         }
       }
     }
@@ -305,7 +319,8 @@ function ConnectionInitializer({ config, onReady }: ConnectionInitializerProps) 
             AI-powered ClickHouse management console with visualization and insights
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        {/* px-14 makes it alignt to above description */}
+        <CardContent className="space-y-3 px-14">
           <div>
             {visibleSteps.map((step) => (
               <div key={step.id} className="flex items-center gap-3 text-sm w-full py-1">

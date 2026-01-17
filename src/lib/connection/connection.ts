@@ -37,7 +37,8 @@ export interface TableInfo {
   database: string;
   table: string;
   comment?: string | null;
-  columns?: string[];
+  columns?: Array<{ name: string; type: string }> | string[];
+  engine?: string | null;
 }
 
 export interface DatabaseInfo {

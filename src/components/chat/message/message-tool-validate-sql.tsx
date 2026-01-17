@@ -23,7 +23,11 @@ export const MessageToolValidateSql = memo(function MessageToolValidateSql({
   const state = toolPart.state;
 
   return (
-    <CollapsiblePart toolName={CLIENT_TOOL_NAMES.VALIDATE_SQL} state={state}>
+    <CollapsiblePart
+      toolName={CLIENT_TOOL_NAMES.VALIDATE_SQL}
+      state={state}
+      success={output?.success}
+    >
       {input?.sql && (
         <>
           <div className="text-[10px] text-muted-foreground">input:</div>

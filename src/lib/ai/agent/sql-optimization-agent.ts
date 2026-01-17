@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { DatabaseContext } from "../../../components/chat/chat-context";
 import type { EvidenceContext, EvidenceRequest } from "../common-types";
 import { isMockMode, LanguageModelProviderFactory } from "../llm/llm-provider-factory";
-import type { InputModel } from "./orchestrator-agent";
+import { ClientTools as clientTools } from "../tools/client/client-tools";
+import type { InputModel } from "./planner-agent";
 import { mockSqlOptimizationAgent } from "./sql-optimization-agent.mock";
 
 /**
@@ -54,22 +55,22 @@ export function createSqlOptimizationTool(inputModel: InputModel, _context?: Dat
     execute: async ({ relevant_chat, evidenceContext }) => {
       const result = isMockMode
         ? await mockSqlOptimizationAgent({
-            relevant_chat,
-            evidenceContext,
-            inputModel: inputModel,
-          })
+          relevant_chat,
+          evidenceContext,
+          inputModel: inputModel,
+        })
         : await sqlOptimizationAgent({
-            relevant_chat,
-            evidenceContext,
-            inputModel: inputModel,
-          });
-      
+          relevant_chat,
+          evidenceContext,
+          inputModel: inputModel,
+        });
+
       // If result is a string (markdown recommendations), wrap it with explicit instructions
       // to ensure the orchestrator outputs it verbatim
       if (typeof result === "string") {
         return `[DIRECT_OUTPUT_REQUIRED: Output the following content EXACTLY as shown, without any modifications, additions, introductions, or conclusions:]\n\n${result}`;
       }
-      
+
       // If result is EvidenceRequest, return as-is
       return result;
     },
@@ -283,4 +284,54 @@ SELECT ...
       }
     );
   }
+}
+
+/**
+ * Streaming SQL Optimization Agent
+ *
+ * For use in the Two-Call Dispatcher pattern.
+ */
+export async function streamSqlOptimization({
+  messages,
+  modelConfig,
+  context,
+}: {
+  messages: any[];
+  modelConfig: InputModel;
+  context?: DatabaseContext;
+}) {
+  const [model] = LanguageModelProviderFactory.createModel(
+    modelConfig.provider,
+    modelConfig.modelId,
+    modelConfig.apiKey
+  );
+
+  const temperature = LanguageModelProviderFactory.getDefaultTemperature(modelConfig.modelId);
+
+  const systemPrompt = `SYSTEM: ClickHouse SQL Optimization Sub-Agent (Expert)
+You are an expert at optimizing ClickHouse SQL queries.
+
+Your workflow:
+1. Review the provided SQL and context.
+2. If you need more evidence (explain plans, query logs), call the 'collect_sql_optimization_evidence' tool.
+3. Once you have enough evidence, provide ranked recommendations with Impact/Risk/Effort.
+4. Always validate any proposed SQL changes using 'validate_sql'.
+
+Wait for evidence before making assumptions. Output your final report in markdown.
+
+### Execution Trace:
+agentName: sql-optimizer`;
+
+  return streamText({
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages,
+    ],
+    tools: {
+      collect_sql_optimization_evidence: clientTools.collect_sql_optimization_evidence,
+      validate_sql: clientTools.validate_sql,
+    },
+    temperature,
+  });
 }

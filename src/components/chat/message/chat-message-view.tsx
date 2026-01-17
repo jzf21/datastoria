@@ -1,7 +1,7 @@
 import { TypingDots } from "@/components/ui/typing-dots";
 import { UserProfileImage } from "@/components/user-profile-image";
+import { SERVER_TOOL_PLAN } from "@/lib/ai/agent/planner-agent";
 import { SERVER_TOOL_GENERATE_SQL } from "@/lib/ai/agent/sql-generation-agent";
-import { SERVER_TOOL_OPTIMIZE_SQL } from "@/lib/ai/agent/sql-optimization-agent";
 import { SERVER_TOOL_GENEREATE_VISUALIZATION } from "@/lib/ai/agent/visualization-agent";
 import type { AppUIMessage, TokenUsage } from "@/lib/ai/common-types";
 import { CLIENT_TOOL_NAMES } from "@/lib/ai/tools/client/client-tools";
@@ -22,6 +22,7 @@ import { MessageToolGenerateSql } from "./message-tool-generate-sql";
 import { MessageToolGenerateVisualization } from "./message-tool-generate-visualization";
 import { MessageToolGetTableColumns } from "./message-tool-get-table-columns";
 import { MessageToolGetTables } from "./message-tool-get-tables";
+import { MessageToolPlan } from "./message-tool-intent";
 import { MessageToolValidateSql } from "./message-tool-validate-sql";
 import { MessageUser } from "./message-user";
 
@@ -126,6 +127,8 @@ function ChatMessagePart({ part, isUser }: { part: AppUIMessage["parts"][0]; isU
     return <MessageToolGetTables part={part} />;
   } else if (toolName === CLIENT_TOOL_NAMES.COLLECT_SQL_OPTIMIZATION_EVIDENCE) {
     return <MessageToolCollectSqlOptimizationEvidence part={part} />;
+  } else if (toolName === SERVER_TOOL_PLAN) {
+    return <MessageToolPlan part={part} />;
   } else if (toolName) {
     return <MessageToolGeneral toolName={toolName} part={part} />;
   }

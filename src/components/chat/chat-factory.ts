@@ -1,4 +1,5 @@
 import { ModelManager } from "@/components/settings/models/model-manager";
+import { SERVER_TOOL_PLAN } from "@/lib/ai/agent/planner-agent";
 import { SERVER_TOOL_GENERATE_SQL } from "@/lib/ai/agent/sql-generation-agent";
 import { SERVER_TOOL_OPTIMIZE_SQL } from "@/lib/ai/agent/sql-optimization-agent";
 import { SERVER_TOOL_GENEREATE_VISUALIZATION } from "@/lib/ai/agent/visualization-agent";
@@ -6,7 +7,7 @@ import type { AppUIMessage } from "@/lib/ai/common-types";
 import { MODELS } from "@/lib/ai/llm/llm-provider-factory";
 import type { StageStatus, ToolProgressCallback } from "@/lib/ai/tools/client/client-tool-types";
 import { CLIENT_TOOL_NAMES, ClientToolExecutors } from "@/lib/ai/tools/client/client-tools";
-import { useToolProgressStore, type ToolProgress } from "@/lib/ai/tools/client/tool-progress-store";
+import { useToolProgressStore } from "@/lib/ai/tools/client/tool-progress-store";
 import { Connection } from "@/lib/connection/connection";
 import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
@@ -14,6 +15,8 @@ import { v7 as uuidv7 } from "uuid";
 import { ChatContext, type DatabaseContext } from "./chat-context";
 import type { Message } from "./chat-message-types";
 import { chatStorage } from "./storage/chat-storage";
+import type { PlanOutput } from "@/app/api/chat/route";
+import { TabManager } from "../tab-manager";
 
 /**
  * Create a progress callback for tool execution
@@ -31,7 +34,7 @@ function createToolProgressCallback(
       progress,
       stageStatus: status, // This will add to stages history
       stageError: error,
-    } as ToolProgress);
+    });
   };
 }
 
@@ -187,11 +190,6 @@ export class ChatFactory {
                 const now = new Date();
                 let title: string | undefined;
 
-                const firstUserMessage = userMessagesToSave[0];
-                if (firstUserMessage && firstUserMessage.role === "user") {
-                  title = extractTitleFromMessage(firstUserMessage);
-                }
-
                 chatData = {
                   chatId: chatId,
                   databaseId: connection.connectionId,
@@ -271,7 +269,8 @@ export class ChatFactory {
         if (
           toolName === SERVER_TOOL_GENERATE_SQL ||
           toolName === SERVER_TOOL_GENEREATE_VISUALIZATION ||
-          toolName === SERVER_TOOL_OPTIMIZE_SQL
+          toolName === SERVER_TOOL_OPTIMIZE_SQL ||
+          toolName === SERVER_TOOL_PLAN
         ) {
           return;
         }
@@ -326,36 +325,40 @@ export class ChatFactory {
 
             // Use current local time for createdAt (only used for display, not sorting)
             // Messages are sorted by UUIDv7 message ID, which maintains chronological order
-            const messageCreatedAt = new Date();
+            const now = new Date();
 
             const messageToSave: Message = {
               id: message.id,
               chatId,
               role: message.role,
               parts: message.parts as any,
-              createdAt: messageCreatedAt,
-              updatedAt: new Date(),
+              createdAt: now,
+              updatedAt: now,
               usage: usage,
             };
 
             await chatStorage.saveMessage(messageToSave);
-
             let chat = await chatStorage.getChat(chatId);
             if (!chat) {
-              let title: string | undefined;
-              if (messageToSave.role === "user") {
-                // For first user message, extract title from message
-                title = extractTitleFromMessage(messageToSave);
-              }
-
               const now = new Date();
               chat = {
                 chatId: chatId,
                 databaseId: connection.connectionId,
-                title,
                 createdAt: now,
                 updatedAt: now,
               };
+            }
+
+            // Use the generated title
+            console.log("Identified intent:", message);
+            if (message.role === "assistant" 
+              && message.parts.length > 1 
+              && message.parts[0].type === "dynamic-tool" 
+              && message.parts[0].toolName === SERVER_TOOL_PLAN) {
+                const output = (message.parts[0].output as PlanOutput);
+                if (output.title) {
+                  chat.title = output.title;
+                }
             }
 
             // Always update the chat's updatedAt timestamp when a message is saved.

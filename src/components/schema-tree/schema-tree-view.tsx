@@ -52,6 +52,7 @@ function extractTableNames(result: SchemaLoadResult): {
           database: row.database,
           table: row.table,
           comment: row.tableComment || null,
+          engine: row.tableEngine || null,
         });
       }
     }

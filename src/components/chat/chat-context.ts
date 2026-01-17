@@ -5,7 +5,7 @@ export interface DatabaseContext {
   database?: string;
   tables?: Array<{
     name: string;
-    columns: string[];
+    columns: Array<{ name: string; type: string }> | string[];
     totalColumns?: number;
   }>;
 
@@ -42,7 +42,10 @@ export class ChatContext {
    * Aggregates all table schemas mentioned in the messages
    */
   static extractFromMessages(messages: Message[]): DatabaseContext | undefined {
-    const allTables = new Map<string, { name: string; columns: string[] }>();
+    const allTables = new Map<
+      string,
+      { name: string; columns: Array<{ name: string; type: string }> | string[] }
+    >();
 
     for (const msg of messages) {
       if (msg.context?.tables) {

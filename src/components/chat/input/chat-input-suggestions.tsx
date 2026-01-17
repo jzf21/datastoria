@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import {
   Command,
   CommandEmpty,
@@ -10,7 +11,6 @@ import {
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { TextHighlighter } from "@/lib/text-highlighter";
 import { cn } from "@/lib/utils";
-import { Table } from "lucide-react";
 import * as React from "react";
 
 export interface ChatInputSuggestionItem {
@@ -18,6 +18,7 @@ export interface ChatInputSuggestionItem {
   type: string;
   description: string;
   search: string;
+  badge?: string;
 }
 
 export interface ChatInputSuggestionsType {
@@ -142,7 +143,7 @@ export const ChatInputSuggestions = React.memo(
               <div
                 data-panel="left"
                 className={cn(
-                  "flex flex-col border shadow-md w-[350px] bg-popover overflow-hidden",
+                  "flex flex-col border shadow-md w-[350px] bg-popover overflow-x-auto rounded-sm",
                   description && "rounded-r-none"
                 )}
               >
@@ -151,10 +152,10 @@ export const ChatInputSuggestions = React.memo(
                   value={filteredSuggestions[activeIndex]?.name}
                   shouldFilter={false}
                 >
-                  <CommandList className="flex-1 overflow-y-auto">
+                  <CommandList className="flex-1 overflow-y-auto overflow-x-auto">
                     <CommandEmpty>No items found</CommandEmpty>
                     {filteredSuggestions.length > 0 && (
-                      <CommandGroup heading="Tables">
+                      <CommandGroup heading="Tables" className="min-w-fit">
                         {filteredSuggestions.map((table, index) => (
                           <CommandItem
                             key={table.name}
@@ -162,15 +163,22 @@ export const ChatInputSuggestions = React.memo(
                             onSelect={() => handleSelect(table.name)}
                             onMouseEnter={() => setActiveIndex(index)}
                             className={cn(
-                              "py-1 flex items-center gap-2 cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                              "py-1 flex items-center gap-2 cursor-pointer hover:bg-accent hover:text-accent-foreground min-w-fit",
                               index === activeIndex && "bg-accent text-accent-foreground"
                             )}
                             ref={index === activeIndex ? activeItemRef : null}
                           >
-                            <Table className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            <span className="text-sm">
-                              {TextHighlighter.highlight(table.name, searchQuery)}
+                            <span>
+                            {TextHighlighter.highlight(table.name, searchQuery)}
                             </span>
+                            {table.badge && (
+                              <Badge
+                                variant="outline"
+                                className="text-muted-foreground text-[10px] rounded-none px-1 py-0 border-0"
+                              >
+                                {table.badge}
+                              </Badge>
+                            )}
                           </CommandItem>
                         ))}
                       </CommandGroup>

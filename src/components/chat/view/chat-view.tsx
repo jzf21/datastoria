@@ -50,7 +50,7 @@ interface ChatViewProps {
   currentDatabase?: string;
   availableTables?: Array<{
     name: string;
-    columns: string[];
+    columns: Array<{ name: string; type: string }> | string[];
   }>;
   externalInput?: string;
 }

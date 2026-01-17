@@ -697,7 +697,7 @@ const Tree = React.forwardRef<TreeRef, TreeProps>(
                   )}
                   {/* Tag */}
                   {renderTooltip(
-                    <span className="flex items-center gap-1 ml-2 shrink-0">{renderTag(node.tag)}</span>,
+                    <span className="flex items-center gap-1 shrink-0">{renderTag(node.tag)}</span>,
                     node.tagTooltip
                   )}
                 </span>

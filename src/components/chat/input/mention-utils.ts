@@ -25,23 +25,37 @@ export const MAX_COLUMNS_PER_TABLE = 100;
 export function getTableContextByMentions(
   text: string,
   connection: Connection
-): Array<{ name: string; columns: string[]; totalColumns?: number }> | undefined {
+): Array<{
+  name: string;
+  columns: Array<{ name: string; type: string }>;
+  totalColumns?: number;
+}> | undefined {
   const mentions = extractTableMentions(text);
   if (mentions.length === 0) return undefined;
 
   const tableNames = connection.metadata.tableNames;
   if (!tableNames) return undefined;
 
-  const results: Array<{ name: string; columns: string[]; totalColumns?: number }> = [];
+  const results: Array<{
+    name: string;
+    columns: Array<{ name: string; type: string }>;
+    totalColumns?: number;
+  }> = [];
 
   for (const mention of mentions) {
     const tableInfo = tableNames.get(mention);
     if (tableInfo && tableInfo.columns) {
-      const totalColumns = tableInfo.columns.length;
+      // Handle both old format (string[]) and new format (Array<{name, type}>)
+      const allColumns =
+        typeof tableInfo.columns[0] === "string"
+          ? (tableInfo.columns as string[]).map((name) => ({ name, type: "Unknown" }))
+          : (tableInfo.columns as Array<{ name: string; type: string }>);
+
+      const totalColumns = allColumns.length;
       const isTruncated = totalColumns > MAX_COLUMNS_PER_TABLE;
       const columns = isTruncated
-        ? tableInfo.columns.slice(0, MAX_COLUMNS_PER_TABLE)
-        : tableInfo.columns;
+        ? allColumns.slice(0, MAX_COLUMNS_PER_TABLE)
+        : allColumns;
 
       results.push({
         name: mention,
