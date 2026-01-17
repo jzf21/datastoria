@@ -156,7 +156,7 @@ ORDER BY shard, replica`,
           {initialSelectedHost}
         </span>
       </PopoverTrigger>
-      <PopoverContent className="w-[450px] p-0" align="start">
+      <PopoverContent className="w-[450px] p-0 rounded-sm" align="start">
         {loading ? (
           <div className="p-4 text-sm items-center flex gap-2 justify-center text-center text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -230,7 +230,7 @@ ORDER BY shard, replica`,
 
                         {/* IP Address column */}
                         <div className="flex items-center min-w-0">
-                          <span className="text-[11px] text-muted-foreground truncate font-mono">
+                          <span className="text-[11px] truncate font-mono">
                             <HighlightableCommandItem text={node.address} />
                           </span>
                         </div>

@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Connection,
   type ConnectionConfig,
-  type ConnectionMetadata,
   type DatabaseInfo,
   type JSONCompactFormatResponse,
   type TableInfo,
@@ -89,62 +88,79 @@ function extractTableNames(result: SchemaLoadResult): {
   return { tableNames, databaseNames };
 }
 
-// Initialize cluster info on a temporary connection and return the updates
-async function getConnectionMetadata(connection: Connection): Promise<Partial<ConnectionMetadata>> {
-  const metadataQuery = connection.query(
-    `SELECT currentUser(), 
-    timezone(), 
+// Initialize cluster info on a temporary connection and update metadata directly
+async function getConnectionMetadata(connection: Connection): Promise<void> {
+  const metadataQuery = connection
+    .query(
+      `SELECT currentUser(), 
+    timezone(),
+    hostname(),
     hasColumnInTable('system', 'functions', 'description'),
     hasColumnInTable('system', 'metric_log', 'ProfileEvent_MergeSourceParts'),
     hasColumnInTable('system', 'metric_log', 'ProfileEvent_MutationTotalParts')
 `,
-    { default_format: "JSONCompact" }
-  );
+      { default_format: "JSONCompact" }
+    )
+    .response.then((metadataResponse) => {
+      if (metadataResponse.httpStatus === 200) {
+        const data = metadataResponse.data.json<JSONCompactFormatResponse>();
+        const internalUser = data.data[0][0];
+        const timezone = data.data[0][1];
+        const hostname = data.data[0][2] as string;
+
+        const isCluster = connection.cluster && connection.cluster.length > 0;
+        connection.metadata = {
+          ...connection.metadata,
+          displayName: hostname,
+          remoteHostName: isCluster ? hostname : undefined,
+          internalUser: internalUser as string,
+          timezone: timezone as string,
+          function_table_has_description_column: data.data[0][2] ? true : false,
+          metric_log_table_has_ProfileEvent_MergeSourceParts: data.data[0][3] ? true : false,
+          metric_log_table_has_ProfileEvent_MutationTotalParts: data.data[0][4] ? true : false,
+        };
+      }
+    });
 
   // Issue a dedicated query in case the query fails
-  const functionQuery = await connection.query(
-    `select 1 from system.functions where name = 'formatQuery'`,
-    {
+  const functionQuery = connection
+    .query(`select 1 from system.functions where name = 'formatQuery'`, {
       default_format: "JSONCompact",
-    }
-  );
-
-  let metadata: Partial<ConnectionMetadata> = {};
-
-  const metadataResponse = await metadataQuery.response;
-  if (metadataResponse.httpStatus === 200) {
-    const returnNode = metadataResponse.httpHeaders["x-clickhouse-server-display-name"];
-    const data = metadataResponse.data.json<JSONCompactFormatResponse>();
-    const internalUser = data.data[0][0];
-    const timezone = data.data[0][1];
-
-    const isCluster =
-      connection.cluster &&
-      connection.cluster.length > 0 &&
-      connection.metadata.targetNode === undefined;
-    metadata = {
-      displayName: returnNode,
-      targetNode: isCluster ? returnNode : undefined,
-      internalUser: internalUser as string,
-      timezone: timezone as string,
-      function_table_has_description_column: data.data[0][2] ? true : false,
-      metric_log_table_has_ProfileEvent_MergeSourceParts: data.data[0][3] ? true : false,
-      metric_log_table_has_ProfileEvent_MutationTotalParts: data.data[0][4] ? true : false,
-    };
-  }
-
-  {
-    const response = await functionQuery.response;
-    if (response.httpStatus === 200) {
-      const data = response.data.json<JSONCompactFormatResponse>();
-      if (data.data.length > 0) {
-        const has_format_query_function = data.data[0][0];
-        metadata.has_format_query_function = has_format_query_function ? true : false;
+    })
+    .response.then((functionResponse) => {
+      if (functionResponse.httpStatus === 200) {
+        const data = functionResponse.data.json<JSONCompactFormatResponse>();
+        if (data.data.length > 0) {
+          const has_format_query_function = data.data[0][0];
+          connection.metadata = {
+            ...connection.metadata,
+            has_format_query_function: has_format_query_function ? true : false,
+          };
+        }
       }
-    }
-  }
+    });
 
-  return metadata;
+  // Pre-load hostnames for shortening if cluster is configured
+  const clusterHostQuery = connection.cluster
+    ? connection
+        .query(`SELECT host_name FROM system.clusters WHERE cluster = '${connection.cluster}'`, {
+          default_format: "JSONCompact",
+        })
+        .response.then((clusterHostResponse) => {
+          if (clusterHostResponse.httpStatus === 200) {
+            const data = clusterHostResponse.data.json<JSONCompactFormatResponse>();
+            if (data && Array.isArray(data.data)) {
+              const hostNames = data.data.map((row) => row[0] as string);
+              hostNameManager.shortenHostnames(hostNames);
+            }
+          }
+        })
+        .catch((e) => {
+          console.warn("Failed to load cluster hosts for shortening:", e);
+        })
+    : Promise.resolve();
+
+  await Promise.all([metadataQuery, functionQuery, clusterHostQuery]);
 }
 
 type StepStatus = "pending" | "loading" | "success" | "error";
@@ -162,7 +178,7 @@ interface ConnectionInitializerProps {
 
 function ConnectionInitializer({ config, onReady }: ConnectionInitializerProps) {
   const [steps, setSteps] = useState<LoadingStep[]>([
-    { id: "init", text: "Initializing, please wait...", status: "loading" },
+    { id: "init", text: "Initializing...", status: "loading" },
     { id: "cluster", text: "Load cluster", status: "pending" },
     { id: "schema", text: "Load schema", status: "pending" },
   ]);
@@ -207,7 +223,7 @@ function ConnectionInitializer({ config, onReady }: ConnectionInitializerProps) 
     }
 
     // Config is present, mark init as success
-    updateStep("init", "success", `Load connection information: ${config.name}`);
+    updateStep("init", "success", `Initialized with connection: ${config.name}`);
 
     let isMounted = true;
     const schemaLoader = new SchemaTreeLoader();
@@ -219,33 +235,12 @@ function ConnectionInitializer({ config, onReady }: ConnectionInitializerProps) 
         hostNameManager.clear();
 
         // Step 1: Cluster & Metadata
-        updateStep("cluster", "loading", "Load cluster from " + config.url);
-
-        // Pre-load hostnames for shortening if cluster is configured
-        if (newConnection.cluster) {
-          try {
-            const response = await newConnection.query(
-              `SELECT host_name FROM system.clusters WHERE cluster = '${newConnection.cluster}'`,
-              { default_format: "JSONCompact" }
-            ).response;
-            const data = response.data.json<JSONCompactFormatResponse>();
-            if (data && Array.isArray(data.data)) {
-              const hostNames = data.data.map((row: any) => row[0]);
-              hostNameManager.shortenHostnames(hostNames);
-            }
-          } catch (e) {
-            console.warn("Failed to load cluster hosts for shortening:", e);
-          }
-        }
-
-        const newMetadata = await getConnectionMetadata(newConnection);
-        if (Object.keys(newMetadata).length > 0) {
-          newConnection.metadata = { ...newConnection.metadata, ...newMetadata };
-        }
+        updateStep("cluster", "loading", "Loading cluster metadata " + config.url);
+        await getConnectionMetadata(newConnection);
         updateStep("cluster", "success");
 
         // Step 2: Schema
-        updateStep("schema", "loading", "Load schema from " + config.url);
+        updateStep("schema", "loading", "Loading schema");
         const startTime = Date.now();
         const result = await schemaLoader.load(newConnection);
 

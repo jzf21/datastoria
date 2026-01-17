@@ -86,7 +86,7 @@ export interface ConnectionMetadata {
 
   // The node that initial query is performed on
   // It will be used to execute future queries in users intend to perform query on that node
-  targetNode?: string;
+  remoteHostName?: string;
 
   // The current user at server side, will be used to execute queries that require the internal user name instead of the client side configured user name
   internalUser: string;
@@ -299,7 +299,7 @@ export class Connection {
     params?: Record<string, unknown>,
     headers?: Record<string, string>
   ): { response: Promise<QueryResponse>; abortController: AbortController } {
-    const node = this.metadata.targetNode;
+    const node = this.metadata.remoteHostName;
 
     if (node === undefined) {
       return this.query(sql, params, headers);

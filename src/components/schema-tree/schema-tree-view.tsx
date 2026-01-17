@@ -127,7 +127,7 @@ export function SchemaTreeView({ initialSchemaData }: SchemaTreeViewProps) {
     (hostName: string) => {
       if (!connection) return;
 
-      updateConnectionMetadata({ targetNode: hostName });
+      updateConnectionMetadata({ remoteHostName: hostName });
 
       // Refresh the tree to load data from the new host
       loadDatabases();
