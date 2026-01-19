@@ -16,9 +16,9 @@ import type { TitleOption } from "./dashboard-model";
 import type { TimeSpan } from "./timespan-selector";
 
 export type RefreshOptions = {
-  inputFilter?: string;
-  selectedTimeSpan?: TimeSpan;
-  forceRefresh?: boolean; // Force refresh even if parameters haven't changed
+  timeSpan?: TimeSpan;
+  filterExpression?: string;
+  forceRefresh?: boolean;
 };
 
 export interface DashboardVisualizationComponent {

@@ -347,7 +347,7 @@ const DrilldownChartRendererWithRefresh: React.FC<{
         prevTimeSpanRef.current.endISO8601 !== selectedTimeSpan.endISO8601
       ) {
         // Time span changed (or initial mount), refresh imperatively
-        componentRef.current.refresh({ selectedTimeSpan });
+        componentRef.current.refresh({ timeSpan: selectedTimeSpan });
       }
     }
     prevTimeSpanRef.current = selectedTimeSpan;
@@ -1229,7 +1229,7 @@ const DashboardPanelTimeseries = forwardRef<
         // Replace time span template parameters in SQL if time span is provided
         const finalSql = replaceTimeSpanParams(
           query.sql,
-          param.selectedTimeSpan,
+          param.timeSpan,
           connection.metadata.timezone
         );
         setExecutedSql(finalSql);
@@ -1387,7 +1387,7 @@ const DashboardPanelTimeseries = forwardRef<
   // Use shared refreshable hook
   const getInitialParams = useCallback(() => {
     return propSelectedTimeSpan
-      ? ({ selectedTimeSpan: propSelectedTimeSpan } as RefreshOptions)
+      ? ({ timeSpan: propSelectedTimeSpan } as RefreshOptions)
       : undefined;
   }, [propSelectedTimeSpan]);
 

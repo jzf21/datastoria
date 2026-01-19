@@ -120,25 +120,15 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
     // Init the scroll button visibility
     this.handleSelectorContainerScroll();
 
-    const initialTimeSpan = this.getSelectedTimeSpan();
-    if (this.props.onTimeSpanChange && initialTimeSpan) {
-      this.props.onTimeSpanChange(initialTimeSpan);
-    }
-
-    // Emit initial filter state if default patterns were set
-    // This ensures parent components receive the initial filter and can apply it to queries
-    if (this.props.onFilterChange && this.selectedFilters.size > 0) {
-      this.props.onFilterChange(this.getSelectedFilter());
-    }
+    // const initialTimeSpan = this.getSelectedTimeSpan();
+    // if (this.props.onTimeSpanChange && initialTimeSpan) {
+    //   this.props.onTimeSpanChange(initialTimeSpan);
+    // }
   }
 
   componentDidUpdate(prevProps: FilterProps): void {
     // Emit filter changes when filterSpecs change and defaultPatterns are initialized
-    if (
-      this.props.filterSpecs !== prevProps.filterSpecs &&
-      this.props.onFilterChange &&
-      this.selectedFilters.size > 0
-    ) {
+    if (this.props.filterSpecs !== prevProps.filterSpecs && this.props.onFilterChange) {
       this.props.onFilterChange(this.getSelectedFilter());
     }
   }

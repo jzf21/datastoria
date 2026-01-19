@@ -469,7 +469,7 @@ const DashboardPanelPie = forwardRef<DashboardVisualizationComponent, DashboardP
           // Replace time span template parameters in SQL if time span is provided
           const finalSql = replaceTimeSpanParams(
             query.sql,
-            param.selectedTimeSpan,
+            param.timeSpan,
             connection.metadata.timezone
           );
           setExecutedSql(finalSql);
@@ -559,7 +559,7 @@ const DashboardPanelPie = forwardRef<DashboardVisualizationComponent, DashboardP
     // Use shared refreshable hook
     const getInitialParams = useCallback(() => {
       return propSelectedTimeSpan
-        ? ({ selectedTimeSpan: propSelectedTimeSpan } as RefreshOptions)
+        ? ({ timeSpan: propSelectedTimeSpan } as RefreshOptions)
         : undefined;
     }, [propSelectedTimeSpan]);
 

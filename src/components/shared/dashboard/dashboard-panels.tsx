@@ -21,12 +21,18 @@ import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
 
 export interface DashboardPanelsRef {
-  refresh: (timeSpan?: TimeSpan) => void;
+  refresh: (timeSpan?: TimeSpan, filterExpression?: string) => void;
 }
 
 interface DashboardPanelsProps {
   dashboard: Dashboard;
-  selectedTimeSpan: TimeSpan;
+  initialTimeSpan?: TimeSpan;
+  initialFilterExpression?: string;
+  initialLoading?: boolean;
+  onChartSelection?: (
+    timeSpan: TimeSpan,
+    selection: { name: string; series: string; value: number }
+  ) => void;
   children?: React.ReactNode;
 }
 
@@ -238,9 +244,15 @@ interface DashboardGridPanelProps {
     subComponent: DashboardVisualizationComponent | null,
     index: number
   ) => void;
-  selectedTimeSpan: TimeSpan;
+  initialTimeSpan?: TimeSpan;
+  initialFilterExpression?: string;
+  initialLoading?: boolean;
   isCollapsed: boolean;
   onCollapsedChange: (isCollapsed: boolean) => void;
+  onChartSelection?: (
+    timeSpan: TimeSpan,
+    selection: { name: string; series: string; value: number }
+  ) => void;
 }
 
 const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
@@ -248,9 +260,12 @@ const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
   panelIndex,
   isVisible,
   onSubComponentUpdated,
-  selectedTimeSpan,
+  initialTimeSpan,
+  initialFilterExpression,
+  initialLoading,
   isCollapsed,
   onCollapsedChange,
+  onChartSelection,
 }) => {
   const gridPos = getGridPos(chart);
 
@@ -289,16 +304,29 @@ const DashboardGridPanel: React.FC<DashboardGridPanelProps> = ({
     <div style={gridStyle} className={cn("w-full", isCollapsed ? "h-auto" : "h-full")}>
       <DashboardVisualizationPanel
         descriptor={chart}
-        selectedTimeSpan={selectedTimeSpan}
-        onRef={(el) => onSubComponentUpdated(el, panelIndex)}
+        initialTimeSpan={initialTimeSpan}
+        initialFilterExpression={initialFilterExpression}
+        initialLoading={initialLoading}
+        ref={(el) => onSubComponentUpdated(el, panelIndex)}
         onCollapsedChange={onCollapsedChange}
+        onChartSelection={onChartSelection}
       />
     </div>
   );
 };
 
 const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
-  ({ dashboard, selectedTimeSpan, children }, ref) => {
+  (
+    {
+      dashboard,
+      initialTimeSpan,
+      initialFilterExpression,
+      initialLoading,
+      onChartSelection,
+      children,
+    },
+    ref
+  ) => {
     // Track group collapse states at component level
     const [groupCollapseStates, setGroupCollapseStates] = useState<Map<number, boolean>>(new Map());
     // Track individual panel collapse states
@@ -469,14 +497,15 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
     );
 
     const refreshAllCharts = useCallback(
-      (overrideTimeSpan?: TimeSpan) => {
-        const timeSpan = overrideTimeSpan ?? selectedTimeSpan;
+      (newTimeSpan?: TimeSpan, newFilterExpression?: string) => {
+        const refreshParam: RefreshOptions = {
+          timeSpan: newTimeSpan ?? initialTimeSpan,
+          filterExpression: newFilterExpression ?? initialFilterExpression,
 
-        // Always include inputFilter to force refresh even when timeSpan hasn't changed
-        // This ensures that clicking refresh button multiple times with the same timeSpan will still trigger refresh
-        const refreshParam: RefreshOptions = timeSpan
-          ? { selectedTimeSpan: timeSpan, inputFilter: `refresh_${Date.now()}` }
-          : { inputFilter: `refresh_${Date.now()}` };
+          // Use forceRefresh to ensure refresh happens even when timeSpan/filterExpression haven't changed
+          // This is important for clicking refresh button multiple times with the same parameters
+          forceRefresh: true,
+        };
 
         subComponentRefs.current.forEach((chart) => {
           if (chart !== null) {
@@ -484,23 +513,19 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
           }
         });
       },
-      [selectedTimeSpan]
+      [initialTimeSpan, initialFilterExpression]
     );
 
     // Expose refresh method via imperative handle
     useImperativeHandle(
       ref,
       () => ({
-        refresh: (timeSpan?: TimeSpan) => {
-          refreshAllCharts(timeSpan);
+        refresh: (timeSpan?: TimeSpan, filterExpression?: string) => {
+          refreshAllCharts(timeSpan, filterExpression);
         },
       }),
       [refreshAllCharts]
     );
-
-    // Memoize selectedTimeSpan to prevent unnecessary prop changes
-    // This prevents all panels from refreshing when group collapse state changes
-    const memoizedTimeSpan = useMemo(() => selectedTimeSpan, [selectedTimeSpan]);
 
     return (
       <div className="h-full flex flex-col overflow-hidden">
@@ -569,11 +594,14 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
                                 panelIndex={panelIndex}
                                 isVisible={isVisible}
                                 onSubComponentUpdated={onSubComponentUpdated}
-                                selectedTimeSpan={memoizedTimeSpan}
+                                initialTimeSpan={initialTimeSpan}
+                                initialFilterExpression={initialFilterExpression}
+                                initialLoading={initialLoading}
                                 isCollapsed={isPanelCollapsed}
                                 onCollapsedChange={(collapsed) =>
                                   onPanelCollapsedChange(panelIndex, collapsed)
                                 }
+                                onChartSelection={onChartSelection}
                               />
                             );
                           })}
@@ -598,11 +626,14 @@ const DashboardPanels = forwardRef<DashboardPanelsRef, DashboardPanelsProps>(
                           panelIndex={panelIndex}
                           isVisible={isVisible}
                           onSubComponentUpdated={onSubComponentUpdated}
-                          selectedTimeSpan={memoizedTimeSpan}
+                          initialTimeSpan={initialTimeSpan}
+                          initialFilterExpression={initialFilterExpression}
+                          initialLoading={initialLoading}
                           isCollapsed={isPanelCollapsed}
                           onCollapsedChange={(collapsed) =>
                             onPanelCollapsedChange(panelIndex, collapsed)
                           }
+                          onChartSelection={onChartSelection}
                         />
                       );
                     }

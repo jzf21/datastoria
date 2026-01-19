@@ -1,11 +1,11 @@
 import { useConnection } from "@/components/connection/connection-context";
-import DashboardContainer from "@/components/shared/dashboard/dashboard-container";
 import { DashboardGroupSection } from "@/components/shared/dashboard/dashboard-group-section";
 import type {
   Dashboard,
   DashboardGroup,
   TimeseriesDescriptor,
 } from "@/components/shared/dashboard/dashboard-model";
+import DashboardPage from "@/components/shared/dashboard/dashboard-page";
 import { ThemedSyntaxHighlighter } from "@/components/shared/themed-syntax-highlighter";
 import { Dialog } from "@/components/shared/use-dialog";
 import { Button } from "@/components/ui/button";
@@ -311,7 +311,7 @@ const Dashboards = ({ database, table }: DashboardsProps) => {
 
   return (
     <div className="flex flex-col px-2" style={{ height: "calc(100vh - 49px)" }}>
-      <DashboardContainer dashboard={dashboard} headerActions={headerActions}>
+      <DashboardPage panels={dashboard} headerActions={headerActions}>
         {/* Render the skipped dashboards if any at the bottom of the container */}
         {skippedDashboards.length > 0 && (
           <DashboardGroupSection
@@ -377,7 +377,7 @@ const Dashboards = ({ database, table }: DashboardsProps) => {
             </div>
           </DashboardGroupSection>
         )}
-      </DashboardContainer>
+      </DashboardPage>
     </div>
   );
 };

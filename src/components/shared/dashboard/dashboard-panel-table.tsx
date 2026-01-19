@@ -188,11 +188,11 @@ const DashboardPanelTable = forwardRef<DashboardVisualizationComponent, Dashboar
           const query = Object.assign({}, descriptor.query) as SQLQuery;
 
           // If query has interval (time series), we might need to update it with selectedTimeSpan
-          if (param.selectedTimeSpan && query.interval) {
+          if (param.timeSpan && query.interval) {
             query.interval = {
               ...query.interval,
-              startISO8601: param.selectedTimeSpan.startISO8601,
-              endISO8601: param.selectedTimeSpan.endISO8601,
+              startISO8601: param.timeSpan.startISO8601,
+              endISO8601: param.timeSpan.endISO8601,
             };
           }
 
@@ -201,7 +201,7 @@ const DashboardPanelTable = forwardRef<DashboardVisualizationComponent, Dashboar
           // variables are replaced before SQL manipulation (like adding ORDER BY clause)
           let finalSql = replaceTimeSpanParams(
             query.sql,
-            param.selectedTimeSpan,
+            param.timeSpan,
             connection.metadata.timezone
           );
 
@@ -349,7 +349,7 @@ const DashboardPanelTable = forwardRef<DashboardVisualizationComponent, Dashboar
     // Use shared refreshable hook
     const getInitialParams = useCallback(() => {
       return props.selectedTimeSpan
-        ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshOptions)
+        ? ({ timeSpan: props.selectedTimeSpan } as RefreshOptions)
         : ({} as RefreshOptions);
     }, [props.selectedTimeSpan]);
 
@@ -397,7 +397,7 @@ const DashboardPanelTable = forwardRef<DashboardVisualizationComponent, Dashboar
           const lastParams = lastRefreshParamRef.current;
           const refreshParam: RefreshOptions = {
             ...lastParams,
-            inputFilter: `sort_${Date.now()}_${newSort.column}_${newSort.direction}`,
+            forceRefresh: true,
           };
           refreshRef.current(refreshParam);
         }

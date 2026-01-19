@@ -61,9 +61,9 @@ export const SKELETON_FADE_DURATION = 150;
 
 interface DashboardVisualizationPanelProps {
   descriptor: PanelDescriptor;
-  selectedTimeSpan?: TimeSpan;
+  initialTimeSpan?: TimeSpan;
+  initialFilterExpression?: string;
   initialLoading?: boolean;
-  onRef?: (ref: DashboardVisualizationComponent | null) => void;
   onCollapsedChange?: (isCollapsed: boolean) => void;
   onChartSelection?: (
     timeSpan: TimeSpan,
@@ -216,9 +216,13 @@ export const DashboardVisualizationPanel = forwardRef<
         // Replace time span parameters
         let finalSql = replaceTimeSpanParams(
           query.sql,
-          param.selectedTimeSpan,
+          param.timeSpan,
           connection.metadata?.timezone || "UTC"
         );
+
+        // Replace filter expression placeholder (default to "true" if not provided)
+        const filterExpr = param.filterExpression || "true";
+        finalSql = finalSql.replace(/{filterExpression:String}/g, filterExpr);
 
         // Let visualization component prepare SQL (e.g., table adds ORDER BY and pagination)
         // With the callback ref pattern, visualizationRefInternal.current will be available
@@ -288,7 +292,7 @@ export const DashboardVisualizationPanel = forwardRef<
         // Handle Stat comparison if needed
         if (typedDescriptor.type === "stat") {
           const statDescriptor = typedDescriptor as StatDescriptor;
-          if (statDescriptor.comparisonOption?.offset && props.selectedTimeSpan) {
+          if (statDescriptor.comparisonOption?.offset && props.initialTimeSpan) {
             const offsetValue = DateTimeExtension.parseOffsetExpression(
               statDescriptor.comparisonOption.offset
             );
@@ -307,14 +311,14 @@ export const DashboardVisualizationPanel = forwardRef<
                 startISO8601:
                   DateTimeExtension.formatISO8601(
                     new Date(
-                      new Date(props.selectedTimeSpan.startISO8601).getTime() + offsetValue * 1000
+                      new Date(props.initialTimeSpan.startISO8601).getTime() + offsetValue * 1000
                     )
                   ) || "",
 
                 endISO8601:
                   DateTimeExtension.formatISO8601(
                     new Date(
-                      new Date(props.selectedTimeSpan.endISO8601).getTime() + offsetValue * 1000
+                      new Date(props.initialTimeSpan.endISO8601).getTime() + offsetValue * 1000
                     )
                   ) || "",
               };
@@ -377,7 +381,7 @@ export const DashboardVisualizationPanel = forwardRef<
         setIsLoading(false);
       }
     },
-    [connection, typedDescriptor, props.selectedTimeSpan]
+    [connection, typedDescriptor, props.initialTimeSpan]
   );
 
   // Internal refresh function
@@ -448,7 +452,7 @@ export const DashboardVisualizationPanel = forwardRef<
         const lastParams = lastRefreshParamRef.current;
         const refreshParam: RefreshOptions = {
           ...lastParams,
-          inputFilter: `sort_${Date.now()}_${column}_${direction}`,
+          forceRefresh: true,
         };
         refresh(refreshParam);
       }
@@ -583,10 +587,23 @@ export const DashboardVisualizationPanel = forwardRef<
     }
   }, [isFirstLoad]);
 
+  // Track if initial refresh has been done
+  const initialRefreshDoneRef = useRef(false);
+
   // Trigger initial refresh AFTER visualization ref is available (modified from useRefreshable)
+  // This effect only handles the INITIAL refresh - subsequent refreshes are triggered via the imperative handle
   useEffect(() => {
+    if (!initialLoading) {
+      return;
+    }
+
     // Wait for visualization to be mounted before initial refresh
     if (!isVisualizationMounted) {
+      return;
+    }
+
+    // Only do initial refresh once
+    if (initialRefreshDoneRef.current) {
       return;
     }
 
@@ -599,18 +616,37 @@ export const DashboardVisualizationPanel = forwardRef<
       query?.sql.includes("{from:") ||
       query?.sql.includes("{to:");
 
-    if (requiresTimeSpan && !props.selectedTimeSpan) {
+    if (requiresTimeSpan && !props.initialTimeSpan) {
       // Skip initial refresh when time span is required but not available
       return;
     }
 
-    const params = props.selectedTimeSpan
-      ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshOptions)
-      : ({} as RefreshOptions);
+    initialRefreshDoneRef.current = true;
+
+    // Use props directly to ensure we get the current values
+    const params: RefreshOptions = {
+      timeSpan: props.initialTimeSpan,
+      filterExpression: props.initialFilterExpression ?? "1=1",
+    };
 
     // Trigger refresh with params
     refresh(params);
-  }, [isVisualizationMounted, props.selectedTimeSpan, typedDescriptor.query, refresh]);
+  }, [
+    isVisualizationMounted,
+    props.initialTimeSpan,
+    props.initialFilterExpression,
+    typedDescriptor.query,
+    refresh,
+  ]);
+
+  // Keep refresh parameters in sync with props
+  useEffect(() => {
+    refreshParameterRef.current = {
+      ...refreshParameterRef.current,
+      timeSpan: props.initialTimeSpan,
+      filterExpression: props.initialFilterExpression,
+    };
+  }, [props.initialTimeSpan, props.initialFilterExpression]);
 
   // Handle collapsed state changes - refresh when expanded if needed (from useRefreshable)
   useEffect(() => {
@@ -707,7 +743,7 @@ export const DashboardVisualizationPanel = forwardRef<
                 data={data}
                 meta={meta}
                 descriptor={typedDescriptor as TableDescriptor}
-                selectedTimeSpan={props.selectedTimeSpan}
+                selectedTimeSpan={props.initialTimeSpan}
                 isLoading={isLoading}
                 onSortChange={handleSortChange}
                 onLoadData={handleLoadData}
@@ -718,7 +754,7 @@ export const DashboardVisualizationPanel = forwardRef<
                 data={data}
                 meta={meta}
                 descriptor={typedDescriptor as PieDescriptor}
-                selectedTimeSpan={props.selectedTimeSpan}
+                selectedTimeSpan={props.initialTimeSpan}
               />
             ) : typedDescriptor.type === "transpose-table" ? (
               <TransposeTableVisualization
@@ -734,7 +770,7 @@ export const DashboardVisualizationPanel = forwardRef<
                 data={data}
                 meta={meta}
                 descriptor={typedDescriptor as TimeseriesDescriptor}
-                selectedTimeSpan={props.selectedTimeSpan}
+                selectedTimeSpan={props.initialTimeSpan}
                 onChartSelection={props.onChartSelection}
               />
             ) : typedDescriptor.type === "gauge" ? (
@@ -743,7 +779,7 @@ export const DashboardVisualizationPanel = forwardRef<
                 data={data}
                 meta={meta}
                 descriptor={typedDescriptor as GaugeDescriptor}
-                selectedTimeSpan={props.selectedTimeSpan}
+                selectedTimeSpan={props.initialTimeSpan}
               />
             ) : typedDescriptor.type === "stat" ? (
               <StatVisualization
@@ -752,7 +788,7 @@ export const DashboardVisualizationPanel = forwardRef<
                 meta={meta}
                 secondaryData={secondaryData}
                 descriptor={typedDescriptor as StatDescriptor}
-                selectedTimeSpan={props.selectedTimeSpan}
+                selectedTimeSpan={props.initialTimeSpan}
                 isSecondaryLoading={isSecondaryLoading}
                 secondaryError={secondaryError}
                 isLoading={isLoading}

@@ -630,7 +630,7 @@ const DashboardPanelStat = forwardRef<DashboardVisualizationComponent, Dashboard
             // Replace time span template parameters in SQL if time span is provided
             const finalSql = replaceTimeSpanParams(
               thisQuery.sql,
-              _param.selectedTimeSpan,
+              _param.timeSpan,
               connection!.metadata.timezone
             );
             if (!isOffset) {
@@ -677,7 +677,7 @@ const DashboardPanelStat = forwardRef<DashboardVisualizationComponent, Dashboard
             // Replace time span template parameters in SQL if provided
             const finalSql = replaceTimeSpanParams(
               query.sql,
-              _param.selectedTimeSpan,
+              _param.timeSpan,
               connection!.metadata.timezone
             );
             if (!isOffset) {
@@ -749,22 +749,22 @@ const DashboardPanelStat = forwardRef<DashboardVisualizationComponent, Dashboard
         loadData(param);
 
         // Load offset data
-        if (offset !== 0 && param.selectedTimeSpan) {
+        if (offset !== 0 && param.timeSpan) {
           const offsetTimeSpan: TimeSpan = {
             startISO8601:
               DateTimeExtension.formatISO8601(
-                new Date(new Date(param.selectedTimeSpan.startISO8601).getTime() + offset * 1000)
+                new Date(new Date(param.timeSpan.startISO8601).getTime() + offset * 1000)
               ) || "",
 
             endISO8601:
               DateTimeExtension.formatISO8601(
-                new Date(new Date(param.selectedTimeSpan.endISO8601).getTime() + offset * 1000)
+                new Date(new Date(param.timeSpan.endISO8601).getTime() + offset * 1000)
               ) || "",
           };
 
           const offsetParam: RefreshOptions = {
             ...param,
-            selectedTimeSpan: offsetTimeSpan,
+            timeSpan: offsetTimeSpan,
           };
 
           loadData(offsetParam, true);
@@ -776,7 +776,7 @@ const DashboardPanelStat = forwardRef<DashboardVisualizationComponent, Dashboard
     // Use shared refreshable hook (stat chart doesn't have collapse, but uses viewport checking)
     const getInitialParams = React.useCallback(() => {
       return props.selectedTimeSpan
-        ? ({ selectedTimeSpan: props.selectedTimeSpan } as RefreshOptions)
+        ? ({ timeSpan: props.selectedTimeSpan } as RefreshOptions)
         : ({} as RefreshOptions);
     }, [props.selectedTimeSpan]);
 

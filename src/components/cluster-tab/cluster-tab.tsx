@@ -1,10 +1,17 @@
-import DashboardContainer from "@/components/shared/dashboard/dashboard-container";
-import type { Dashboard, DashboardGroup } from "@/components/shared/dashboard/dashboard-model";
+import type {
+  Dashboard,
+  DashboardGroup,
+  SelectorFilterSpec,
+} from "@/components/shared/dashboard/dashboard-model";
+import DashboardPage from "@/components/shared/dashboard/dashboard-page";
 import { memo } from "react";
+import { useConnection } from "../connection/connection-context";
 import { clusterMetricsDashboard } from "./dashboards/cluster-metrics";
 import { clusterStatusDashboard } from "./dashboards/cluster-status";
 
 export const ClusterTab = memo(() => {
+  const { connection } = useConnection();
+
   const dashboard = {
     version: 2,
     charts: [
@@ -22,8 +29,21 @@ export const ClusterTab = memo(() => {
   } as Dashboard;
 
   return (
-    <div className="flex flex-col px-2" style={{ height: "calc(100vh - 49px)" }}>
-      <DashboardContainer dashboard={dashboard} headerActions={null} />
-    </div>
+    <DashboardPage
+      filterSpecs={[
+        {
+          filterType: "select",
+          name: "hostname()",
+          displayText: "hostname()",
+          onPreviousFilters: true,
+          datasource: {
+            type: "sql",
+            sql: `select distinct host_name from system.clusters WHERE cluster = '${connection!.cluster}' order by host_name`,
+          },
+        } as SelectorFilterSpec,
+      ]}
+      panels={dashboard}
+      headerActions={null}
+    />
   );
 });

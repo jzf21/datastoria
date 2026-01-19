@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * @deprecated This component is deprecated. Use DashboardPage instead.
+ *
+ * DashboardPage provides the same functionality with additional features:
+ * - Customizable filters via FilterSpec[]
+ * - Optional SQL input filter
+ * - Chart selection callbacks
+ * - Better integration with filter management
+ *
+ * Migration guide:
+ * - Replace `DashboardContainer` with `DashboardPage`
+ * - Rename `dashboard` prop to `panels`
+ * - Component API is backward compatible for basic usage
+ *
+ * This component will be removed in a future version.
+ */
 import React, {
   forwardRef,
   useCallback,

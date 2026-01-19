@@ -90,11 +90,13 @@ function extractTableNames(result: SchemaLoadResult): {
 
 // Initialize cluster info on a temporary connection and update metadata directly
 async function getConnectionMetadata(connection: Connection): Promise<void> {
+  // Use FQDN instead of hostname is that the hostname returns short name on k8s,
+  // which fails to resolve in remote function
   const metadataQuery = connection
     .query(
       `SELECT currentUser(), 
     timezone(),
-    hostname(),
+    FQDN(),
     hasColumnInTable('system', 'functions', 'description'),
     hasColumnInTable('system', 'metric_log', 'ProfileEvent_MergeSourceParts'),
     hasColumnInTable('system', 'metric_log', 'ProfileEvent_MutationTotalParts'),
@@ -187,7 +189,7 @@ async function getConnectionMetadata(connection: Connection): Promise<void> {
 
   // Fetch ProfileEvents from system.events for SQL validation
   const profileEventsQuery = connection
-    .query(`SELECT DISTINCT name FROM system.events ORDER BY name`, {
+    .query(`SELECT DISTINCT event FROM system.events ORDER BY event`, {
       default_format: "JSONCompact",
     })
     .response.then((eventsResponse) => {

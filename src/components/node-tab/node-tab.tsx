@@ -1,6 +1,6 @@
 import { useConnection } from "@/components/connection/connection-context";
-import DashboardContainer from "@/components/shared/dashboard/dashboard-container";
 import type { Dashboard, DashboardGroup } from "@/components/shared/dashboard/dashboard-model";
+import DashboardPage from "@/components/shared/dashboard/dashboard-page";
 import { memo } from "react";
 import { nodeMergeDashboard } from "./dashboards/node-merge";
 import { nodeMetricsDashboard } from "./dashboards/node-metrics";
@@ -66,7 +66,7 @@ export const NodeTab = memo((_props: NodeTabProps) => {
 
   return (
     <div className="flex flex-col px-2" style={{ height: "calc(100vh - 49px)" }}>
-      <DashboardContainer dashboard={dashboard} headerActions={null} />
+      <DashboardPage panels={dashboard} headerActions={null} />
     </div>
   );
 });
