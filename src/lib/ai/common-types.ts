@@ -47,6 +47,7 @@ export interface EvidenceContext {
       partition_key?: string | null;
       primary_key?: string | null;
       sorting_key?: string | null;
+      secondary_indexes?: string[];
     }
   >;
   table_stats?: Record<

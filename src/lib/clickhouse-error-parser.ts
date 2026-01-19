@@ -1,3 +1,7 @@
+export enum ErrorCode {
+  UNKNOWN_TABLE = "60",
+}
+
 export interface ErrorLocation {
   lineNumber: number;
   columnNumber: number;

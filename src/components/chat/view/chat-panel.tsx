@@ -26,6 +26,7 @@ interface ChatHeaderProps {
   onClearCurrentChat?: () => void;
   onMaximize?: () => void;
   title?: string;
+  isStreaming?: boolean;
 }
 
 const ChatHeader = React.memo(
@@ -37,6 +38,7 @@ const ChatHeader = React.memo(
     onClearCurrentChat,
     onMaximize,
     title,
+    isStreaming,
   }: ChatHeaderProps) => {
     return (
       <div className="h-9 border-b flex items-center justify-between px-2 shrink-0 bg-background/50 backdrop-blur-sm z-10">
@@ -56,6 +58,7 @@ const ChatHeader = React.memo(
               size="icon"
               className="h-6 w-6"
               onClick={onMaximize}
+              disabled={isStreaming}
               title="Maximize to tab"
             >
               <Maximize2 className="!h-3.5 !w-3.5" />
@@ -67,6 +70,7 @@ const ChatHeader = React.memo(
               size="icon"
               className="h-6 w-6"
               onClick={onClose}
+              disabled={isStreaming}
               title="Close chat panel"
             >
               <X className="!h-3.5 !w-3.5" />
@@ -100,6 +104,7 @@ export function ChatPanel({
   const { pendingCommand, consumeCommand, initialInput, clearInitialInput } = useChatPanel();
   const [chat, setChat] = useState<Chat<AppUIMessage> | null>(null);
   const [chatTitle, setChatTitle] = useState<string | undefined>(undefined);
+  const [isStreaming, setIsStreaming] = useState(false);
   const chatViewRef = useRef<ChatViewHandle | null>(null);
   const [isChatViewReady, setIsChatViewReady] = useState(false);
   const previousChatIdRef = useRef<string | null>(null);
@@ -317,6 +322,7 @@ export function ChatPanel({
           onClearCurrentChat={handleClearCurrentChat}
           onMaximize={handleMaximize}
           title={chatTitle}
+          isStreaming={isStreaming}
         />
         <ChatView
           ref={(ref) => {
@@ -334,6 +340,7 @@ export function ChatPanel({
               ? initialInput.text
               : undefined
           }
+          onStreamingChange={setIsStreaming}
         />
       </div>
     </SqlExecutionProvider>

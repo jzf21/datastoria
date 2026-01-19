@@ -4,6 +4,7 @@ import { useConnection } from "@/components/connection/connection-context";
 import { AskAIButton } from "@/components/shared/ask-ai-button";
 import { Dialog } from "@/components/shared/use-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorCode } from "@/lib/clickhouse-error-parser";
 import { QueryError } from "@/lib/connection/connection";
 import { DateTimeExtension } from "@/lib/datetime-utils";
 import {
@@ -59,6 +60,36 @@ export const SKELETON_MIN_DISPLAY_TIME = 1_000;
  */
 export const SKELETON_FADE_DURATION = 150;
 
+const ErrorComponent = ({
+  error,
+  errorCode,
+  executedSql,
+}: {
+  error: string;
+  errorCode: string;
+  executedSql: string;
+}) => {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center p-1 text-sm text-destructive gap-1">
+      {errorCode === ErrorCode.UNKNOWN_TABLE ? (
+        <div className="text-center overflow-auto w-full max-h-full custom-scrollbar">
+          <p className="text-sm text-destructive">
+            The table is not found. Maybe it's not enabled or not supported by the current
+            ClickHouse version.
+          </p>
+        </div>
+      ) : (
+        <>
+          <AskAIButton sql={executedSql} errorMessage={error} hideAfterClick={false} />
+          <div className="text-center overflow-auto w-full max-h-full custom-scrollbar">
+            {error}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 interface DashboardVisualizationPanelProps {
   descriptor: PanelDescriptor;
   initialTimeSpan?: TimeSpan;
@@ -94,6 +125,7 @@ export const DashboardVisualizationPanel = forwardRef<
   const [meta, setMeta] = useState<Array<{ name: string; type?: string }>>([]);
   const [isLoading, setIsLoading] = useState(initialLoading);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState<string>("");
   const [executedSql, setExecutedSql] = useState<string>("");
 
   // Secondary data state (for Stat comparison)
@@ -246,20 +278,11 @@ export const DashboardVisualizationPanel = forwardRef<
             ...query.headers,
           }
         );
-
         apiCancellerRef.current = abortController;
 
         const apiResponse = await response;
 
         if (abortController.signal.aborted) {
-          setIsLoading(false);
-          return;
-        }
-
-        // Check for HTTP errors
-        if (apiResponse.httpStatus >= 400) {
-          const errorData = apiResponse.data.json<QueryError>();
-          setError(errorData.message || "Unknown error");
           setIsLoading(false);
           return;
         }
@@ -287,6 +310,7 @@ export const DashboardVisualizationPanel = forwardRef<
 
         // Clear error on successful data load
         setError("");
+        setErrorCode("");
         setIsLoading(false);
 
         // Handle Stat comparison if needed
@@ -375,8 +399,10 @@ export const DashboardVisualizationPanel = forwardRef<
         }
         if (err instanceof QueryError) {
           setError(err.data);
+          setErrorCode(err.errorCode || "");
         } else {
           setError(err instanceof Error ? err.message : "Unknown error");
+          //setErrorCode("");
         }
         setIsLoading(false);
       }
@@ -736,7 +762,7 @@ export const DashboardVisualizationPanel = forwardRef<
         ) : (
           <div className="h-full w-full transition-opacity duration-150">
             {error ? (
-              renderError()
+              ErrorComponent({ error, errorCode, executedSql })
             ) : typedDescriptor.type === "table" ? (
               <TableVisualization
                 ref={visualizationRef as React.Ref<TableVisualizationRef>}

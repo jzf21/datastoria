@@ -30,9 +30,9 @@ import {
   LogOut,
   Monitor,
   Network,
+  ScrollText,
   Settings,
   Sparkles,
-  Telescope,
   Terminal,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -43,10 +43,12 @@ import { TabManager } from "./tab-manager";
 
 function HoverCardSidebarMenuItem({
   icon,
+  description,
   content,
   contentClassName,
 }: {
   icon: React.ReactNode;
+  description?: string;
   content: (isOpen: boolean, onClose: () => void) => React.ReactNode;
   contentClassName?: string;
 }) {
@@ -102,6 +104,7 @@ function HoverCardSidebarMenuItem({
           </SidebarMenuButton>
         </HoverCardTrigger>
         <HoverCardContent side="right" align="start" className={contentClassName}>
+          {description && <p className="text-xs text-muted-foreground mb-2 px-1">{description}</p>}
           {content(isOpen, onClose)}
         </HoverCardContent>
       </HoverCard>
@@ -122,10 +125,11 @@ function ConnectionManageSidebarMenuItem() {
 function SystemTableIntrospectionSidebarMenuItem() {
   return (
     <HoverCardSidebarMenuItem
-      icon={<Telescope className="h-5 w-5" />}
+      icon={<ScrollText className="h-5 w-5" />}
+      description="View system tables"
       content={() => (
         <div className="space-y-1">
-          {Array.from(SYSTEM_TABLE_REGISTRY.entries()).map(([tableName, entry]) => (
+          {Array.from(SYSTEM_TABLE_REGISTRY.entries()).map(([tableName, _entry]) => (
             <button
               key={tableName}
               className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
@@ -137,7 +141,7 @@ function SystemTableIntrospectionSidebarMenuItem() {
                 })
               }
             >
-              {entry.title}
+              system.{tableName}
             </button>
           ))}
         </div>
@@ -172,6 +176,7 @@ function DashboardSidebarMenuItem() {
     return (
       <HoverCardSidebarMenuItem
         icon={<ChartLine className="h-5 w-5" />}
+        description="View dashboards"
         content={(_isOpen, onClose) => (
           <div className="space-y-1">
             <button
@@ -205,7 +210,10 @@ function DashboardSidebarMenuItem() {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        tooltip="Click to open node status dashboard"
+        tooltip={{
+          children: "Dashboard",
+          className: "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
+        }}
         size="lg"
         className="justify-center"
         onClick={openNodeTab}
@@ -241,7 +249,11 @@ export function AppSidebar() {
               <>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip="Click to open query tab to write and execute SQL"
+                    tooltip={{
+                      children: "Query",
+                      className:
+                        "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
+                    }}
                     size="lg"
                     className="justify-center"
                     onClick={() => TabManager.activateQueryTab()}
@@ -252,7 +264,11 @@ export function AppSidebar() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip="Click to open chat tab to chat with AI"
+                    tooltip={{
+                      children: "AI Chat",
+                      className:
+                        "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
+                    }}
                     size="lg"
                     className="justify-center"
                     onClick={() => TabManager.openChatTab()}
@@ -267,7 +283,11 @@ export function AppSidebar() {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip="Click to open Settings"
+                    tooltip={{
+                      children: "Settings",
+                      className:
+                        "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
+                    }}
                     size="lg"
                     className="justify-center"
                     onClick={() => showSettingsDialog()}
@@ -327,13 +347,19 @@ function ThemeToggleButton() {
     setTheme(currentlyDark ? "light" : "dark");
   };
 
+  const simpleTooltipClass =
+    "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm";
+
   // Prevent hydration mismatch by not rendering icons until mounted
   if (!mounted) {
     return (
       <SidebarMenuButton
         size="lg"
         onClick={toggleTheme}
-        tooltip="Toggle theme"
+        tooltip={{
+          children: "Toggle theme",
+          className: simpleTooltipClass,
+        }}
         className="justify-center"
       >
         <div className="h-5 w-5" />
@@ -345,7 +371,10 @@ function ThemeToggleButton() {
     <SidebarMenuButton
       size="lg"
       onClick={toggleTheme}
-      tooltip={isDark ? "Switch to Light mode" : "Switch to Dark mode"}
+      tooltip={{
+        children: isDark ? "Light mode" : "Dark mode",
+        className: simpleTooltipClass,
+      }}
       className="justify-center"
     >
       {isDark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}

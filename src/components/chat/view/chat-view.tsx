@@ -57,6 +57,7 @@ interface ChatViewProps {
     columns: Array<{ name: string; type: string }> | string[];
   }>;
   externalInput?: string;
+  onStreamingChange?: (isStreaming: boolean) => void;
 }
 
 export interface ChatViewHandle {
@@ -66,7 +67,16 @@ export interface ChatViewHandle {
 }
 
 export const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView(
-  { chat, onNewChat, questions, currentQuery, currentDatabase, availableTables, externalInput },
+  {
+    chat,
+    onNewChat,
+    questions,
+    currentQuery,
+    currentDatabase,
+    availableTables,
+    externalInput,
+    onStreamingChange,
+  },
   ref
 ) {
   const { connection } = useConnection();
@@ -90,6 +100,11 @@ export const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatV
     }, 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Notify parent when streaming state changes
+  useEffect(() => {
+    onStreamingChange?.(status === "streaming" || status === "submitted");
+  }, [status, onStreamingChange]);
 
   const handleSubmit = useCallback(
     async (text: string) => {

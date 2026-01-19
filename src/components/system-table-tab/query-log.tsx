@@ -114,6 +114,10 @@ ORDER BY event_time DESC
         name: "query_kind",
         displayText: "query_kind",
         onPreviousFilters: true,
+        defaultPattern: {
+          comparator: "!=",
+          values: ["Insert"],
+        },
         datasource: {
           type: "sql",
           sql: `SELECT DISTINCT query_kind
@@ -318,6 +322,7 @@ LIMIT 100
               position: 1,
               renderAction: (row: Record<string, unknown>, _rowIndex: number) => {
                 const hasException = row.exception !== null && row.exception !== "";
+
                 return (
                   <HoverCard openDelay={100} closeDelay={100}>
                     <HoverCardTrigger asChild>
@@ -331,7 +336,7 @@ LIMIT 100
                           variant="ghost"
                           size="sm"
                           className="justify-start h-8 px-2"
-                          onClick={() => handleAskAI(row)}
+                          onClick={() => handleAskForOptimization(row)}
                         >
                           <Wand2 className="mr-2 h-4 w-4" />
                           Ask AI for Optimization
@@ -341,7 +346,7 @@ LIMIT 100
                             variant="ghost"
                             size="sm"
                             className="justify-start h-8 px-2"
-                            onClick={() => {}}
+                            onClick={() => handleExplainError(row)}
                           >
                             <AlertCircle className="mr-2 h-4 w-4" />
                             Explain Error
@@ -360,7 +365,55 @@ LIMIT 100
   }, [DISTRIBUTION_QUERY, TABLE_QUERY]);
 
   const { postMessage } = useChatPanel();
-  const handleAskAI = useCallback(async (row: Record<string, unknown>) => {
+
+  /**
+   * Replace unqualified table names in SQL with fully qualified names.
+   * Only replaces table references (after FROM, JOIN, INTO, etc.), not column references.
+   *
+   * @param sql - The SQL query string
+   * @param tables - Array of fully qualified table names (e.g., ["bithon.bithon_trace_span"])
+   * @returns SQL with fully qualified table names
+   */
+  const qualifyTableNames = useCallback((sql: string, tables: string[]): string => {
+    if (!tables || tables.length === 0) {
+      return sql;
+    }
+
+    // Build a map from unqualified name to fully qualified name
+    const tableMap = new Map<string, string>();
+    for (const fqn of tables) {
+      const dotIndex = fqn.indexOf(".");
+      if (dotIndex > 0) {
+        const unqualifiedName = fqn.slice(dotIndex + 1);
+        // Only add if not already mapped (first occurrence wins)
+        if (!tableMap.has(unqualifiedName)) {
+          tableMap.set(unqualifiedName, fqn);
+        }
+      }
+    }
+
+    if (tableMap.size === 0) {
+      return sql;
+    }
+
+    // Replace unqualified table names that appear after table reference keywords
+    // Keywords: FROM, JOIN, INTO, UPDATE, TABLE (case-insensitive)
+    // Pattern matches: keyword + whitespace + unqualified_table_name (not already qualified)
+    let result = sql;
+    for (const [unqualified, qualified] of tableMap) {
+      // Match table name after keywords, ensuring it's not already qualified (no dot before it)
+      // and is followed by whitespace, newline, comma, parenthesis, or end of string
+      const pattern = new RegExp(
+        `(\\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\\s+)(?!\\w+\\.)(${unqualified})(?=\\s|$|,|\\(|\\))`,
+        "gi"
+      );
+      result = result.replace(pattern, `$1${qualified}`);
+    }
+
+    return result;
+  }, []);
+
+  const handleAskForOptimization = useCallback(async (row: Record<string, unknown>) => {
     let query = row.formatted_query as string;
     if (query === undefined || query === null || query === "") {
       query = row.query as string;
@@ -373,19 +426,62 @@ LIMIT 100
         try {
           const data = (await response).data.json<JSONCompactFormatResponse>();
           query = data.data[0][0] as string;
-          console.log(query);
         } catch {
           // Ignore error
         }
       }
     }
 
+    // Qualify table names using the tables array from query_log
+    const tables = row.tables as string[] | undefined;
+    if (tables && tables.length > 0) {
+      query = qualifyTableNames(query, tables);
+    }
+
     postMessage(
-      `I got a SQL, please analyze it and see if we can optimize it.
+      `Please analyze the following SQL query and see if we can optimize it.
 ### SQL
 \`\`\`sql
 ${query.trim()}
 \`\`\`
+`,
+      { forceNewChat: true }
+    );
+  }, []);
+
+  const handleExplainError = useCallback(async (row: Record<string, unknown>) => {
+    let query = row.formatted_query as string;
+    if (query === undefined || query === null || query === "") {
+      query = row.query as string;
+
+      // Try to format it for better readability
+      if (connection?.metadata.has_format_query_function) {
+        const response = connection.query(`SELECT formatQuery('${query.replaceAll("'", "''")}')`, {
+          default_format: "JSONCompact",
+        }).response;
+        try {
+          const data = (await response).data.json<JSONCompactFormatResponse>();
+          query = data.data[0][0] as string;
+        } catch {
+          // Ignore error
+        }
+      }
+    }
+    // Qualify table names using the tables array from query_log
+    const tables = row.tables as string[] | undefined;
+    if (tables && tables.length > 0) {
+      query = qualifyTableNames(query, tables);
+    }
+
+    postMessage(
+      `The following SQL query has errors, please explain what went wrong in short and analyze the its performance and provide a fix.
+### SQL
+\`\`\`sql
+${query.trim()}
+\`\`\`
+
+### Error Message
+${row.exception as string}
 `,
       { forceNewChat: true }
     );

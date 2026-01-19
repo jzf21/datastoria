@@ -7,6 +7,7 @@ export class QueryError extends Error {
   httpStatus?: number;
   httpHeaders?: any;
   data: any;
+  errorCode?: string;
 
   constructor(message: string, httpStatus?: number, httpHeaders?: any, data?: any) {
     super(message);
@@ -14,6 +15,7 @@ export class QueryError extends Error {
     this.httpStatus = httpStatus;
     this.httpHeaders = httpHeaders;
     this.data = data;
+    this.errorCode = httpHeaders ? httpHeaders["x-clickhouse-exception-code"]?.trim() : undefined;
 
     // Explicitly set prototype to ensure instanceof works correctly across async boundaries
     Object.setPrototypeOf(this, QueryError.prototype);
