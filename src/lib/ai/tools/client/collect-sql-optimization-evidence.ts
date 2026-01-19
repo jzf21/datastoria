@@ -39,6 +39,7 @@ type TableMetadata = {
   partition_key: string | null;
   primary_key: string | null;
   sorting_key: string | null;
+  create_table_query: string | null;
 };
 
 type TableStats = {
@@ -47,6 +48,38 @@ type TableStats = {
   parts: number;
   partitions: number;
 };
+
+/**
+ * Extract INDEX expressions from CREATE TABLE query
+ * @param createTableQuery - The CREATE TABLE query string
+ * @returns Array of index expressions (e.g., ["INDEX idx_name expr TYPE type GRANULARITY n"])
+ *
+ * ClickHouse INDEX syntax:
+ *   INDEX index_name expr TYPE type[(params)] [GRANULARITY granularity]
+ *
+ * Examples:
+ *   INDEX idx_user user_id TYPE bloom_filter GRANULARITY 1
+ *   INDEX idx_name lower(name) TYPE ngrambf_v1(3, 256, 2, 0) GRANULARITY 4
+ *   INDEX idx_date date TYPE minmax
+ */
+function extractSecondaryIndexes(createTableQuery: string | null): string[] {
+  if (!createTableQuery) {
+    return [];
+  }
+
+  // Match INDEX definitions in CREATE TABLE query
+  // Pattern: INDEX name expression TYPE type[(params)] [GRANULARITY n]
+  // The expression can be a column name, function call, or tuple like (col1, col2)
+  const indexRegex = /INDEX \w+ .+? TYPE .+? GRANULARITY \d+/gi;
+
+  const indexes: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = indexRegex.exec(createTableQuery)) !== null) {
+    indexes.push(match[0]);
+  }
+
+  return indexes;
+}
 
 /**
  * Build time filter SQL clause for query_log lookups
@@ -246,16 +279,17 @@ async function parseTableNames(
     // Example lines:
     // - TableIdentifier system.databases (qualified)
     // - TableIdentifier mytable (unqualified)
-    // - Identifier column_name (column reference)
-
-    // Match table identifiers: database.table or just table
-    const tableIdRegex = /TableIdentifier\s+(([a-zA-Z0-9_]+)\.)?([a-zA-Z0-9_]+)/g;
+    // - TableIdentifier log.1995-log
+    // the identifier is complicated, just capture all characters after the keyword
+    const tableIdRegex = /TableIdentifier\s+(\S+)/g;
     const seenTables = new Set<string>();
     let match: RegExpExecArray | null;
 
     while ((match = tableIdRegex.exec(astText)) !== null) {
-      const database = match[2] || "default"; // Use "default" if no database prefix
-      const table = match[3]!;
+      const fullName = match[1]!;
+      const dotIndex = fullName.indexOf(".");
+      const database = dotIndex > 0 ? fullName.slice(0, dotIndex) : "default";
+      const table = dotIndex > 0 ? fullName.slice(dotIndex + 1) : fullName;
       const key = `${database}.${table}`;
       if (!seenTables.has(key)) {
         seenTables.add(key);
@@ -266,7 +300,7 @@ async function parseTableNames(
     // Extract column identifiers (leading with 'Identifier ')
     // Example: "Identifier user_id", "Identifier created_at"
     // The SQL query to system.columns will naturally filter out non-existent columns
-    const columnIdRegex = /Identifier\s+([a-zA-Z0-9_]+)/g;
+    const columnIdRegex = /Identifier\s+(\S+)/g;
     while ((match = columnIdRegex.exec(astText)) !== null) {
       const columnName = match[1]!;
       if (columnName) {
@@ -323,7 +357,7 @@ async function fetchTableMetadata(
   try {
     const { response: tableInfoResponse } = connection.query(
       `
-SELECT database, table, engine, partition_key, primary_key, sorting_key
+SELECT database, table, engine, partition_key, primary_key, sorting_key, create_table_query
 FROM system.tables
 WHERE ${whereClause}`,
       {
@@ -342,12 +376,14 @@ WHERE ${whereClause}`,
         const partitionKey = rowArray[3] != null ? String(rowArray[3]) : null;
         const primaryKey = rowArray[4] != null ? String(rowArray[4]) : null;
         const sortingKey = rowArray[5] != null ? String(rowArray[5]) : null;
+        const createTableQuery = rowArray[6] != null ? String(rowArray[6]) : null;
         const key = `${database}.${table}`;
         metaByTable.set(key, {
           engine,
           partition_key: partitionKey,
           primary_key: primaryKey,
           sorting_key: sortingKey,
+          create_table_query: createTableQuery,
         });
       }
     }
@@ -516,6 +552,7 @@ async function collectTableSchemas(
     const partitionKey = meta?.partition_key ?? null;
     const primaryKey = meta?.primary_key ?? null;
     const sortingKey = meta?.sorting_key ?? null;
+    const secondaryIndexes = extractSecondaryIndexes(meta?.create_table_query ?? null);
 
     const columns = columnsByTable.get(key) ?? [];
     const stats = statsByTable.get(key);
@@ -527,6 +564,7 @@ async function collectTableSchemas(
       partition_key: partitionKey,
       primary_key: primaryKey,
       sorting_key: sortingKey,
+      secondary_indexes: secondaryIndexes,
     };
 
     // Stats, if available

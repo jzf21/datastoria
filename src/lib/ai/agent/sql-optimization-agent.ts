@@ -76,11 +76,24 @@ If both provided, 'time_range' takes precedence. Default: 60 minutes.
 2. **Collect Evidence**: Use 'collect_sql_optimization_evidence' tool to gather:
    - Query execution metrics (query_log)
    - Execution plans (EXPLAIN)
-   - Table schemas and statistics
+   - Table schemas and statistics (includes primary_key, sorting_key, partition_key, secondary_indexes)
    - Relevant settings
 3. **Analyze Evidence**: Review collected data for optimization opportunities
 4. **Provide Recommendations**: Output ranked recommendations based on evidence
 5. **Validate Changes**: Use 'validate_sql' to verify any proposed SQL rewrites
+
+**TABLE SCHEMA EVIDENCE**:
+The 'table_schema' field contains for each table:
+- columns: Array of [name, type] pairs
+- engine: Table engine (e.g., MergeTree, ReplicatedMergeTree)
+- partition_key: Partition expression (e.g., "toYYYYMM(date)")
+- primary_key: Primary key columns
+- sorting_key: ORDER BY columns
+- secondary_indexes: Array of INDEX definitions (e.g., "INDEX idx_user user_id TYPE bloom_filter GRANULARITY 1")
+
+Use secondary_indexes to:
+- Check if existing indexes could help the query but aren't being used
+- Recommend creating new indexes (bloom_filter, minmax, set) for frequently filtered columns
 
 **RULES**:
 1) **FIRST**: Check input scenario. Discovery request OR specific target (SQL/query_id) must exist.
