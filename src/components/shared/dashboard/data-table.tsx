@@ -6,6 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronRight, ChevronUp, Loader2 } from "lucide-react";
 import React, {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -17,6 +18,166 @@ import { useDebouncedCallback } from "use-debounce";
 import type { ActionColumn, FieldOption } from "./dashboard-model";
 import { SKELETON_FADE_DURATION, SKELETON_MIN_DISPLAY_TIME } from "./dashboard-visualization-panel";
 import { inferFormatFromMetaType } from "./format-inference";
+
+// Hoisted static JSX elements to avoid recreation on every render
+const sortAscIcon = <ChevronUp className="inline-block w-3 h-3 ml-1" />;
+const sortDescIcon = <ChevronDown className="inline-block w-3 h-3 ml-1" />;
+
+// Props for the memoized row component
+interface DataTableRowProps {
+  row: Record<string, unknown>;
+  rowIndex: number;
+  isExpanded: boolean;
+  isSelected: boolean;
+  enableShowRowDetail: boolean;
+  enableIndexColumn: boolean;
+  enableCompactMode: boolean;
+  visibleColumns: FieldOption[];
+  onRowClick?: (row: Record<string, unknown>) => void;
+  onToggleExpansion: (rowIndex: number) => void;
+  formatCellValue: (
+    value: unknown,
+    fieldOption: FieldOption,
+    context?: Record<string, unknown>
+  ) => React.ReactNode;
+  getCellAlignmentClass: (fieldOption: FieldOption) => string;
+  additionalProps?: React.HTMLAttributes<HTMLTableRowElement> & { "data-index"?: number };
+}
+
+// Memoized row component to prevent unnecessary re-renders
+const DataTableRow = memo(function DataTableRow({
+  row,
+  rowIndex,
+  isExpanded,
+  isSelected,
+  enableShowRowDetail,
+  enableIndexColumn,
+  enableCompactMode,
+  visibleColumns,
+  onRowClick,
+  onToggleExpansion,
+  formatCellValue,
+  getCellAlignmentClass,
+  additionalProps,
+}: DataTableRowProps) {
+  const cellPaddingClass = enableCompactMode ? "!py-0.5" : "!p-2";
+
+  const handleRowClick = useCallback(() => {
+    if (!enableShowRowDetail && onRowClick) {
+      onRowClick(row);
+    }
+  }, [enableShowRowDetail, onRowClick, row]);
+
+  const handleToggleExpansion = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggleExpansion(rowIndex);
+    },
+    [onToggleExpansion, rowIndex]
+  );
+
+  return (
+    <>
+      <TableRow
+        className={cn(
+          onRowClick && !enableShowRowDetail && "cursor-pointer",
+          isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted/50"
+        )}
+        onClick={handleRowClick}
+        {...additionalProps}
+      >
+        {enableShowRowDetail && (
+          <TableCell
+            className={cn("text-center whitespace-nowrap py-0 pl-2 pr-0", cellPaddingClass)}
+          >
+            <button
+              type="button"
+              onClick={handleToggleExpansion}
+              className="inline-flex items-center justify-center rounded px-0 p-1 transition-colors"
+              aria-label={isExpanded ? "Collapse row" : "Expand row"}
+            >
+              <ChevronRight
+                className={cn(
+                  "h-4 w-4 transition-transform duration-200",
+                  isExpanded && "rotate-90"
+                )}
+              />
+            </button>
+          </TableCell>
+        )}
+        {enableIndexColumn && (
+          <TableCell className={cn("text-center whitespace-nowrap", cellPaddingClass)}>
+            {rowIndex + 1}
+          </TableCell>
+        )}
+        {visibleColumns.map((fieldOption) => {
+          if (!fieldOption.name) return null;
+
+          if (fieldOption.renderAction) {
+            return (
+              <TableCell
+                key={fieldOption.name}
+                className={cn(
+                  getCellAlignmentClass(fieldOption),
+                  "whitespace-nowrap",
+                  cellPaddingClass
+                )}
+              >
+                {fieldOption.renderAction(row, rowIndex)}
+              </TableCell>
+            );
+          }
+
+          return (
+            <TableCell
+              key={fieldOption.name}
+              className={cn(
+                getCellAlignmentClass(fieldOption),
+                "whitespace-nowrap",
+                cellPaddingClass
+              )}
+            >
+              {formatCellValue(row[fieldOption.name], fieldOption, row)}
+            </TableCell>
+          );
+        })}
+      </TableRow>
+      {isExpanded && (
+        <TableRow className="bg-muted/30">
+          <TableCell className="!p-0"></TableCell>
+          {enableIndexColumn && <TableCell className="!p-0"></TableCell>}
+          <TableCell colSpan={visibleColumns.length} className="!p-0">
+            <div className="bg-background border-l">
+              <table className="w-full text-xs">
+                <tbody>
+                  {visibleColumns.map((fieldOption, index) => {
+                    if (!fieldOption.name || fieldOption.renderAction) return null;
+                    return (
+                      <tr
+                        key={fieldOption.name}
+                        className={cn(
+                          "border-b last:border-b-0",
+                          index % 2 === 0 ? "bg-muted/20" : "bg-background"
+                        )}
+                      >
+                        <td className="font-medium px-2 py-1 w-[180px] align-top text-muted-foreground">
+                          {fieldOption.title || fieldOption.name}
+                        </td>
+                        <td className="px-2 py-1">
+                          {formatCellValue(row[fieldOption.name], fieldOption, row)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+});
 
 export type DataTablePagination = {
   mode: "client" | "server";
@@ -134,7 +295,8 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
   ref
 ) {
   // Virtualization constants
-  const VIRTUALIZATION_THRESHOLD = 300;
+  // Always use virtualization to avoid scroll position jumps when data grows
+  // (e.g., during infinite scroll when crossing a threshold)
   const ESTIMATED_ROW_HEIGHT = 33; // Height of a table row in pixels
   const OVERSCAN_COUNT = 50; // Render extra rows above/below viewport for smoother scrolling
 
@@ -577,7 +739,7 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
     [visibleColumns, sort, onSortChange, controlledSort]
   );
 
-  // Get sort icon
+  // Get sort icon - uses hoisted static JSX elements
   const getSortIcon = useCallback(
     (fieldName: string) => {
       const fieldOption = visibleColumns.find((col) => col.name === fieldName);
@@ -588,9 +750,9 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
       }
 
       if (sort.direction === "asc") {
-        return <ChevronUp className="inline-block w-3 h-3 ml-1" />;
+        return sortAscIcon;
       }
-      return <ChevronDown className="inline-block w-3 h-3 ml-1" />;
+      return sortDescIcon;
     },
     [visibleColumns, sort]
   );
@@ -659,14 +821,12 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
     }
   }, []);
 
-  // Virtualization setup
-  const useVirtualization = processedData.length > VIRTUALIZATION_THRESHOLD;
+  // Virtualization setup - always enabled to avoid scroll jumps during infinite scroll
   const rowVirtualizer = useVirtualizer({
     count: processedData.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: OVERSCAN_COUNT,
-    enabled: useVirtualization,
     measureElement:
       typeof window !== "undefined" && navigator.userAgent.includes("Firefox")
         ? undefined
@@ -765,184 +925,74 @@ export const DataTable = forwardRef<DataTableRef, DataTableProps>(function DataT
     );
   };
 
-  const renderExpandedDetail = (row: Record<string, unknown>) => {
-    const colSpan = visibleColumns.length;
-
-    return (
-      <TableRow className="bg-muted/30">
-        <TableCell className="!p-0"></TableCell>
-        {enableIndexColumn && <TableCell className="!p-0"></TableCell>}
-        <TableCell colSpan={colSpan} className="!p-0">
-          <div className="bg-background border-l">
-            <table className="w-full text-xs">
-              <tbody>
-                {visibleColumns.map((fieldOption, index) => {
-                  if (!fieldOption.name || fieldOption.renderAction) return null;
-                  return (
-                    <tr
-                      key={fieldOption.name}
-                      className={cn(
-                        "border-b last:border-b-0",
-                        index % 2 === 0 ? "bg-muted/20" : "bg-background"
-                      )}
-                    >
-                      <td className="font-medium px-2 py-1 w-[180px] align-top text-muted-foreground">
-                        {fieldOption.title || fieldOption.name}
-                      </td>
-                      <td className="px-2 py-1">
-                        {formatCellValue(row[fieldOption.name], fieldOption, row)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </TableCell>
-      </TableRow>
-    );
-  };
-
-  const renderRow = (
-    row: Record<string, unknown>,
-    rowIndex: number,
-    key: React.Key,
-    additionalProps?: React.HTMLAttributes<HTMLTableRowElement> & { "data-index"?: number }
-  ) => {
-    const isExpanded = expandedRows.has(rowIndex);
-    const cellPaddingClass = enableCompactMode ? "!py-0.5" : "!p-2";
-
-    return (
-      <React.Fragment key={key}>
-        <TableRow
-          className={cn(
-            onRowClick && !enableShowRowDetail && "cursor-pointer",
-            selectedRowId !== undefined && selectedRowId !== null && row[idField] === selectedRowId
-              ? "bg-accent text-accent-foreground"
-              : "hover:bg-muted/50"
-          )}
-          onClick={() => !enableShowRowDetail && onRowClick?.(row)}
-          {...additionalProps}
-        >
-          {enableShowRowDetail && (
-            <TableCell
-              className={cn("text-center whitespace-nowrap py-0 pl-2 pr-0", cellPaddingClass)}
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleRowExpansion(rowIndex);
-                }}
-                className="inline-flex items-center justify-center rounded px-0 p-1 transition-colors"
-                aria-label={isExpanded ? "Collapse row" : "Expand row"}
-              >
-                <ChevronRight
-                  className={cn(
-                    "h-4 w-4 transition-transform duration-200",
-                    isExpanded && "rotate-90"
-                  )}
-                />
-              </button>
-            </TableCell>
-          )}
-          {enableIndexColumn && (
-            <TableCell className={cn("text-center whitespace-nowrap", cellPaddingClass)}>
-              {rowIndex + 1}
-            </TableCell>
-          )}
-          {visibleColumns.map((fieldOption) => {
-            if (!fieldOption.name) return null;
-
-            if (fieldOption.renderAction) {
-              return (
-                <TableCell
-                  key={fieldOption.name}
-                  className={cn(
-                    getCellAlignmentClass(fieldOption),
-                    "whitespace-nowrap",
-                    cellPaddingClass
-                  )}
-                >
-                  {fieldOption.renderAction(row, rowIndex)}
-                </TableCell>
-              );
-            }
-
-            return (
-              <TableCell
-                key={fieldOption.name}
-                className={cn(
-                  getCellAlignmentClass(fieldOption),
-                  "whitespace-nowrap",
-                  cellPaddingClass
-                )}
-              >
-                {formatCellValue(row[fieldOption.name], fieldOption, row)}
-              </TableCell>
-            );
-          })}
-        </TableRow>
-        {isExpanded && renderExpandedDetail(row)}
-      </React.Fragment>
-    );
-  };
-
   const renderData = () => {
     if (error || processedData.length === 0 || shouldShowSkeleton) return null;
 
-    if (useVirtualization) {
-      const virtualItems = rowVirtualizer.getVirtualItems();
-      const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
-      const paddingBottom =
-        virtualItems.length > 0
-          ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
-          : 0;
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+    const paddingBottom =
+      virtualItems.length > 0
+        ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+        : 0;
 
-      return (
-        <>
-          {paddingTop > 0 && (
-            <TableRow style={{ height: `${paddingTop}px` }}>
-              <TableCell
-                colSpan={
-                  visibleColumns.length +
-                  (enableIndexColumn ? 1 : 0) +
-                  (enableShowRowDetail ? 1 : 0)
-                }
-                className="!p-0 !border-0"
-              />
-            </TableRow>
-          )}
-          {virtualItems.map((virtualRow) => {
-            const rowIndex = virtualRow.index;
-            const row = processedData[rowIndex];
-            if (!row) return null;
+    return (
+      <>
+        {paddingTop > 0 && (
+          <TableRow style={{ height: `${paddingTop}px` }}>
+            <TableCell
+              colSpan={
+                visibleColumns.length + (enableIndexColumn ? 1 : 0) + (enableShowRowDetail ? 1 : 0)
+              }
+              className="!p-0 !border-0"
+            />
+          </TableRow>
+        )}
+        {virtualItems.map((virtualRow) => {
+          const rowIndex = virtualRow.index;
+          const row = processedData[rowIndex];
+          if (!row) return null;
 
-            return renderRow(row, rowIndex, virtualRow.key, {
-              "data-index": virtualRow.index,
-              style: {
-                contain: "layout style paint",
-                contentVisibility: "auto",
-              },
-            });
-          })}
-          {paddingBottom > 0 && (
-            <TableRow style={{ height: `${paddingBottom}px` }}>
-              <TableCell
-                colSpan={
-                  visibleColumns.length +
-                  (enableIndexColumn ? 1 : 0) +
-                  (enableShowRowDetail ? 1 : 0)
-                }
-                className="!p-0 !border-0"
-              />
-            </TableRow>
-          )}
-        </>
-      );
-    }
-
-    return processedData.map((row, rowIndex) => renderRow(row, rowIndex, rowIndex));
+          return (
+            <DataTableRow
+              key={virtualRow.key}
+              row={row}
+              rowIndex={rowIndex}
+              isExpanded={expandedRows.has(rowIndex)}
+              isSelected={
+                selectedRowId !== undefined &&
+                selectedRowId !== null &&
+                row[idField] === selectedRowId
+              }
+              enableShowRowDetail={enableShowRowDetail}
+              enableIndexColumn={enableIndexColumn}
+              enableCompactMode={enableCompactMode}
+              visibleColumns={visibleColumns}
+              onRowClick={onRowClick}
+              onToggleExpansion={toggleRowExpansion}
+              formatCellValue={formatCellValue}
+              getCellAlignmentClass={getCellAlignmentClass}
+              additionalProps={{
+                "data-index": virtualRow.index,
+                style: {
+                  contain: "layout style paint",
+                  contentVisibility: "auto",
+                },
+              }}
+            />
+          );
+        })}
+        {paddingBottom > 0 && (
+          <TableRow style={{ height: `${paddingBottom}px` }}>
+            <TableCell
+              colSpan={
+                visibleColumns.length + (enableIndexColumn ? 1 : 0) + (enableShowRowDetail ? 1 : 0)
+              }
+              className="!p-0 !border-0"
+            />
+          </TableRow>
+        )}
+      </>
+    );
   };
 
   if (error && !isLoading && (!processedData || processedData.length === 0)) {

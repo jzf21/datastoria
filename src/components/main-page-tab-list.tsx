@@ -115,8 +115,9 @@ function EmptyTabPlaceholderComponent() {
 
       <h3 className="text-2xl font-semibold tracking-tight mb-2">Welcome to Data Storia</h3>
 
-      <p className="text-muted-foreground max-w-xl mb-2 text-sm leading-relaxed">
-        Select a table from the sidebar to view its details, or start by running a new SQL query.
+      <p className="text-muted-foreground mb-2 text-sm leading-relaxed">
+        Select a table from the sidebar to view its details, or start by clicking the following
+        buttons.
       </p>
 
       {/* Action Buttons - VSCode style */}

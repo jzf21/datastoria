@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    // Optimize barrel file imports for better performance
+    // This transforms barrel imports to direct imports at build time
+    optimizePackageImports: ['lucide-react'],
   },
 }
 
