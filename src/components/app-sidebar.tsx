@@ -331,10 +331,17 @@ function SettingsSidebarMenuItem() {
       description="Settings"
       content={(_isOpen, onClose) => (
         <div className="space-y-2">
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             className="w-full flex items-center justify-between px-2 py-1.5 rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
             onClick={() => toggleTheme(!isDark)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleTheme(!isDark);
+              }
+            }}
           >
             <div className="flex items-center gap-2 text-sm">
               {isDark ? <MoonIcon className="h-4 w-4" /> : <SunIcon className="h-4 w-4" />}
@@ -345,8 +352,9 @@ function SettingsSidebarMenuItem() {
               onCheckedChange={toggleTheme}
               aria-label="Toggle dark mode"
               className="h-4 w-8 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-4"
+              onClick={(e) => e.stopPropagation()}
             />
-          </button>
+          </div>
           <button
             className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
             onClick={() => {
