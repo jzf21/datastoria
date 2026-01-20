@@ -739,8 +739,8 @@ export const QueryLogInspectorTopoView = forwardRef<GraphControlsRef, QueryLogIn
 
           <PanelResizeHandle
             className={`${
-              selectedNode ? "h-0.5 w-full cursor-row-resize" : "w-0.5 h-full cursor-col-resize"
-            } bg-border hover:bg-border/80 transition-colors`}
+              selectedNode ? "h-[1px] w-full cursor-row-resize" : "w-[1px] h-full cursor-col-resize"
+            } hover:bg-border/80 transition-colors`}
           />
 
           {selectedQueryLog ? (

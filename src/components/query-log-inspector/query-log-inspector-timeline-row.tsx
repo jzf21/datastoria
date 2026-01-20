@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Formatter } from "@/lib/formatter";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import React, { useCallback, useState } from "react";
-import type { QueryLogTreeNode } from "./timeline-view/query-log-timeline-types";
+import type { QueryLogTreeNode } from "./query-log-inspector-timeline-types";
 
 const MICROSECONDS_PER_MS = 1000;
 const INDENT = 18;

@@ -459,6 +459,9 @@ export const DashboardVisualizationPanel = forwardRef<
       } else {
         // Mark that refresh is needed when component becomes visible/expanded
         setNeedRefresh(true);
+        // Set isLoading to false since we're not actually loading anything yet
+        // This prevents the skeleton from showing forever for collapsed panels
+        setIsLoading(false);
       }
     },
     [isCollapsed, isComponentInView, refreshInternal]

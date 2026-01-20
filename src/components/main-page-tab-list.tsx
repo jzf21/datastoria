@@ -1,6 +1,6 @@
 import { AppLogo } from "@/components/app-logo";
-import { DEFAULT_CHAT_QUESTIONS } from "@/components/chat/view/chat-view";
 import { useChatPanel } from "@/components/chat/view/use-chat-panel";
+import { useConnection } from "@/components/connection/connection-context";
 import { ClusterTab } from "@/components/cluster-tab/cluster-tab";
 import { DatabaseTab } from "@/components/database-tab/database-tab";
 import { NodeTab } from "@/components/node-tab/node-tab";
@@ -16,15 +16,23 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Connection } from "@/lib/connection/connection";
 import { hostNameManager } from "@/lib/host-name-manager";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Database,
   Monitor,
   Network,
+  ScrollText,
   Search,
   Sparkles,
   Table as TableIcon,
@@ -39,27 +47,65 @@ interface MainPageTabListProps {
   selectedConnection: Connection | null;
 }
 
+// VSCode-style button component for the empty state
+function EmptyStateButton({
+  icon: Icon,
+  children,
+  onClick,
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded transition-colors cursor-pointer"
+    >
+      <Icon className="h-4 w-4" />
+      {children}
+    </button>
+  );
+}
+
 // Component for the "Ready" state (Welcome screen)
 function EmptyTabPlaceholderComponent() {
-  const questions = DEFAULT_CHAT_QUESTIONS;
-  const { open: openChatPanel, postMessage, displayMode } = useChatPanel();
-  const isChatPanelVisible = displayMode !== "hidden";
+  const { connection } = useConnection();
+  const { open: openChatPanel } = useChatPanel();
+  const isClusterMode = connection?.cluster && connection.cluster.length > 0;
 
-  const handleOpenChat = useCallback(() => {
-    openChatPanel();
-  }, [openChatPanel]);
+  const openQueryTab = useCallback(() => {
+    TabManager.openTab({
+      id: "query",
+      type: "query",
+    });
+  }, []);
 
-  const handleQuestionClick = useCallback(
-    (question: { text: string; autoRun?: boolean }) => {
-      // Post the message to the chat panel with autoRun option
-      if (question.autoRun) {
-        postMessage(question.text, { forceNewChat: true });
-      } else {
-        openChatPanel();
-      }
-    },
-    [openChatPanel, postMessage]
-  );
+  const openNodeTab = useCallback(() => {
+    if (!connection) return;
+    TabManager.openTab({
+      id: `node:${connection.metadata.displayName}`,
+      type: "node",
+      host: hostNameManager.getShortHostname(connection.metadata.displayName),
+    });
+  }, [connection]);
+
+  const openClusterTab = useCallback(() => {
+    if (!connection?.cluster) return;
+    TabManager.openTab({
+      id: `cluster:${connection.cluster}`,
+      type: "cluster",
+      cluster: connection.cluster,
+    });
+  }, [connection]);
+
+  const openSystemTable = useCallback((tableName: string) => {
+    TabManager.openTab({
+      id: `system-table:${tableName}`,
+      type: "system-table",
+      tableName,
+    });
+  }, []);
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center bg-muted/5 text-center animate-in fade-in zoom-in-95 duration-300">
@@ -69,44 +115,47 @@ function EmptyTabPlaceholderComponent() {
 
       <h3 className="text-2xl font-semibold tracking-tight mb-2">Welcome to Data Storia</h3>
 
-      <p className="text-muted-foreground max-w-xl mb-4 text-sm leading-relaxed">
+      <p className="text-muted-foreground max-w-xl mb-2 text-sm leading-relaxed">
         Select a table from the sidebar to view its details, or start by running a new SQL query.
       </p>
 
-      {/* Primary Action Buttons */}
-      <div className="flex gap-3 mb-12">
-        <Button onClick={() => TabManager.activateQueryTab()} className="gap-2 shadow-sm">
-          <Terminal className="h-4 w-4" />
-          Write SQL to Query
-        </Button>
-        {/* Only show AI chat button when chat panel is not visible */}
-        {!isChatPanelVisible && (
-          <Button onClick={handleOpenChat} className="gap-2 shadow-sm" variant="default">
-            <Sparkles className="h-4 w-4" />
-            Chat with AI Assistant
-          </Button>
-        )}
-      </div>
+      {/* Action Buttons - VSCode style */}
+      <div className="flex flex-col items-start gap-1">
+        <EmptyStateButton icon={Terminal} onClick={openQueryTab}>
+          Write SQLs
+        </EmptyStateButton>
 
-      {/* Question Suggestions Section - Only show when chat panel is not visible */}
-      {!isChatPanelVisible && (
-        <div className="w-full max-w-xl">
-          <p className="text-xs text-muted-foreground mb-2">Try asking the AI assistant:</p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {questions.map((question, index) => (
-              <Button
-                key={index}
-                variant="ghost"
-                size="sm"
-                className="h-auto py-1.5 px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                onClick={() => handleQuestionClick(question)}
-              >
-                {question.text}
-              </Button>
+        <EmptyStateButton icon={Sparkles} onClick={openChatPanel}>
+          Chat with AI
+        </EmptyStateButton>
+
+        <EmptyStateButton icon={Monitor} onClick={openNodeTab}>
+          Node Status
+        </EmptyStateButton>
+
+        {isClusterMode && (
+          <EmptyStateButton icon={Network} onClick={openClusterTab}>
+            Cluster Status
+          </EmptyStateButton>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded transition-colors cursor-pointer">
+              <ScrollText className="h-4 w-4" />
+              System Tables
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {Array.from(SYSTEM_TABLE_REGISTRY.entries()).map(([tableName]) => (
+              <DropdownMenuItem key={tableName} onClick={() => openSystemTable(tableName)}>
+                system.{tableName}
+              </DropdownMenuItem>
             ))}
-          </div>
-        </div>
-      )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }

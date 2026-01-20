@@ -161,6 +161,13 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({
       return;
     }
 
+    // Check if container has valid dimensions before initializing
+    const { clientWidth, clientHeight } = chartDom;
+    if (clientWidth === 0 || clientHeight === 0) {
+      // Container not ready yet, will be initialized by ResizeObserver when it has dimensions
+      return;
+    }
+
     // Dispose existing instance if theme changed
     if (chartInstanceRef.current) {
       chartInstanceRef.current.dispose();
@@ -169,12 +176,20 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({
 
     // Initialize chart with theme (matching timeseries chart pattern)
     const chartTheme = isDark ? "dark" : undefined;
-    const chart = echarts.init(chartDom, chartTheme);
+    // useCoarsePointer: true reduces the number of event listeners ECharts adds,
+    // which helps avoid "non-passive event listener" warnings in the console.
+    const chart = echarts.init(chartDom, chartTheme, {
+      useCoarsePointer: true,
+    });
     chartInstanceRef.current = chart;
 
     const handleResize = () => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.resize();
+      if (chartInstanceRef.current && chartDom) {
+        const { clientWidth: w, clientHeight: h } = chartDom;
+        // Only resize if container has valid dimensions
+        if (w > 0 && h > 0) {
+          chartInstanceRef.current.resize();
+        }
       }
     };
 
@@ -184,8 +199,12 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({
 
     const resizeObserver =
       typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => {
-            if (chartInstanceRef.current) {
+        ? new ResizeObserver((entries) => {
+            const entry = entries[0];
+            if (!entry) return;
+            const { width, height } = entry.contentRect;
+            // Only resize if container has valid dimensions
+            if (width > 0 && height > 0 && chartInstanceRef.current) {
               requestAnimationFrame(() => {
                 if (chartInstanceRef.current) {
                   chartInstanceRef.current.resize();
@@ -200,8 +219,12 @@ const StatMinimap = React.memo<StatMinimapProps>(function StatMinimap({
 
     // Initial resize after a short delay
     const initialResizeTimeout = setTimeout(() => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.resize();
+      if (chartInstanceRef.current && chartDom) {
+        const { clientWidth: w, clientHeight: h } = chartDom;
+        // Only resize if container has valid dimensions
+        if (w > 0 && h > 0) {
+          chartInstanceRef.current.resize();
+        }
       }
     }, 100);
 
@@ -760,7 +783,7 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
           <div className="w-full h-full overflow-auto">
             <DashboardVisualizationPanel
               descriptor={modifiedDescriptor}
-              selectedTimeSpan={selectedTimeSpan}
+              initialTimeSpan={selectedTimeSpan}
               initialLoading={true}
             />
           </div>
@@ -811,7 +834,7 @@ export const StatVisualization = forwardRef<StatVisualizationRef, StatVisualizat
             <div className="w-full h-full overflow-auto">
               <DashboardVisualizationPanel
                 descriptor={modifiedDescriptor}
-                selectedTimeSpan={selectedTimeSpan}
+                initialTimeSpan={selectedTimeSpan}
                 initialLoading={true}
               />
             </div>

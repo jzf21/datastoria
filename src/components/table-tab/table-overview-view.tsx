@@ -553,7 +553,7 @@ ORDER BY 1, 2, 3`,
       <DashboardPanelContainer
         ref={dashboardPanelsRef}
         dashboard={dashboard}
-        selectedTimeSpan={currentTimeSpan}
+        initialTimeSpan={currentTimeSpan}
       />
     );
   }

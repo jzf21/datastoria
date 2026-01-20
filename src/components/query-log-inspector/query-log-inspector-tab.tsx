@@ -325,7 +325,7 @@ ORDER BY start_time_microseconds
             error={{
               message: loadError.message,
               data: loadError.data,
-              httpHeaders: loadError.httpHeaders,
+              exceptionCode: loadError.errorCode,
             }}
           />
         </div>

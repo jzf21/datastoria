@@ -685,7 +685,7 @@ const QueryLogTimelineView = React.memo(
           {selectedQueryLog && (
             <>
               <PanelResizeHandle className="w-[1px] h-full cursor-col-resize bg-border hover:bg-border/80 transition-colors" />
-              <Panel defaultSize={30} minSize={20} className="border-t border-r rounded-r-sm">
+              <Panel defaultSize={30} minSize={20} className="rounded-r-sm">
                 <QueryLogDetailPane
                   selectedQueryLog={selectedQueryLog}
                   onClose={handleCloseDetailPane}

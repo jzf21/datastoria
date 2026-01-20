@@ -86,7 +86,7 @@ export const GaugeVisualization = React.forwardRef<GaugeVisualizationRef, GaugeV
           <div className="w-full h-full overflow-auto">
             <DashboardVisualizationPanel
               descriptor={modifiedDescriptor}
-              selectedTimeSpan={selectedTimeSpan}
+              initialTimeSpan={selectedTimeSpan}
               initialLoading={true}
             />
           </div>
@@ -148,6 +148,13 @@ export const GaugeVisualization = React.forwardRef<GaugeVisualizationRef, GaugeV
         return;
       }
 
+      // Check if container has valid dimensions before initializing
+      const { clientWidth, clientHeight } = chartContainerRef.current;
+      if (clientWidth === 0 || clientHeight === 0) {
+        // Container not ready yet, will be initialized by ResizeObserver when it has dimensions
+        return;
+      }
+
       // Dispose existing instance if theme changed
       if (chartInstanceRef.current) {
         chartInstanceRef.current.dispose();
@@ -156,9 +163,12 @@ export const GaugeVisualization = React.forwardRef<GaugeVisualizationRef, GaugeV
 
       // Initialize with dark theme if in dark mode
       const chartTheme = isDark ? "dark" : undefined;
+      // useCoarsePointer: true reduces the number of event listeners ECharts adds,
+      // which helps avoid "non-passive event listener" warnings in the console.
       const chartInstance = echarts.init(chartContainerRef.current, chartTheme, {
         devicePixelRatio: window.devicePixelRatio || 1,
         renderer: "canvas",
+        useCoarsePointer: true,
       });
       chartInstanceRef.current = chartInstance;
 
@@ -166,18 +176,24 @@ export const GaugeVisualization = React.forwardRef<GaugeVisualizationRef, GaugeV
       const handleResize = () => {
         if (chartInstanceRef.current && chartContainerRef.current) {
           const { width, height } = chartContainerRef.current.getBoundingClientRect();
-          chartInstanceRef.current.resize({
-            width: Math.round(width),
-            height: Math.round(height),
-          });
+          // Only resize if container has valid dimensions
+          if (width > 0 && height > 0) {
+            chartInstanceRef.current.resize({
+              width: Math.round(width),
+              height: Math.round(height),
+            });
+          }
         }
       };
       window.addEventListener("resize", handleResize);
 
       // Use ResizeObserver to watch for container size changes
       const resizeObserver = new ResizeObserver((entries) => {
-        if (chartInstanceRef.current && entries[0]) {
-          const { width, height } = entries[0].contentRect;
+        const entry = entries[0];
+        if (!entry) return;
+        const { width, height } = entry.contentRect;
+        // Only resize if container has valid dimensions
+        if (width > 0 && height > 0 && chartInstanceRef.current) {
           requestAnimationFrame(() => {
             if (chartInstanceRef.current) {
               chartInstanceRef.current.resize({
@@ -453,10 +469,13 @@ export const GaugeVisualization = React.forwardRef<GaugeVisualizationRef, GaugeV
         requestAnimationFrame(() => {
           if (chartInstanceRef.current && chartContainerRef.current) {
             const { width, height } = chartContainerRef.current.getBoundingClientRect();
-            chartInstanceRef.current.resize({
-              width: Math.round(width),
-              height: Math.round(height),
-            });
+            // Only resize if container has valid dimensions
+            if (width > 0 && height > 0) {
+              chartInstanceRef.current.resize({
+                width: Math.round(width),
+                height: Math.round(height),
+              });
+            }
           }
         });
       } catch (err) {

@@ -151,8 +151,8 @@ interface ChatHistoryListProps {
   onClearCurrentChat?: () => void;
 }
 
-const getGroupLabel = (dateStr: string) => {
-  const date = new Date(dateStr);
+const getGroupLabel = (dateInput: Date | string) => {
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());

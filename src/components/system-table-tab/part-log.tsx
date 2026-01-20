@@ -58,6 +58,7 @@ ORDER BY event_time DESC
   );
 
   const filterSpecs = useMemo<FilterSpec[]>(() => {
+    const hostname = connection!.metadata.part_log_table_has_node_name_column ? "hostname" : "FQDN()";
     return [
       {
         filterType: "date_time",
@@ -70,8 +71,8 @@ ORDER BY event_time DESC
       // Will be removed in the code below if it's NOT cluster mode
       {
         filterType: "select",
-        name: `${connection!.metadata.part_log_table_has_node_name_column ? "hostname" : "FQDN()"}`,
-        displayText: `${connection!.metadata.part_log_table_has_node_name_column ? "hostname" : "FQDN()"}`,
+        name: hostname,
+        displayText: hostname,
         onPreviousFilters: true,
         datasource: {
           type: "sql",
@@ -183,7 +184,7 @@ ORDER BY event_time DESC
       const hasCluster = connection?.cluster && connection?.cluster.length > 0;
       if (hasCluster) {
         return spec;
-      } else if (spec.filterType === "select" && spec.name === "FQDN()") {
+      } else if (spec.filterType === "select" && spec.name === hostname) {
         // NOT in the cluster mode, remove the FQDN filter
         return false;
       }

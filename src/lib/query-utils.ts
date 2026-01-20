@@ -99,16 +99,19 @@ export class QueryPattern {
   }
 
   public toQueryString(name: string): string {
+    if (this.values.length === 0) {
+      return "";
+    }
     if (this.isMultiValue) {
-      return `${name} ${this.comparator} (${this.values.map((v) => `'${escapeSingleQuotes(v)}'`).join(",")})`;
+      return `${name} ${this.comparator} (${this.values.map((v) => `'${escapeSingleQuotes(v ?? "")}'`).join(",")})`;
     } else {
-      return `${name} ${this.comparator} '${escapeSingleQuotes(this.values[0])}'`;
+      return `${name} ${this.comparator} '${escapeSingleQuotes(this.values[0] ?? "")}'`;
     }
   }
 
   public static fromSearchParams(
     searchParams: URLSearchParams,
-    filter: (param) => boolean
+    filter: (param: string) => boolean
   ): Map<string, QueryPattern> {
     const queryParams: Map<string, QueryPattern> = new Map();
     searchParams.forEach((value, key) => {
@@ -119,9 +122,9 @@ export class QueryPattern {
         return;
       }
 
-      const comparator = ComparatorManager.parseComparator(searchParams.get(key + "_comparator"));
-      const values = comparator.allowMultiValue ? value.split(",").map((v) => v.trim()) : [value];
-      queryParams.set(key, new QueryPattern(comparator.allowMultiValue, comparator.name, values));
+      const comparator = ComparatorManager.parseComparator(searchParams.get(key + "_comparator") ?? "=");
+      const values = (comparator.allowMultiValue ?? false) ? value.split(",").map((v) => v.trim()) : [value];
+      queryParams.set(key, new QueryPattern(comparator.allowMultiValue ?? false, comparator.name, values));
     });
     return queryParams;
   }

@@ -50,10 +50,8 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
       () => ({
         refresh: (_timeSpan?: TimeSpan) => {
           if (tableComponentRef.current) {
-            // Force refresh by passing a unique timestamp to bypass the parameter change check
-            // This ensures refresh always happens even if called multiple times with "same" parameters
-            const refreshParam = { inputFilter: `refresh_${Date.now()}` };
-            tableComponentRef.current.refresh(refreshParam);
+            // Force refresh by passing forceRefresh flag
+            tableComponentRef.current.refresh({ forceRefresh: true });
           }
         },
       }),
@@ -71,11 +69,7 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
     return (
       <div className="h-full relative">
         <DashboardVisualizationPanel
-          onRef={(r) => {
-            if (r) {
-              tableComponentRef.current = r;
-            }
-          }}
+          ref={tableComponentRef}
           descriptor={tableDescriptor}
         />
       </div>

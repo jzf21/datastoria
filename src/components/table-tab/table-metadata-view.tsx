@@ -145,7 +145,7 @@ ORDER BY host
       <DashboardPanelContainer
         ref={dashboardPanelsRef}
         dashboard={dashboard}
-        selectedTimeSpan={selectedTimeSpan}
+        initialTimeSpan={selectedTimeSpan}
       />
     );
   }

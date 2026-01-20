@@ -91,57 +91,57 @@ export function DataTableExpansionExample() {
       name: "id",
       title: "ID",
       align: "center",
-      width: "60px",
+      width: 60,
     },
     {
       name: "name",
       title: "Full Name",
-      width: "180px",
+      width: 180,
     },
     {
       name: "email",
       title: "Email Address",
-      width: "220px",
+      width: 220,
     },
     {
       name: "age",
       title: "Age",
       align: "right",
-      width: "60px",
+      width: 60,
     },
     {
       name: "city",
       title: "City",
-      width: "120px",
+      width: 120,
     },
     {
       name: "country",
       title: "Country",
-      width: "120px",
+      width: 120,
     },
     {
       name: "department",
       title: "Department",
-      width: "140px",
+      width: 140,
     },
     {
       name: "salary",
       title: "Salary",
       align: "right",
       format: "comma_number",
-      width: "120px",
+      width: 120,
     },
     {
       name: "joinDate",
       title: "Join Date",
       align: "center",
-      width: "120px",
+      width: 120,
     },
     {
       name: "status",
       title: "Status",
       align: "center",
-      width: "100px",
+      width: 100,
       format: (value: unknown) => {
         const status = String(value);
         const colorClass =

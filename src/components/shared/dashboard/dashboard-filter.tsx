@@ -189,7 +189,8 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
   ) => {
     const { filterSpecs, onFilterChange } = this.props;
 
-    if (pattern === null) {
+    // Treat null or patterns with empty values as clearing the filter
+    if (pattern === null || pattern.values.length === 0) {
       this.selectedFilters.delete(filterSpec.name);
     } else {
       this.selectedFilters.set(filterSpec.name, pattern);

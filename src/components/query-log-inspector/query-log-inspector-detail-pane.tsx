@@ -112,6 +112,10 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
           if (context?.field === "host") {
             return Formatter.getInstance().getFormatter("shortHostName")(v);
           }
+          // Handle object values to prevent "Objects are not valid as a React child" error
+          if (v !== null && typeof v === "object") {
+            return JSON.stringify(v, null, 2);
+          }
           return v as string | React.ReactNode;
         },
       },
@@ -231,7 +235,7 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
       defaultSize={40}
       minSize={5}
       maxSize={70}
-      className="bg-background shadow-lg flex flex-col h-full"
+      className="bg-background shadow-lg flex flex-col h-full border-l border-t border-r rounded-sm"
     >
       {/* Header with close button */}
       <div className="flex items-center justify-between pl-3 pr-1 py-2 border-b flex-shrink-0 h-10">
@@ -261,6 +265,10 @@ export const QueryLogDetailPane = memo(function QueryLogDetailPane({
                         context?.field === "Query Executed On"
                       ) {
                         return Formatter.getInstance().getFormatter("shortHostName")(v);
+                      }
+                      // Handle object values to prevent "Objects are not valid as a React child" error
+                      if (v !== null && typeof v === "object") {
+                        return JSON.stringify(v, null, 2);
                       }
                       return v as string | React.ReactNode;
                     },

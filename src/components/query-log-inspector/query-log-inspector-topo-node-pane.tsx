@@ -120,7 +120,7 @@ function EdgeTable({ edges, type, emptyMessage = "No query available" }: EdgeTab
   );
 
   if (edges.length === 0) {
-    return <div className="text-sm text-muted-foreground">{emptyMessage}</div>;
+    return <div className="text-sm pl-4 text-muted-foreground">{emptyMessage}</div>;
   }
 
   return (
@@ -235,7 +235,7 @@ export const QueryLogInspectorTopoNodePane = memo(function QueryLogInspectorTopo
       defaultSize={40}
       minSize={5}
       maxSize={70}
-      className="bg-background border-l shadow-lg flex flex-col"
+      className="bg-background border-l shadow-lg flex flex-col border-t border-r rounded-sm"
     >
       {/* Header with close button */}
       <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 h-10">

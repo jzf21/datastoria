@@ -10,7 +10,7 @@ import {
   BUILT_IN_TIME_SPAN_LIST,
   type TimeSpan,
 } from "@/components/shared/dashboard/timespan-selector";
-import { forwardRef, memo, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useImperativeHandle, useMemo, useRef } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
 
 export interface PartHistoryViewProps {
@@ -21,37 +21,25 @@ export interface PartHistoryViewProps {
 
 const PartHistoryView = memo(
   forwardRef<RefreshableTabViewRef, PartHistoryViewProps>(({ database, table }, ref) => {
-    const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan | undefined>(undefined);
     const dashboardPanelsRef = useRef<DashboardPanelContainerRef>(null);
     const defaultTimeSpan = useMemo(() => BUILT_IN_TIME_SPAN_LIST[3].getTimeSpan(), []);
-
-    // Calculate current time span (use selected if available, otherwise default)
-    const currentTimeSpan = selectedTimeSpan ?? defaultTimeSpan;
 
     useImperativeHandle(
       ref,
       () => ({
         refresh: (timeSpan?: TimeSpan) => {
-          if (timeSpan) {
-            // Update state - prop change will trigger automatic refresh in DashboardPanelContainer
-            setSelectedTimeSpan(timeSpan);
-          } else {
-            // No timeSpan provided - explicitly refresh with current time span
-            // This handles the case when clicking refresh without changing the time range
-            setTimeout(() => {
-              dashboardPanelsRef.current?.refresh(currentTimeSpan);
-            }, 10);
-          }
+          dashboardPanelsRef.current?.refresh(timeSpan ?? defaultTimeSpan);
         },
         supportsTimeSpanSelector: true,
       }),
-      [currentTimeSpan]
+      []
     );
 
     // Create dashboard with the stat chart
     const dashboard = useMemo<Dashboard>(() => {
       return {
         name: `part-history-${database}-${table}`,
+        version: 3,
         folder: "",
         title: "Part History",
         filter: {
@@ -70,7 +58,10 @@ const PartHistoryView = memo(
               align: "center",
             },
             collapsed: false,
-            width: 2,
+            gridPos: {
+              w: 8,
+              h: 4,
+            },
             minimapOption: {
               type: "line",
             },
@@ -138,6 +129,9 @@ WITH FILL STEP {rounding:UInt32}
                 titleOption: {
                   title: "Merge Log",
                 },
+                headOption: {
+                  isSticky: true,
+                },
                 query: {
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
@@ -149,6 +143,10 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_type = 'NewPart'
                 ORDER BY event_time DESC
                 `,
+                },
+                miscOption: {
+                  enableCompactMode: true,
+                  enableIndexColumn: true,
                 },
                 sortOption: {
                   initialSort: {
@@ -166,11 +164,14 @@ WITH FILL STEP {rounding:UInt32}
           {
             type: "stat",
             titleOption: {
-              title: "Replication Part",
+              title: "Download Part",
               align: "center",
             },
             collapsed: false,
-            width: 2,
+            gridPos: {
+              w: 8,
+              h: 4,
+            },
             minimapOption: {
               type: "line",
             },
@@ -236,7 +237,7 @@ WITH FILL STEP {rounding:UInt32}
               minimap: {
                 type: "table",
                 titleOption: {
-                  title: "Merge Log",
+                  title: "Download Part Log",
                 },
                 query: {
                   sql: `
@@ -248,13 +249,23 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
                     AND event_type = 'DownloadPart'
                 ORDER BY event_time DESC
+                LIMIT 100
                 `,
+                },
+                miscOption: {
+                  enableCompactMode: true,
+                  enableIndexColumn: true,
                 },
                 sortOption: {
                   initialSort: {
                     column: "event_time",
                     direction: "desc",
+                    serverSideSorting: true,
                   },
+                },
+                pagination: {
+                  mode: "server",
+                  pageSize: 100,
                 },
               } as TableDescriptor,
             },
@@ -270,7 +281,10 @@ WITH FILL STEP {rounding:UInt32}
               align: "center",
             },
             collapsed: false,
-            width: 2,
+            gridPos: {
+              w: 8,
+              h: 4,
+            },
             minimapOption: {
               type: "line",
             },
@@ -315,6 +329,7 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
                     AND event_type = 'MergeParts'
                 ORDER BY event_time DESC
+                LIMIT 100
                 `,
                 },
                 sortOption: {
@@ -348,13 +363,19 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
                     AND event_type = 'MergeParts'
                 ORDER BY event_time DESC
+                LIMIT 100
                 `,
                 },
+                miscOption: {
+                  enableCompactMode: true,
+                  enableIndexColumn: true,
+                },
                 sortOption: {
-                  initialSort: {
-                    column: "event_time",
-                    direction: "desc",
-                  },
+                  initialSort: { column: "event_time", direction: "desc", serverSideSorting: true },
+                },
+                pagination: {
+                  mode: "server",
+                  pageSize: 100,
                 },
               } as TableDescriptor,
             },
@@ -370,7 +391,10 @@ WITH FILL STEP {rounding:UInt32}
               align: "center",
             },
             collapsed: false,
-            width: 2,
+            gridPos: {
+              w: 8,
+              h: 4,
+            },
             minimapOption: {
               type: "line",
             },
@@ -415,6 +439,7 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
                     AND event_type = 'MutatePart'
                 ORDER BY event_time DESC
+                LIMIT 100
                 `,
                 },
                 sortOption: {
@@ -448,13 +473,23 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
                     AND event_type = 'MutatePart'
                 ORDER BY event_time DESC
+                LIMIT 100
                 `,
+                },
+                miscOption: {
+                  enableCompactMode: true,
+                  enableIndexColumn: true,
                 },
                 sortOption: {
                   initialSort: {
                     column: "event_time",
                     direction: "desc",
                   },
+                  serverSideSorting: true,
+                },
+                pagination: {
+                  mode: "server",
+                  pageSize: 100,
                 },
               } as TableDescriptor,
             },
@@ -467,7 +502,10 @@ WITH FILL STEP {rounding:UInt32}
               align: "center",
             },
             collapsed: false,
-            width: 2,
+            gridPos: {
+              w: 8,
+              h: 4,
+            },
             minimapOption: {
               type: "line",
             },
@@ -511,6 +549,7 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
                     AND event_type = 'RemovePart'
                 ORDER BY event_time DESC
+                LIMIT 100
                 `,
                 },
                 sortOption: {
@@ -544,13 +583,23 @@ WITH FILL STEP {rounding:UInt32}
                     AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
                     AND event_type = 'RemovePart'
                 ORDER BY event_time DESC
+                LIMIT 100
                 `,
+                },
+                miscOption: {
+                  enableCompactMode: true,
+                  enableIndexColumn: true,
                 },
                 sortOption: {
                   initialSort: {
                     column: "event_time",
                     direction: "desc",
                   },
+                  serverSideSorting: true,
+                },
+                pagination: {
+                  mode: "server",
+                  pageSize: 100,
                 },
               } as TableDescriptor,
             },
@@ -563,7 +612,7 @@ WITH FILL STEP {rounding:UInt32}
       <DashboardPanelContainer
         ref={dashboardPanelsRef}
         dashboard={dashboard}
-        selectedTimeSpan={currentTimeSpan}
+        initialTimeSpan={defaultTimeSpan}
       />
     );
   })

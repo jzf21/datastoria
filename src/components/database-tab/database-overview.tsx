@@ -53,7 +53,7 @@ export const DatabaseOverview = forwardRef<DashboardPanelContainerRef, DatabaseO
             },
             gridPos: {
               w: 24,
-              h: 8,
+              h: 9,
             },
             query: {
               sql: `
@@ -579,7 +579,7 @@ ORDER BY host
       <DashboardPanelContainer
         ref={ref}
         dashboard={dashboard}
-        selectedTimeSpan={selectedTimeSpan}
+        initialTimeSpan={selectedTimeSpan}
       />
     );
   }

@@ -572,7 +572,7 @@ export const TimeseriesVisualization = React.forwardRef<
           <div className="w-full h-full overflow-auto">
             <DashboardVisualizationPanel
               descriptor={modifiedDescriptor}
-              selectedTimeSpan={timeRange}
+              initialTimeSpan={timeRange}
               initialLoading={true}
             />
           </div>
@@ -586,13 +586,24 @@ export const TimeseriesVisualization = React.forwardRef<
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
+    // Check if container has valid dimensions before initializing
+    const { clientWidth, clientHeight } = chartContainerRef.current;
+    if (clientWidth === 0 || clientHeight === 0) {
+      // Container not ready yet, will be initialized by ResizeObserver when it has dimensions
+      return;
+    }
+
     if (chartInstanceRef.current) {
       chartInstanceRef.current.dispose();
       chartInstanceRef.current = null;
     }
 
     const chartTheme = isDark ? "dark" : undefined;
-    const chartInstance = echarts.init(chartContainerRef.current, chartTheme);
+    // useCoarsePointer: true reduces the number of event listeners ECharts adds,
+    // which helps avoid "non-passive event listener" warnings in the console.
+    const chartInstance = echarts.init(chartContainerRef.current, chartTheme, {
+      useCoarsePointer: true,
+    });
     chartInstanceRef.current = chartInstance;
 
     // Track hovered series for tooltip highlighting.
@@ -678,14 +689,22 @@ export const TimeseriesVisualization = React.forwardRef<
     }
 
     const handleResize = () => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+      if (chartInstanceRef.current && chartContainerRef.current) {
+        const { clientWidth, clientHeight } = chartContainerRef.current;
+        // Only resize if container has valid dimensions
+        if (clientWidth > 0 && clientHeight > 0) {
+          chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+        }
       }
     };
     window.addEventListener("resize", handleResize);
 
-    const resizeObserver = new ResizeObserver(() => {
-      if (chartInstanceRef.current) {
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      // Only resize if container has valid dimensions
+      if (width > 0 && height > 0 && chartInstanceRef.current) {
         requestAnimationFrame(() => {
           if (chartInstanceRef.current) {
             chartInstanceRef.current.resize({ width: "auto", height: "auto" });
@@ -699,8 +718,12 @@ export const TimeseriesVisualization = React.forwardRef<
     }
 
     const initialResizeTimeout = setTimeout(() => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+      if (chartInstanceRef.current && chartContainerRef.current) {
+        const { clientWidth, clientHeight } = chartContainerRef.current;
+        // Only resize if container has valid dimensions
+        if (clientWidth > 0 && clientHeight > 0) {
+          chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+        }
       }
     }, 100);
 
@@ -1269,14 +1292,21 @@ export const TimeseriesVisualization = React.forwardRef<
       }
 
       requestAnimationFrame(() => {
-        if (chartInstanceRef.current) {
-          chartInstanceRef.current.resize({ width: "auto", height: "auto" });
-          // Second resize after a short delay to catch any layout changes (matches legacy behavior)
-          setTimeout(() => {
-            if (chartInstanceRef.current) {
-              chartInstanceRef.current.resize({ width: "auto", height: "auto" });
-            }
-          }, 100);
+        if (chartInstanceRef.current && chartContainerRef.current) {
+          const { clientWidth, clientHeight } = chartContainerRef.current;
+          // Only resize if container has valid dimensions
+          if (clientWidth > 0 && clientHeight > 0) {
+            chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+            // Second resize after a short delay to catch any layout changes (matches legacy behavior)
+            setTimeout(() => {
+              if (chartInstanceRef.current && chartContainerRef.current) {
+                const { clientWidth: w, clientHeight: h } = chartContainerRef.current;
+                if (w > 0 && h > 0) {
+                  chartInstanceRef.current.resize({ width: "auto", height: "auto" });
+                }
+              }
+            }, 100);
+          }
         }
       });
     } catch (err) {

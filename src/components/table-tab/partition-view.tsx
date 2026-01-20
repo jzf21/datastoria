@@ -158,11 +158,8 @@ const PartitionSizeViewComponent = forwardRef<RefreshableTabViewRef, PartitionVi
 
     useImperativeHandle(ref, () => ({
       refresh: (_timeSpan?: TimeSpan) => {
-        // Force refresh by passing a unique timestamp to bypass the parameter change check
-        // This ensures refresh always happens even if called multiple times with "same" parameters
-        // Since partition view doesn't use timeSpan or inputFilter, we use it as a refresh trigger
-        const refreshParam = { inputFilter: `refresh_${Date.now()}` };
-        tableComponentRef.current?.refresh(refreshParam);
+        // Force refresh by passing forceRefresh flag
+        tableComponentRef.current?.refresh({ forceRefresh: true });
       },
     }));
 
@@ -191,8 +188,7 @@ const PartitionSizeViewComponent = forwardRef<RefreshableTabViewRef, PartitionVi
           onSuccess: () => {
             // Refresh the table component to show updated data
             if (isMountedRef.current) {
-              const refreshParam = { inputFilter: `refresh_${Date.now()}` };
-              tableComponentRef.current?.refresh(refreshParam);
+              tableComponentRef.current?.refresh({ forceRefresh: true });
             }
           },
         });
@@ -313,7 +309,7 @@ ORDER BY
       };
     }, [database, table, handleDropPartitionClick]);
 
-    return <DashboardVisualizationPanel onRef={tableComponentRef} descriptor={tableDescriptor} />;
+    return <DashboardVisualizationPanel ref={tableComponentRef} descriptor={tableDescriptor} />;
   }
 );
 

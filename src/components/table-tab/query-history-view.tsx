@@ -62,62 +62,24 @@ const formatQueryLogLink = (
 
 export const QueryHistoryView = memo(
   forwardRef<RefreshableTabViewRef, QueryHistoryViewProps>(({ database, table }, ref) => {
-    const [selectedTimeSpan, setSelectedTimeSpan] = useState<TimeSpan | undefined>(undefined);
     const dashboardPanelsRef = useRef<DashboardPanelContainerRef>(null);
     const defaultTimeSpan = useMemo(() => BUILT_IN_TIME_SPAN_LIST[3].getTimeSpan(), []);
-
-    // Calculate current time span (use selected if available, otherwise default)
-    const currentTimeSpan = selectedTimeSpan ?? defaultTimeSpan;
 
     useImperativeHandle(
       ref,
       () => ({
         refresh: (timeSpan?: TimeSpan) => {
-          if (timeSpan) {
-            // Update state - prop change will trigger automatic refresh in DashboardPanelContainer
-            setSelectedTimeSpan(timeSpan);
-          } else {
-            // No timeSpan provided - explicitly refresh with current time span
-            // This handles the case when clicking refresh without changing the time range
             setTimeout(() => {
-              dashboardPanelsRef.current?.refresh(currentTimeSpan);
+              dashboardPanelsRef.current?.refresh(timeSpan ?? defaultTimeSpan);
             }, 10);
-          }
         },
         supportsTimeSpanSelector: true,
       }),
-      [currentTimeSpan]
+      []
     );
 
     // Create table descriptor
     const tableDescriptor = useMemo<TableDescriptor>(() => {
-      // Calculate start time - use selected timespan if available, otherwise default to start of today
-      let eventTimeStart: string;
-      let eventTimeEnd: string | undefined;
-      let eventDateFilter: string;
-
-      if (selectedTimeSpan?.startISO8601) {
-        const startDate = new Date(selectedTimeSpan.startISO8601);
-        eventTimeStart = DateTimeExtension.toYYYYMMddHHmmss(startDate);
-
-        if (selectedTimeSpan.endISO8601) {
-          const endDate = new Date(selectedTimeSpan.endISO8601);
-          eventTimeEnd = DateTimeExtension.toYYYYMMddHHmmss(endDate);
-        }
-
-        // Use toDate() to get the date part for event_date filter
-        // For timespan, we might need to check multiple dates, but for simplicity, use the start date
-        const startDateOnly = new Date(startDate);
-        startDateOnly.setHours(0, 0, 0, 0);
-        const dateStr = DateTimeExtension.formatDateTime(startDateOnly, "yyyy-MM-dd") || "";
-        eventDateFilter = `event_date >= '${dateStr}'`;
-      } else {
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-        eventTimeStart = DateTimeExtension.toYYYYMMddHHmmss(startOfToday);
-        eventDateFilter = `event_date = today()`;
-      }
-
       const columns: FieldOption[] = [
         // {
         //   name: "normalized_query_hash",
@@ -175,10 +137,6 @@ export const QueryHistoryView = memo(
         },
       ];
 
-      const timeFilter = eventTimeEnd
-        ? `event_time >= '${eventTimeStart}' AND event_time <= '${eventTimeEnd}'`
-        : `event_time >= '${eventTimeStart}'`;
-
       const sql = `
 SELECT
     -- pick the most recent query text for this hash
@@ -190,8 +148,10 @@ SELECT
     sum(written_rows) AS written_rows,
     count() query_count
 FROM system.query_log
-WHERE ${eventDateFilter}
-  AND ${timeFilter}
+WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
+  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_time >= {from:String} 
+  AND event_time <= {to:String}
   AND type <> 'QueryStart'
   AND has(databases, '${database}')
   AND has(tables, '${database}.${table}')
@@ -224,7 +184,7 @@ LIMIT 10`;
         },
         serverSideSorting: true,
       };
-    }, [database, table, selectedTimeSpan]);
+    }, [database, table]);
 
     // Create dashboard with the table descriptor
     const dashboard = useMemo<Dashboard>(() => {
@@ -241,7 +201,6 @@ LIMIT 10`;
         charts: [
           {
             type: "line",
-            id: "query-numbers",
             titleOption: {
               title: "Query Numbers",
               align: "center",
@@ -271,7 +230,6 @@ ORDER BY t`,
 
           {
             type: "line",
-            id: "error-queries",
             titleOption: {
               title: "Error Queries",
               align: "left",
@@ -305,7 +263,6 @@ ORDER BY t`,
             charts: [
               {
                 type: "line",
-                id: "read-rows-queries",
                 titleOption: {
                   title: "Read Rows",
                   align: "left",
@@ -334,7 +291,6 @@ ORDER BY t`,
 
               {
                 type: "line",
-                id: "read-bytes-queries",
                 titleOption: {
                   title: "Read Bytes",
                   align: "left",
@@ -363,7 +319,6 @@ ORDER BY t`,
 
               {
                 type: "line",
-                id: "read-bytes-queries",
                 titleOption: {
                   title: "Written Rows",
                   align: "left",
@@ -392,7 +347,6 @@ ORDER BY t`,
 
               {
                 type: "line",
-                id: "written-bytes-queries",
                 titleOption: {
                   title: "Written Bytes",
                   align: "left",
@@ -421,7 +375,6 @@ ORDER BY t`,
 
               {
                 type: "line",
-                id: "result-rows-queries",
                 titleOption: {
                   title: "Result Rows",
                   align: "left",
@@ -450,7 +403,6 @@ ORDER BY t`,
 
               {
                 type: "line",
-                id: "result-bytes-queries",
                 titleOption: {
                   title: "Result Bytes",
                   align: "left",
@@ -481,7 +433,6 @@ ORDER BY t`,
 
           {
             type: "line",
-            id: "CPU Time",
             titleOption: {
               title: "CPU Time",
               align: "left",
@@ -510,7 +461,6 @@ ORDER BY t`,
             drilldown: {
               cpu: {
                 type: "table",
-                id: "query-kind",
                 gridPos: { w: 24, h: 12 },
                 titleOption: {
                   title: "Top 100 Queries by CPU Time",
@@ -569,7 +519,7 @@ LIMIT 50
       <DashboardPanelContainer
         ref={dashboardPanelsRef}
         dashboard={dashboard}
-        selectedTimeSpan={currentTimeSpan}
+        initialTimeSpan={defaultTimeSpan}
       />
     );
   })

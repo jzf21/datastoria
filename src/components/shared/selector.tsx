@@ -60,7 +60,7 @@ function filter(value: string, search: string): number {
 }
 
 const CommandItemCount: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const filterCount = useCommandState((state) => state.filtered.count);
+  const filterCount = useCommandState((state: { filtered: { count: number } }) => state.filtered.count);
 
   return (
     <>
@@ -382,16 +382,16 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
     ref
   ) => {
     const comparatorGroups = React.useMemo(() => {
-      return ComparatorManager.getComparatorGroups(supportedComparators);
+      return ComparatorManager.getComparatorGroups(supportedComparators ?? []);
     }, [supportedComparators]);
 
     const [isOpen, setIsOpen] = useState(false);
     const [selectedComparator, setSelectedComparator] = useState(
-      ComparatorManager.parseComparator(defaultPattern?.comparator)
+      ComparatorManager.parseComparator(defaultPattern?.comparator ?? "=")
     );
 
     const [selectedValue, setSelectedValue] = useState(
-      new Set<string>(defaultPattern ? defaultPattern.values : [])
+      new Set<string>(defaultPattern?.values ?? [])
     );
     const [listItems, setListItems] = useState<SelectorItem[]>(defaultItems);
     const [isLoading, setIsLoading] = useState(false);
@@ -464,7 +464,7 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
             // Notification of change
             onItemSelected(
               new QueryPattern(
-                selectedComparator.allowMultiValue,
+                selectedComparator.allowMultiValue ?? false,
                 selectedComparator.name,
                 inputValues
               )
@@ -473,7 +473,7 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
             // Reset to empty selection
 
             setSelectedValue(new Set<string>());
-            onItemSelected(null);
+            onItemSelected(new QueryPattern(false, "=", []));
           }
 
           event.preventDefault();
@@ -490,7 +490,7 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
         if (selectedValue.size > 0) {
           // Notification of change only when there're selected patterns
           onItemSelected(
-            new QueryPattern(comparator.allowMultiValue, comparator.name, Array.from(selectedValue))
+            new QueryPattern(comparator.allowMultiValue ?? false, comparator.name, Array.from(selectedValue))
           );
         }
       },
@@ -500,13 +500,17 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
     const onApplyFilterClicked = useCallback(() => {
       setIsOpen(false);
 
+      if (!patternSelectorRef.current) {
+        return;
+      }
+
       const selectedPatterns = patternSelectorRef.current.getSelectedPatterns();
       const selectedComparator = patternSelectorRef.current.getSelectedComparator();
 
       setSelectedValue(selectedPatterns);
       setSelectedComparator(selectedComparator);
 
-      const isMultiValue = selectedComparator.allowMultiValue;
+      const isMultiValue = selectedComparator.allowMultiValue ?? false;
       const selectedValues = Array.from(selectedPatterns);
 
       // Update the INPUT when selected value changes
@@ -520,7 +524,7 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
 
       // Notification
       if (selectedValues.length === 0) {
-        onItemSelected(null);
+        onItemSelected(new QueryPattern(false, "=", []));
       } else {
         onItemSelected(
           new QueryPattern(isMultiValue, selectedComparator.name, Array.from(selectedPatterns))
@@ -539,7 +543,7 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
         setIsOpen(false);
         setSelectedValue(new Set<string>());
         setSelectedComparator(ComparatorManager.parseComparator("=")); // Reset to the default comparator
-        onItemSelected(null);
+        onItemSelected(new QueryPattern(false, "=", []));
       },
       [onItemSelected]
     );
