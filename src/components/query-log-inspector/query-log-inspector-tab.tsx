@@ -266,10 +266,10 @@ SELECT
   * 
 FROM ${queryTable} 
 WHERE initial_query_id = '${activeQueryId}'
-AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+AND event_date >= toDate({from:String}) 
+AND event_date >= toDate({to:String})
 AND event_time >= {from:String} 
-AND event_time <= {to:String}
+AND event_time < {to:String}
 AND type <> 'QueryStart'
 ORDER BY start_time_microseconds
 `,

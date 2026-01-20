@@ -225,10 +225,10 @@ FROM (
   SELECT event_time, FQDN() as server, sum(ProfileEvent_InsertQuery) AS metric
   FROM clusterAllReplicas({cluster}, system.metric_log)
   WHERE {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   GROUP BY event_time, server)
  GROUP BY t, server
 ORDER BY t WITH FILL STEP {rounding:UInt32}`,
@@ -263,10 +263,10 @@ FROM (
   SELECT event_time, FQDN() as server, sum(ProfileEvent_SelectQuery) AS metric
   FROM clusterAllReplicas({cluster}, system.metric_log)
   WHERE {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   GROUP BY event_time, server)
  GROUP BY t, server
 ORDER BY t WITH FILL STEP {rounding:UInt32}`,
@@ -301,10 +301,10 @@ FROM (
   SELECT event_time, FQDN() as server, sum(ProfileEvent_FailedQuery) AS metric
   FROM clusterAllReplicas({cluster}, system.metric_log)
   WHERE {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   GROUP BY event_time, server)
  GROUP BY t, server
 ORDER BY t WITH FILL STEP {rounding:UInt32}`,
@@ -344,10 +344,10 @@ FROM (
   SELECT event_time, FQDN() as server, sum(ProfileEvent_InsertedBytes) AS metric
   FROM clusterAllReplicas({cluster}, system.metric_log)
   WHERE {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   GROUP BY event_time, server)
  GROUP BY t, server
 ORDER BY t WITH FILL STEP {rounding:UInt32}`,
@@ -387,10 +387,10 @@ FROM (
   SELECT event_time, FQDN() as server, sum(ProfileEvent_InsertedRows) AS metric
   FROM clusterAllReplicas({cluster}, system.metric_log)
   WHERE {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   GROUP BY event_time, server)
  GROUP BY t, server
 ORDER BY t WITH FILL STEP {rounding:UInt32}`,

@@ -32,10 +32,10 @@ FROM
 ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.part_log)` : "system.part_log"}
 WHERE 
   {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t, event_type
 ORDER BY t, event_type
 `,
@@ -48,17 +48,19 @@ SELECT ${connection!.metadata.part_log_table_has_node_name_column ? "" : "FQDN()
 ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.part_log)` : "system.part_log"}
 WHERE 
   {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-AND event_time <= {to:String}
+AND event_time < {to:String}
 ORDER BY event_time DESC
 `,
     []
   );
 
   const filterSpecs = useMemo<FilterSpec[]>(() => {
-    const hostname = connection!.metadata.part_log_table_has_node_name_column ? "hostname" : "FQDN()";
+    const hostname = connection!.metadata.part_log_table_has_node_name_column
+      ? "hostname"
+      : "FQDN()";
     return [
       {
         filterType: "date_time",
@@ -115,10 +117,10 @@ ORDER BY event_time DESC
           sql: `SELECT DISTINCT database
     FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.part_log)` : "system.part_log"}
     WHERE ({filterExpression:String})
-        AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-        AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-        AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-        AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+        AND event_date >= toDate({from:String}) 
+        AND event_date >= toDate({to:String})
+        AND event_time >= {from:String}
+        AND event_time < {to:String}
         AND database <> ''
     ORDER BY database
     LIMIT 100`,
@@ -135,10 +137,10 @@ ORDER BY event_time DESC
     SELECT DISTINCT table
     FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.part_log)` : "system.part_log"}
     WHERE ({filterExpression:String})
-        AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-        AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-        AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-        AND event_time < fromUnixTimestamp({endTimestamp:UInt32})`,
+        AND event_date >= toDate({from:String}) 
+        AND event_date >= toDate({to:String})
+        AND event_time >= {from:String}
+        AND event_time < {to:String}`,
         },
       } as SelectorFilterSpec,
       {
@@ -152,10 +154,10 @@ ORDER BY event_time DESC
     SELECT DISTINCT part_type
     FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.part_log)` : "system.part_log"}
     WHERE ({filterExpression:String})
-        AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32}))
-        AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-        AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-        AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+        AND event_date >= toDate({from:String})
+        AND event_date >= toDate({to:String})
+        AND event_time >= {from:String}
+        AND event_time < {to:String}
     ORDER BY part_type
     `,
         },
@@ -171,10 +173,10 @@ ORDER BY event_time DESC
     SELECT DISTINCT error
     FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.part_log)` : "system.part_log"}
     WHERE ({filterExpression:String})
-        AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-        AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-        AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-        AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+        AND event_date >= toDate({from:String}) 
+        AND event_date >= toDate({to:String})
+        AND event_time >= {from:String}
+        AND event_time < {to:String}
     ORDER BY error
     LIMIT 100
     `,

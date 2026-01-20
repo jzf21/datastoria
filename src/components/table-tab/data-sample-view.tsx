@@ -68,10 +68,7 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
 
     return (
       <div className="h-full relative">
-        <DashboardVisualizationPanel
-          ref={tableComponentRef}
-          descriptor={tableDescriptor}
-        />
+        <DashboardVisualizationPanel ref={tableComponentRef} descriptor={tableDescriptor} />
       </div>
     );
   }

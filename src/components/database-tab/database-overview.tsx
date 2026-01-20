@@ -576,11 +576,7 @@ ORDER BY host
     }, [database]);
 
     return (
-      <DashboardPanelContainer
-        ref={ref}
-        dashboard={dashboard}
-        initialTimeSpan={selectedTimeSpan}
-      />
+      <DashboardPanelContainer ref={ref} dashboard={dashboard} initialTimeSpan={selectedTimeSpan} />
     );
   }
 );

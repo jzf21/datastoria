@@ -21,10 +21,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_Query) AS query_qps
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -51,10 +51,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_OSCPUVirtualTimeMicroseconds) / 1000000 AS cpu_cores
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -81,10 +81,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(CurrentMetric_Query) AS queries_running
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -111,10 +111,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(CurrentMetric_Merge) AS merges_running
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -146,10 +146,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_SelectedBytes) AS selected_bytes
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -176,10 +176,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_OSIOWaitMicroseconds) / 1000000 AS io_wait
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -206,10 +206,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_OSCPUWaitMicroseconds) / 1000000 AS cpu_wait
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -236,10 +236,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(value) AS OSUserTimeNormalized
 FROM system.asynchronous_metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   AND metric = 'OSUserTimeNormalized'
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
@@ -267,10 +267,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(value) AS OSSystemTimeNormalized
 FROM system.asynchronous_metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   AND metric = 'OSSystemTimeNormalized'
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
@@ -303,10 +303,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_OSReadBytes) AS OSReadBytes
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -333,10 +333,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_OSReadChars) AS OSReadChars
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -368,10 +368,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(CurrentMetric_MemoryTracking) AS memory_tracking_bytes
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -403,10 +403,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   arraySum([COLUMNS('CurrentMetric_.*CacheBytes') EXCEPT 'CurrentMetric_FilesystemCache.*' APPLY avg]) AS cache_bytes
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -433,10 +433,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(value) AS LoadAverage15
 FROM system.asynchronous_metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   AND metric = 'LoadAverage15'
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
@@ -464,10 +464,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_SelectedRows) AS selected_rows_per_second
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -494,10 +494,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_InsertedRows) AS inserted_rows_per_second
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -524,10 +524,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   avg(ProfileEvent_MergeSourceParts) AS TotalPartsOfMergeTreeTables
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -554,10 +554,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   max(value) AS MaxPartCountForPartition
 FROM system.asynchronous_metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   AND metric = 'MaxPartCountForPartition'
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
@@ -587,10 +587,10 @@ SELECT
   max(CurrentMetric_HTTPConnection) AS HTTP_Connections,
   max(CurrentMetric_InterserverConnection) AS Interserver_Connections
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,

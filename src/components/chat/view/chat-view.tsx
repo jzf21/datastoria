@@ -221,7 +221,10 @@ export const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatV
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
       {isEmpty ? (
         <div className="flex-1 overflow-y-auto px-2">
-          <div className="flex flex-col items-center justify-center min-h-full py-8 mx-auto" style={{ maxWidth: "min(100%, 800px)" }}>
+          <div
+            className="flex flex-col items-center justify-center min-h-full py-8 mx-auto"
+            style={{ maxWidth: "min(100%, 800px)" }}
+          >
             <div className="mb-0">
               <AppLogo width={64} height={64} />
             </div>

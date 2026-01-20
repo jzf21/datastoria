@@ -122,9 +122,15 @@ export class QueryPattern {
         return;
       }
 
-      const comparator = ComparatorManager.parseComparator(searchParams.get(key + "_comparator") ?? "=");
-      const values = (comparator.allowMultiValue ?? false) ? value.split(",").map((v) => v.trim()) : [value];
-      queryParams.set(key, new QueryPattern(comparator.allowMultiValue ?? false, comparator.name, values));
+      const comparator = ComparatorManager.parseComparator(
+        searchParams.get(key + "_comparator") ?? "="
+      );
+      const values =
+        (comparator.allowMultiValue ?? false) ? value.split(",").map((v) => v.trim()) : [value];
+      queryParams.set(
+        key,
+        new QueryPattern(comparator.allowMultiValue ?? false, comparator.name, values)
+      );
     });
     return queryParams;
   }

@@ -50,10 +50,10 @@ export const nodeReplicationDashboard: StatDescriptor[] = [
 SELECT
   sum(ProfileEvent_ReplicatedPartFetches)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 `,
     },
     valueOption: {

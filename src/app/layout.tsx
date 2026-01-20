@@ -18,7 +18,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* Passive event listeners polyfill - must run before any libraries load
-          * Eliminate such warning in the console: [Violation] Added non-passive event listener to a scroll-blocking <some> event. Consider marking event handler as 'passive' to make the page more responsive
+         * Eliminate such warning in the console: [Violation] Added non-passive event listener to a scroll-blocking <some> event. Consider marking event handler as 'passive' to make the page more responsive
          */}
         <script
           dangerouslySetInnerHTML={{

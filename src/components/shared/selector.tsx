@@ -60,7 +60,9 @@ function filter(value: string, search: string): number {
 }
 
 const CommandItemCount: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const filterCount = useCommandState((state: { filtered: { count: number } }) => state.filtered.count);
+  const filterCount = useCommandState(
+    (state: { filtered: { count: number } }) => state.filtered.count
+  );
 
   return (
     <>
@@ -490,7 +492,11 @@ const Selector = React.forwardRef<SelectorRef, SelectorProps>(
         if (selectedValue.size > 0) {
           // Notification of change only when there're selected patterns
           onItemSelected(
-            new QueryPattern(comparator.allowMultiValue ?? false, comparator.name, Array.from(selectedValue))
+            new QueryPattern(
+              comparator.allowMultiValue ?? false,
+              comparator.name,
+              Array.from(selectedValue)
+            )
           );
         }
       },

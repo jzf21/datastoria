@@ -69,9 +69,9 @@ export const QueryHistoryView = memo(
       ref,
       () => ({
         refresh: (timeSpan?: TimeSpan) => {
-            setTimeout(() => {
-              dashboardPanelsRef.current?.refresh(timeSpan ?? defaultTimeSpan);
-            }, 10);
+          setTimeout(() => {
+            dashboardPanelsRef.current?.refresh(timeSpan ?? defaultTimeSpan);
+          }, 10);
         },
         supportsTimeSpanSelector: true,
       }),
@@ -148,10 +148,10 @@ SELECT
     sum(written_rows) AS written_rows,
     count() query_count
 FROM system.query_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
   AND type <> 'QueryStart'
   AND has(databases, '${database}')
   AND has(tables, '${database}.${table}')
@@ -216,10 +216,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type = 'QueryStart'
@@ -245,10 +245,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('ExceptionBeforeStart', 'ExceptionWhileProcessing')
@@ -277,10 +277,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')
@@ -305,10 +305,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')
@@ -333,10 +333,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')
@@ -361,10 +361,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')
@@ -389,10 +389,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')
@@ -417,10 +417,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')
@@ -448,10 +448,10 @@ SELECT
 -- old version like 22 has problem with merge('system', '^query_log') function
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')
@@ -495,10 +495,10 @@ ProfileEvents['OSCPUVirtualTimeMicroseconds'] as OSCPUVirtualTimeMicroseconds,
     *
 FROM system.query_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND has(databases, '${database}')
     AND has(tables, '${database}.${table}')
     AND type in ('QueryFinish')

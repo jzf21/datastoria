@@ -77,10 +77,10 @@ toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
 count()
 FROM system.part_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND database = '${database}'
     AND table = '${table}'
     AND event_type = 'NewPart'
@@ -100,10 +100,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'NewPart'
                 ORDER BY event_time DESC
                 `,
@@ -136,10 +136,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'NewPart'
                 ORDER BY event_time DESC
                 `,
@@ -187,10 +187,10 @@ toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
 count()
 FROM system.part_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND database = '${database}'
     AND table = '${table}'
     AND event_type = 'DownloadPart'
@@ -210,10 +210,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'DownloadPart'
                 ORDER BY event_time DESC
                 `,
@@ -243,10 +243,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'DownloadPart'
                 ORDER BY event_time DESC
                 LIMIT 100
@@ -300,10 +300,10 @@ toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
 count()
 FROM system.part_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND database = '${database}'
     AND table = '${table}'
     AND event_type = 'MergeParts'
@@ -323,10 +323,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'MergeParts'
                 ORDER BY event_time DESC
                 LIMIT 100
@@ -357,10 +357,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'MergeParts'
                 ORDER BY event_time DESC
                 LIMIT 100
@@ -410,10 +410,10 @@ toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
 count()
 FROM system.part_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND database = '${database}'
     AND table = '${table}'
     AND event_type = 'MutatePart'
@@ -433,10 +433,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'MutatePart'
                 ORDER BY event_time DESC
                 LIMIT 100
@@ -467,10 +467,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'MutatePart'
                 ORDER BY event_time DESC
                 LIMIT 100
@@ -521,10 +521,10 @@ toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
 count()
 FROM system.part_log
 WHERE 
-    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND database = '${database}'
     AND table = '${table}'
     AND event_type = 'RemovePart'
@@ -543,10 +543,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'RemovePart'
                 ORDER BY event_time DESC
                 LIMIT 100
@@ -577,10 +577,10 @@ WITH FILL STEP {rounding:UInt32}
                   sql: `
                 SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
                 AND 
-                    event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-                    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-                    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-                    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+                    event_date >= toDate({from:String}) 
+                    AND event_date >= toDate({to:String})
+                    AND event_time >= {from:String}
+                    AND event_time < {to:String}
                     AND event_type = 'RemovePart'
                 ORDER BY event_time DESC
                 LIMIT 100

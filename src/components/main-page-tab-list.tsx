@@ -1,7 +1,7 @@
 import { AppLogo } from "@/components/app-logo";
 import { useChatPanel } from "@/components/chat/view/use-chat-panel";
-import { useConnection } from "@/components/connection/connection-context";
 import { ClusterTab } from "@/components/cluster-tab/cluster-tab";
+import { useConnection } from "@/components/connection/connection-context";
 import { DatabaseTab } from "@/components/database-tab/database-tab";
 import { NodeTab } from "@/components/node-tab/node-tab";
 import { QueryLogInspectorTab } from "@/components/query-log-inspector/query-log-inspector-tab";

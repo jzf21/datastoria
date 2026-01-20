@@ -18,10 +18,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperBytesReceived)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -45,10 +45,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperBytesSent)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -72,10 +72,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperCheck)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -99,10 +99,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperClose)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -126,10 +126,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperCreate)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -153,10 +153,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperExists)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -180,10 +180,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperGet)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -207,10 +207,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperHardwareExceptions)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -234,10 +234,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperInit)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -261,10 +261,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperList)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -288,10 +288,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperMulti)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -315,10 +315,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperMultiRead)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -342,10 +342,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
     sum(ProfileEvent_ZooKeeperMultiWrite)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -369,10 +369,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperOtherExceptions)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -396,10 +396,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperReconfig)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -423,10 +423,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperRemove)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -450,10 +450,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperSet)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -477,10 +477,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperSync)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -504,10 +504,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperTransactions)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -531,10 +531,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperUserExceptions)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -558,10 +558,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperWaitMicroseconds)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,
@@ -585,10 +585,10 @@ SELECT
   toStartOfInterval(event_time, INTERVAL {rounding:UInt32} SECOND)::INT as t,
   sum(ProfileEvent_ZooKeeperWatchResponse)
 FROM system.metric_log
-WHERE event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+WHERE event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t
 ORDER BY t WITH FILL STEP {rounding:UInt32}
 `,

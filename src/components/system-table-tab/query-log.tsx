@@ -39,10 +39,10 @@ FROM
 ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.query_log)` : "system.query_log"}
 WHERE 
   {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-  AND event_time <= {to:String}
+  AND event_time < {to:String}
 GROUP BY t, type
 ORDER BY t, type
 `,
@@ -55,17 +55,19 @@ SELECT ${connection!.metadata.query_log_table_has_hostname_column ? "" : "FQDN()
 ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.query_log)` : "system.query_log"}
 WHERE 
   {filterExpression:String}
-  AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-  AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
+  AND event_date >= toDate({from:String}) 
+  AND event_date >= toDate({to:String})
   AND event_time >= {from:String} 
-AND event_time <= {to:String}
+AND event_time < {to:String}
 ORDER BY event_time DESC
 `,
     []
   );
 
   const filterSpecs = useMemo<FilterSpec[]>(() => {
-    const hostname = connection!.metadata.query_log_table_has_hostname_column ? "hostname" : "FQDN()";
+    const hostname = connection!.metadata.query_log_table_has_hostname_column
+      ? "hostname"
+      : "FQDN()";
     return [
       {
         filterType: "date_time",
@@ -124,10 +126,10 @@ ORDER BY event_time DESC
           sql: `SELECT DISTINCT query_kind
 FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.query_log)` : "system.query_log"}
 WHERE ({filterExpression:String})
-    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    AND event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND query_kind <> ''
 ORDER BY query_kind
 LIMIT 100`,
@@ -150,10 +152,10 @@ LIMIT 100`,
 SELECT DISTINCT databases
 FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.query_log)` : "system.query_log"}
 WHERE ({filterExpression:String})
-    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    AND event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
 LIMIT 100)
 ORDER BY database
 `,
@@ -177,10 +179,10 @@ ORDER BY database
 SELECT DISTINCT tables
 FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.query_log)` : "system.query_log"}
 WHERE ({filterExpression:String})
-    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    AND event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
 LIMIT 100)
 ORDER BY table
 `,
@@ -197,10 +199,10 @@ ORDER BY table
 SELECT DISTINCT exception_code
 FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.query_log)` : "system.query_log"}
 WHERE ({filterExpression:String})
-    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    AND event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
 ORDER BY exception_code
 LIMIT 100
 `,
@@ -218,10 +220,10 @@ LIMIT 100
 SELECT DISTINCT initial_user
 FROM ${connection!.cluster ? `clusterAllReplicas('{cluster}', system.query_log)` : "system.query_log"}
 WHERE ({filterExpression:String})
-    AND event_date >= toDate(fromUnixTimestamp({startTimestamp:UInt32})) 
-    AND event_date <= toDate(fromUnixTimestamp({endTimestamp:UInt32}))
-    AND event_time >= fromUnixTimestamp({startTimestamp:UInt32})
-    AND event_time < fromUnixTimestamp({endTimestamp:UInt32})
+    AND event_date >= toDate({from:String}) 
+    AND event_date >= toDate({to:String})
+    AND event_time >= {from:String}
+    AND event_time < {to:String}
     AND initial_user <> ''
 ORDER BY initial_user
 LIMIT 100
