@@ -11,8 +11,48 @@ import {
   BUILT_IN_TIME_SPAN_LIST,
   type TimeSpan,
 } from "@/components/shared/dashboard/timespan-selector";
+import type { ObjectFormatter } from "@/lib/formatter";
 import { forwardRef, memo, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { OpenDatabaseTabButton } from "./open-database-tab-button";
+import { OpenTableTabButton } from "./open-table-tab-button";
 import type { RefreshableTabViewRef } from "./table-tab";
+
+/**
+ * Custom formatter for engine_full field.
+ * For Distributed engines, it parses the pattern "Distributed(cluster, database, table, ...)"
+ * and renders the database and table as clickable buttons.
+ */
+const formatEngineFull: ObjectFormatter = (value: unknown) => {
+  if (typeof value !== "string") {
+    return String(value ?? "");
+  }
+
+  // Check if it's a Distributed engine
+  // Pattern: Distributed(cluster, database, table, ...)
+  const distributedMatch = value.match(/^Distributed\(([^,]+),\s*([^,]+),\s*([^,)]+)/);
+  if (!distributedMatch) {
+    // Not a Distributed engine or doesn't match the pattern, return as-is
+    return value;
+  }
+
+  const [fullMatch, cluster, database, table] = distributedMatch;
+  const remainingPart = value.slice(fullMatch.length);
+
+  // Trim whitespace and remove surrounding quotes (single or double) from extracted values
+  const trimmedDatabase = database.trim().replace(/^['"]|['"]$/g, "");
+  const trimmedTable = table.trim().replace(/^['"]|['"]$/g, "");
+  const trimmedCluster = cluster.trim().replace(/^['"]|['"]$/g, "");
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-0">
+      <span>Distributed({trimmedCluster}, </span>
+      <OpenDatabaseTabButton database={trimmedDatabase} showLinkIcon={false} />
+      <span>, </span>
+      <OpenTableTabButton database={trimmedDatabase} table={trimmedTable} showLinkIcon={false} />
+      <span>{remainingPart}</span>
+    </span>
+  );
+};
 
 export interface TableMetadataViewProps {
   database: string;
@@ -71,6 +111,7 @@ SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'
             fieldOptions: {
               create_table_query: { name: "create_table_query", format: "inline_sql" },
               as_select: { name: "as_select", format: "inline_sql" },
+              engine_full: { name: "engine_full", format: formatEngineFull },
             },
           } as TransposeTableDescriptor,
           {

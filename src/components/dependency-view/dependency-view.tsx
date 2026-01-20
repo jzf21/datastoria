@@ -279,7 +279,7 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
 
           {/* Splitter */}
           {showTableNode && (
-            <PanelResizeHandle className="w-0.5 bg-border hover:bg-border/80 transition-colors cursor-col-resize" />
+            <PanelResizeHandle className="w-[0px] bg-border hover:bg-border/80 transition-colors cursor-col-resize" />
           )}
 
           {/* Right Panel: Selected Table View */}
@@ -288,7 +288,7 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
               defaultSize={40}
               minSize={5}
               maxSize={70}
-              className="bg-background shadow-lg flex flex-col"
+              className="bg-background shadow-lg flex flex-col border-l border-t rounded-sm rounded-r-none"
             >
               {/* Header with close button */}
               <div className="flex items-center justify-between pl-2 border-b flex-shrink-0">
