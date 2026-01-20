@@ -3,7 +3,9 @@
   "installCommand": "npm install --include=dev --force",
   "framework": "nextjs",
   "git": {
-    "deploymentEnabled": true
+    "deploymentEnabled": {
+      "master": true
+    }
   },
   "build": {
     "env": {

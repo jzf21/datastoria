@@ -1,146 +1,100 @@
-# ClickHouse Console
+# DataStoria
 
-An AI-powered ClickHouse database management console built with Next.js, React, and TypeScript.
+A modern, AI-powered ClickHouse management console that transforms how you interact with your data and manage your clusters.
 
-## Features
+---
 
-- 🔐 **Optional Authentication** - Support for Google, GitHub, and Microsoft OAuth providers
-- 🎨 **Modern UI** - Built with shadcn/ui components and Tailwind CSS
-- 🌓 **Dark Mode** - Seamless theme switching
-- 📊 **Database Management** - Query execution, schema browsing, and more
-- 🔄 **Real-time Updates** - Live query results and monitoring
-- 🐳 **Docker Support** - Easy deployment with Docker
+## 🚀 Key Features
 
-## Prerequisites
+### 🤖 AI-Powered Intelligence
+- **Natural Language to SQL** — Describe your data needs in plain English and receive optimized ClickHouse queries instantly.
+- **Smart Query Optimization** — AI analyzes your queries based on evidence and provides actionable performance improvements.
+- **Intelligent Visualization** — Generate stunning visualizations like time series, pie charts, and data tables with simple prompts.
 
-- Node.js 20.9 or later
-- npm or pnpm
-- Git
+### ⚡ Powerful Query Experience
+- **Advanced SQL Editor** — Enjoy syntax highlighting, auto-completion, and query formatting for a seamless coding experience.
+- **Smart Error Diagnostics** — Pinpoint syntax errors instantly with precise line and column highlighting, and get AI-powered fix suggestions with one click.
+- **Query Log Inspector** — Dive deep into query execution with timeline views, topology graphs, and performance analysis.
+- **One-Click Explain** — Instantly understand query execution plans with visual AST and pipeline views.
+- **Dependency Graph** — Visualize table relationships and trace data flows through Materialized Views, Distributed tables, and external systems.
 
-## Quick Start
+### 📊 Cluster Monitoring & Management
+- **Multi-Cluster Support** — Manage multiple ClickHouse clusters effortlessly from a single interface.
+- **Multi-Node Dashboard** — Monitor all nodes with real-time metrics, merge operations, and replication status.
+- **Built-in Dashboards** — Access pre-configured panels for query performance, ZooKeeper status, and more.
+- **Schema Explorer** — Navigate databases, tables, and columns with an intuitive tree view.
 
-### Local Development
+### 🔒 Privacy & Security
+- **100% Local Execution** — All SQL queries run directly from your browser to your ClickHouse server, ensuring complete privacy.
+- **No Data Collection** — Your credentials and query results never leave your machine.
+- **Bring Your Own API Key** — Use your own LLM API keys for AI features, keeping your data under your control.
 
-1. **Clone the repository with submodules:**
+---
+
+## 🌐 Try It Online
+
+[Access DataStoria](https://datastoria.vercel.app)
+
+---
+
+## 🛠️ Build from Source
+
+**Prerequisites:**
+- [Node.js](https://nodejs.org/) v22 or later
+- [pnpm](https://pnpm.io/) (install via `npm install -g pnpm`)
+
+Follow these steps to build and run locally:
 
 ```bash
-# Clone with submodules
-git clone --recurse-submodules https://github.com/your-org/clickhouse-console.git
+# Clone the repository
+git clone --recurse-submodules https://github.com/FrankChen021/datastoria.git
+cd datastoria
 
-# Or if already cloned, initialize submodules
-git submodule update --init --recursive
-```
+# Install dependencies
+npm install --force
 
-> **Note**: This project uses git submodules for external dependencies (`cmdk` and `number-flow`). Make sure to fetch them before building.
-
-2. **Install dependencies:**
-
-```bash
-npm install
-```
-
-3. **Run the development server:**
-
-```bash
+# Start the development server
 npm run dev
 ```
 
-4. **Open your browser:**
+Open [http://localhost:3000](http://localhost:3000) in your browser and connect to your ClickHouse instance.
 
-Navigate to [http://localhost:3000](http://localhost:3000)
+---
 
-### Docker Deployment
+## 🐳 Running with Docker
 
-> **Important**: Make sure git submodules are initialized before building the Docker image.
-
-#### Build and Run with Docker
+The easiest way to run DataStoria is using the pre-built Docker image:
 
 ```bash
-# Initialize submodules (if not already done)
-git submodule update --init --recursive
-
-# Build the Docker image
-docker build -t clickhouse-console -f docker/Dockerfile .
-
-# Run the container
-docker run -p 3000:3000 clickhouse-console
+docker run -d -p 3000:3000 frankchen021/datastoria:latest
 ```
 
-#### Using Docker Compose
+Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-```bash
-# Start the application
-docker-compose -f docker/docker-compose.yml up -d
+The Docker image supports both `linux/amd64` and `linux/arm64` platforms, so it runs natively on Intel/AMD machines as well as Apple Silicon Macs and ARM-based servers.
 
-# Stop the application
-docker-compose -f docker/docker-compose.yml down
-```
+---
 
-#### Build for Production
+## 📖 Documentation
 
-```bash
-# Ensure submodules are initialized
-git submodule update --init --recursive
+- [Docker Deployment](./docker/README.md) — Build and run with Docker
+- [LLM Provider API Key Configuration](./doc/dev/llm-provider-api-key.md) — Configure API keys for your LLM provider
+- [Authentication Guide](./doc/dev/authentication.md) — OAuth setup for Google, GitHub, and Microsoft
 
-# Build for production
-npm run build
+---
 
-# Start production server
-npm start
-```
+## 🧰 Tech Stack
 
-## Troubleshooting
+- **Framework:** [Next.js](https://nextjs.org/) 16 with React 19
+- **AI Integration:** [Vercel AI SDK](https://sdk.vercel.ai/) with support for OpenAI, Anthropic, Google, Groq, and more
+- **Authentication:** [NextAuth.js](https://next-auth.js.org/)
 
-### Submodule Issues
+---
 
-If you encounter build errors related to missing dependencies:
+## 📜 License
 
-```bash
-# Update submodules to latest
-git submodule update --remote --recursive
+This project is licensed under the **Apache License 2.0**. See the [LICENSE](./LICENSE) file for details.
 
-# Or reset submodules
-git submodule deinit -f --all
-git submodule update --init --recursive
-```
+---
 
-### External Dependencies
-
-This project includes these external dependencies as git submodules:
-- `external/cmdk` - Command palette component
-- `external/number-flow` - Number animation library
-
-If you're missing these directories, run:
-```bash
-git submodule update --init --recursive
-```
-
-## Authentication Setup (Optional)
-
-ClickHouse Console supports optional authentication with OAuth providers. See [doc/dev/authentication.md](./doc/dev/authentication.md) for detailed setup instructions.
-
-**Quick setup:**
-
-1. Copy the environment template:
-```bash
-cp .env.example .env
-```
-
-2. Configure your OAuth providers in `.env`
-
-3. Restart the development server
-
-If no authentication is configured, the app will run without requiring login.
-
-## Environment Variables
-
-See `.env.example` for all available configuration options including:
-- OAuth provider credentials (Google, GitHub, Microsoft)
-- NextAuth secret key
-- Custom application settings
-
-## Documentation
-
-- [Authentication Guide](./doc/dev/authentication.md) - Detailed OAuth setup instructions
-- [Quick Start Guide](./doc/dev/authentication-quickstart.md) - Fast authentication setup
-
+Elevate your ClickHouse experience with **DataStoria** — where data meets intelligence.

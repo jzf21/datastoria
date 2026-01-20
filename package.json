@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "AI-powered ClickHouse database management console with optional OAuth authentication",
+  "description": "A modern, AI-powered ClickHouse management console that transforms how you interact with your data and manage your clusters",
   "scripts": {
     "postinstall": "npm run build:deps",
     "prebuild": "npm run build:deps",

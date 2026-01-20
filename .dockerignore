@@ -1,5 +1,6 @@
 # Dependencies
 node_modules
+**/node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -57,3 +58,8 @@ docker-compose*.yml
 coverage
 .nyc_output
 *.log
+
+# External submodule build artifacts (rebuilt during docker build)
+external/**/dist
+external/**/.turbo
+external/**/coverage
