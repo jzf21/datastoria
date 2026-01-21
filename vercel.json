@@ -4,6 +4,7 @@
   "framework": "nextjs",
   "git": {
     "deploymentEnabled": {
+      "release": true,
       "master": true
     }
   },

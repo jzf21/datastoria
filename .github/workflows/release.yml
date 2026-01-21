@@ -1,0 +1,55 @@
+name: Release to Production
+
+on:
+  # Manual trigger for controlled releases
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "release" to confirm deployment to production'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'release'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create or update release branch
+        run: |
+          # Fetch all branches
+          git fetch origin
+
+          # Check if release branch exists
+          if git show-ref --verify --quiet refs/remotes/origin/release; then
+            echo "Release branch exists, updating..."
+            git checkout release
+            git merge origin/master --no-edit -m "Release: merge master into release"
+          else
+            echo "Creating release branch from master..."
+            git checkout -b release origin/master
+          fi
+
+          # Push to remote
+          git push origin release
+
+      - name: Create release summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** release" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** $(git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Vercel will automatically deploy this release to production." >> $GITHUB_STEP_SUMMARY

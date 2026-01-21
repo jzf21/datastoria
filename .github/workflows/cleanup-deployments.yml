@@ -34,7 +34,13 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const keepCount = parseInt('${{ github.event.inputs.keep_count }}' || '5');
+            const defaultKeepCount = parseInt('${{ github.event.inputs.keep_count }}' || '1');
+            
+            // Keep more production deployments for rollback capability
+            const keepCountByEnv = {
+              'Production': 5,
+              'Preview': defaultKeepCount
+            };
             
             // Get all deployments
             const deployments = await github.paginate(
@@ -56,6 +62,9 @@ jobs:
             for (const [env, deps] of Object.entries(byEnv)) {
               // Sort by created_at descending
               deps.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+              
+              // Use environment-specific keep count, fallback to default
+              const keepCount = keepCountByEnv[env] || defaultKeepCount;
               
               // Skip the ones we want to keep
               const toDelete = deps.slice(keepCount);
