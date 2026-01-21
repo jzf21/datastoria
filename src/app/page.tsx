@@ -13,7 +13,7 @@ import { SessionProvider } from "next-auth/react";
 export default function Home() {
   return (
     <SessionProvider refetchOnWindowFocus={false} refetchInterval={0} basePath="/api/auth">
-      <ThemeProvider defaultTheme="dark" storageKey="app-ui-theme">
+      <ThemeProvider defaultTheme="dark">
         <ConnectionProvider>
           <ChatPanelProvider>
             <ToastProvider />
