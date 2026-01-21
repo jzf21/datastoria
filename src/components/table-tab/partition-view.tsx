@@ -5,6 +5,7 @@ import { DashboardVisualizationPanel } from "@/components/shared/dashboard/dashb
 import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
 import { Button } from "@/components/ui/button";
 import { Connection, QueryError } from "@/lib/connection/connection";
+import { escapeSqlString } from "@/lib/string-utils";
 import { toastManager } from "@/lib/toast";
 import { Loader2, Trash2 } from "lucide-react";
 import {
@@ -27,6 +28,12 @@ interface DropPartitionDialogProps {
   onSuccess?: () => void;
 }
 
+function escapeSqlIdentifier(identifier: string): string {
+  // ClickHouse supports backtick-quoted identifiers.
+  // Escape backticks by doubling them.
+  return `\`${identifier.replaceAll("`", "``")}\``;
+}
+
 function showDropPartitionDialog({
   database,
   table,
@@ -46,9 +53,7 @@ function showDropPartitionDialog({
     isDroppingRef.current = true;
 
     try {
-      // Escape single quotes by doubling them (SQL standard)
-      const escapedPartition = partition.replace(/'/g, "''");
-      const sql = `ALTER TABLE \`${database}\`.\`${table}\` DROP PARTITION '${escapedPartition}'`;
+      const sql = `ALTER TABLE ${escapeSqlIdentifier(database)}.${escapeSqlIdentifier(table)} DROP PARTITION '${escapeSqlString(partition)}'`;
 
       // Execute the SQL using async/await
       const { response, abortController } = connection.query(sql, {
@@ -153,7 +158,7 @@ export interface PartitionViewProps {
 const PartitionSizeViewComponent = forwardRef<RefreshableTabViewRef, PartitionViewProps>(
   ({ database, table, autoLoad = false }, ref) => {
     const { connection } = useConnection();
-    const tableComponentRef = useRef<DashboardVisualizationComponent>(null);
+    const tableComponentRef = useRef<DashboardVisualizationComponent | null>(null);
     const isMountedRef = useRef(true);
 
     useImperativeHandle(ref, () => ({
@@ -220,8 +225,8 @@ SELECT
 FROM
     system.parts
 WHERE 
-    database = '${database}' 
-    AND table = '${table}'
+    database = '${escapeSqlString(database)}' 
+    AND table = '${escapeSqlString(table)}'
     AND active = 1
 GROUP BY 
     partition
@@ -288,10 +293,12 @@ ORDER BY
               const partition = String(row.partition || "");
               return (
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => handleDropPartitionClick(partition)}
                   className="h-4 w-4 p-0"
+                  aria-label={`Drop partition ${partition}`}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>

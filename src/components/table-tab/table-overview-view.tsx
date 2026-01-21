@@ -12,6 +12,7 @@ import {
   BUILT_IN_TIME_SPAN_LIST,
   type TimeSpan,
 } from "@/components/shared/dashboard/timespan-selector";
+import { escapeSqlString } from "@/lib/string-utils";
 import { forwardRef, memo, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
 
@@ -41,9 +42,9 @@ const TableOverviewViewComponent = forwardRef<RefreshableTabViewRef, TableOvervi
           } else {
             // No timeSpan provided - explicitly refresh with current time span
             // This handles the case when clicking refresh without changing the time range
-            setTimeout(() => {
+            requestAnimationFrame(() => {
               dashboardPanelsRef.current?.refresh(currentTimeSpan);
-            }, 10);
+            });
           }
         },
         supportsTimeSpanSelector: true,
@@ -54,6 +55,8 @@ const TableOverviewViewComponent = forwardRef<RefreshableTabViewRef, TableOvervi
     // Create dashboard with all table descriptors
     const dashboard = useMemo<Dashboard>(() => {
       const isClusterMode = connection?.cluster && connection.cluster.length > 0;
+      const escapedDatabase = escapeSqlString(database);
+      const escapedTable = escapeSqlString(table);
       return {
         name: `table-overview-${database}-${table}`,
         folder: "table-overview",
@@ -79,8 +82,8 @@ SELECT sum(total_bytes) as total_bytes
 FROM
     system.tables
 WHERE 
-    database = '${database}' 
-    AND table = '${table}'
+    database = '${escapedDatabase}' 
+    AND table = '${escapedTable}'
 `,
             },
             valueOption: {
@@ -104,8 +107,8 @@ SELECT sum(total_rows) as total_bytes
 FROM
     system.tables
 WHERE 
-    database = '${database}' 
-    AND table = '${table}'
+    database = '${escapedDatabase}' 
+    AND table = '${escapedTable}'
 `,
             },
           } as StatDescriptor,
@@ -126,8 +129,8 @@ SELECT count(1) as part_count
 FROM
     system.parts
 WHERE 
-    database = '${database}' 
-    AND table = '${table}'
+    database = '${escapedDatabase}' 
+    AND table = '${escapedTable}'
     AND active = 1`,
             },
             fieldOptions: {
@@ -151,8 +154,8 @@ SELECT sum(total_bytes) / (SELECT sum(total_space - keep_free_space) from system
 FROM
     system.tables
 WHERE 
-    database = '${database}' 
-    AND table = '${table}'
+    database = '${escapedDatabase}' 
+    AND table = '${escapedTable}'
 `,
             },
             valueOption: {
@@ -171,7 +174,7 @@ WHERE
               sql: `
 SELECT modification_time
 FROM system.parts
-WHERE database = '${database}' AND table = '${table}'
+WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
 ORDER BY system.parts.modification_time DESC
 LIMIT 1
 `,
@@ -196,7 +199,7 @@ LIMIT 1
                         sql: `
 SELECT sum(total_bytes) as total_bytes
 FROM clusterAllReplicas('{cluster}', system.tables)
-WHERE database = '${database}' AND name = '${table}'
+WHERE database = '${escapedDatabase}' AND name = '${escapedTable}'
 `,
                       },
                       valueOption: {
@@ -218,7 +221,7 @@ SELECT
   sum(bytes_on_disk) as bytes_on_disk, 
   sum(rows) as rows
 FROM clusterAllReplicas('{cluster}', system.parts)
-WHERE database = '${database}' AND table = '${table}'
+WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
 AND active
 GROUP BY host
 ORDER BY host
@@ -273,8 +276,8 @@ SELECT
 FROM
     system.parts
 WHERE 
-    database = '${database}' 
-    AND table = '${table}'
+    database = '${escapedDatabase}' 
+    AND table = '${escapedTable}'
     AND active = 1
 ORDER BY 
     disk_size DESC`,
@@ -356,12 +359,12 @@ SELECT
     round(sum(column_data_uncompressed_bytes) / sum(column_data_compressed_bytes), 0) AS compress_ratio,
     sum(rows) AS rows_count,
     round(sum(column_data_uncompressed_bytes) / sum(rows), 0) AS avg_uncompressed_size,
-    compressed_size * 100 / (select sum(bytes_on_disk) from system.parts where database = '${database}' and table = '${table}' and active = 1) AS size_percentage_of_table
+    compressed_size * 100 / (select sum(bytes_on_disk) from system.parts where database = '${escapedDatabase}' and table = '${escapedTable}' and active = 1) AS size_percentage_of_table
 FROM 
     system.parts_columns
 WHERE 
-    database = '${database}' 
-    AND table = '${table}'
+    database = '${escapedDatabase}' 
+    AND table = '${escapedTable}'
     AND active = 1
 GROUP BY 
     column, type
@@ -453,8 +456,8 @@ ORDER BY
 SELECT *
 FROM system.data_skipping_indices
 WHERE
-    database = '${database}'
-    AND table = '${table}'`,
+    database = '${escapedDatabase}'
+    AND table = '${escapedTable}'`,
                 },
                 sortOption: {
                   initialSort: {
@@ -484,7 +487,7 @@ SELECT A.database,
   B.last_modified_time,
   A.query
 FROM (
-    SELECT * FROM system.projections WHERE database = '${database}' AND table = '${table}' 
+    SELECT * FROM system.projections WHERE database = '${escapedDatabase}' AND table = '${escapedTable}' 
 ) AS A
 LEFT JOIN
 (
@@ -497,8 +500,8 @@ LEFT JOIN
         max(modification_time)  as last_modified_time
     FROM system.projection_parts
     WHERE
-        database = '${database}'
-        AND table = '${table}'
+        database = '${escapedDatabase}'
+        AND table = '${escapedTable}'
         AND active
     GROUP BY name
 ) AS B

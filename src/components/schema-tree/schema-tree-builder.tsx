@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { SchemaTreeBadge, SchemaTreeHostSelector } from "./schema-tree-host-selector";
 import { ColumnTooltip, DatabaseTooltip, HostTooltip, TableTooltip } from "./schema-tree-tooltips";
+import { parseEnumType } from "./schema-tree-utils";
 import type {
   ColumnNodeData,
   DatabaseNodeData,
@@ -94,38 +95,6 @@ function getColumnIcon(typeString: string): LucideIcon | undefined {
 
   // Default: no icon
   return undefined;
-}
-
-// Parse Enum type to extract base type and key-value pairs
-function parseEnumType(
-  typeString: string
-): { baseType: string; pairs: Array<[string, string]> } | null {
-  const type = String(typeString || "").trim();
-
-  // Match Enum8, Enum16, Enum, etc.
-  const enumMatch = type.match(/^(Enum\d*)\s*\((.+)\)$/);
-  if (!enumMatch) {
-    return null;
-  }
-
-  const baseType = enumMatch[1];
-  const content = enumMatch[2];
-  const pairs: Array<[string, string]> = [];
-
-  // Parse key-value pairs: 'NewPart' = 1, 'MergeParts' = 2
-  // Handle quoted strings and numbers
-  const pairRegex = /'([^']+)'\s*=\s*(\d+)/g;
-  let match;
-  while ((match = pairRegex.exec(content)) !== null) {
-    // Remove single quotes from key if present
-    let key = match[1];
-    key = key.replace(/^'|'$/g, "");
-    // Keep value as string
-    const value = match[2];
-    pairs.push([key, value]);
-  }
-
-  return { baseType, pairs };
 }
 
 // Create a column tree node

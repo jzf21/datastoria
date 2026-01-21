@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { FloatingLabel } from "@/components/ui/floating-label-input";
 import { ComparatorManager, QueryPattern } from "@/lib/query-utils";
+import { escapeSqlString } from "@/lib/string-utils";
 import { cn } from "@/lib/utils";
 import { RefreshCcw } from "lucide-react";
 import React, { Component } from "react";
@@ -293,13 +294,8 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
     return { expr: expr, values: this.selectedFilters };
   }
 
-  private escapeSqlString(value: string): string {
-    // Escape backslash first, then single-quote for ClickHouse string literals.
-    return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  }
-
   private asSqlString(value: string): string {
-    return `'${this.escapeSqlString(value)}'`;
+    return `'${escapeSqlString(value)}'`;
   }
 
   private replaceAllLiteral(input: string, token: string, value: string): string {

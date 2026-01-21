@@ -12,6 +12,12 @@ export interface DataSampleViewProps {
   autoLoad?: boolean;
 }
 
+function escapeSqlIdentifier(identifier: string): string {
+  // ClickHouse supports backtick-quoted identifiers.
+  // Escape backticks by doubling them.
+  return `\`${identifier.replaceAll("`", "``")}\``;
+}
+
 const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleViewProps>(
   ({ database, table }, ref) => {
     useConnection(); // Ensure connection context is available
@@ -24,8 +30,6 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
     // 1. Modify RefreshableTableComponent to support a defaultFormatter prop
     // 2. Update the descriptor after the first data load with discovered column names
     const tableDescriptor = useMemo<TableDescriptor>(() => {
-      const fullTableName = `${database}.${table}`;
-
       return {
         type: "table",
         id: `data-sample-${database}-${table}`,
@@ -35,7 +39,7 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
           isSticky: true,
         },
         query: {
-          sql: `SELECT * FROM ${fullTableName} LIMIT 1000`,
+          sql: `SELECT * FROM ${escapeSqlIdentifier(database)}.${escapeSqlIdentifier(table)} LIMIT 1000`,
           params: {
             default_format: "JSON",
             output_format_json_quote_64bit_integers: 0,

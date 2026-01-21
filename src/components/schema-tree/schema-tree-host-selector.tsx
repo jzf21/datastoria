@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { hostNameManager } from "@/lib/host-name-manager";
+import { escapeSqlString } from "@/lib/string-utils";
 import { cn } from "@/lib/utils";
 import { useCommandState } from "cmdk";
 import { Check, Loader2 } from "lucide-react";
@@ -90,6 +91,7 @@ export function SchemaTreeHostSelector({
     if (data.length === 0 && !loading) {
       setLoading(true);
 
+      const cluster = escapeSqlString(clusterName);
       connection
         .query(
           `
@@ -99,7 +101,7 @@ SELECT
   shard_num AS shard, 
   replica_num AS replica 
 FROM system.clusters 
-WHERE cluster ='${clusterName}'
+WHERE cluster ='${cluster}'
 ORDER BY shard, replica`,
           { default_format: "JSON" }
         )

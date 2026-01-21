@@ -2,6 +2,10 @@
  * Unified tab events for event-based communication between components
  */
 
+function isInBrowser(): boolean {
+  return typeof window !== "undefined";
+}
+
 export type TabType =
   | "query"
   | "table"
@@ -119,6 +123,9 @@ export class TabManager {
    * Dispatch an event immediately or queue it if no listener is active
    */
   private static dispatchOrQueue(event: CustomEvent<TabInfo>): void {
+    if (!isInBrowser()) {
+      return;
+    }
     if (TabManager.listenerCount > 0) {
       // Listener is active, dispatch immediately
       window.dispatchEvent(event);
@@ -132,6 +139,9 @@ export class TabManager {
    * Open a tab with the specified information
    */
   static openTab(tabInfo: TabInfo): void {
+    if (!isInBrowser()) {
+      return;
+    }
     const event = new CustomEvent<TabInfo>(TabManager.OPEN_TAB_EVENT, { detail: tabInfo });
     TabManager.dispatchOrQueue(event);
   }
@@ -160,6 +170,9 @@ export class TabManager {
    * Add a listener for open tab events
    */
   static onOpenTab(handler: OpenTabEventHandler): () => void {
+    if (!isInBrowser()) {
+      return () => {};
+    }
     const wrappedHandler = (e: Event) => {
       handler(e as CustomEvent<TabInfo>);
     };
@@ -194,6 +207,9 @@ export class TabManager {
    * Emit an active tab change event
    */
   static sendActiveTabChange(tabId: string, tabInfo: TabInfo | null): void {
+    if (!isInBrowser()) {
+      return;
+    }
     const event = new CustomEvent<ActiveTabChangeEventDetail>(TabManager.ACTIVE_TAB_CHANGE_EVENT, {
       detail: { tabId, tabInfo },
     });
@@ -204,6 +220,9 @@ export class TabManager {
    * Emit a close tab event
    */
   static closeTab(tabId: string): void {
+    if (!isInBrowser()) {
+      return;
+    }
     const event = new CustomEvent<string>(TabManager.CLOSE_TAB_EVENT, {
       detail: tabId,
     });
@@ -214,6 +233,9 @@ export class TabManager {
    * Add a listener for close tab events
    */
   static onCloseTab(handler: (event: CustomEvent<string>) => void): () => void {
+    if (!isInBrowser()) {
+      return () => {};
+    }
     const wrappedHandler = (e: Event) => {
       handler(e as CustomEvent<string>);
     };
@@ -225,6 +247,9 @@ export class TabManager {
    * Add a listener for active tab change events
    */
   static onActiveTabChange(handler: ActiveTabChangeEventHandler): () => void {
+    if (!isInBrowser()) {
+      return () => {};
+    }
     const wrappedHandler = (e: Event) => {
       handler(e as CustomEvent<ActiveTabChangeEventDetail>);
     };
@@ -236,6 +261,9 @@ export class TabManager {
    * Update a tab's title
    */
   static updateTabTitle(tabId: string, title: string): void {
+    if (!isInBrowser()) {
+      return;
+    }
     const event = new CustomEvent<TabTitleUpdateEventDetail>(TabManager.UPDATE_TAB_TITLE_EVENT, {
       detail: { tabId, title },
     });
@@ -246,6 +274,9 @@ export class TabManager {
    * Add a listener for tab title update events
    */
   static onUpdateTabTitle(handler: TabTitleUpdateEventHandler): () => void {
+    if (!isInBrowser()) {
+      return () => {};
+    }
     const wrappedHandler = (e: Event) => {
       handler(e as CustomEvent<TabTitleUpdateEventDetail>);
     };

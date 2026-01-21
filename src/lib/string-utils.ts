@@ -31,6 +31,17 @@ export class StringUtils {
 }
 
 /**
+ * Escape single quotes in SQL strings to reduce SQL injection risk when embedding values into
+ * single-quoted SQL literals.
+ *
+ * Note: Prefer parameterized queries when possible. When interpolating is unavoidable, this
+ * follows SQL-standard escaping by doubling single quotes.
+ */
+export function escapeSqlString(value: string): string {
+  return String(value).replaceAll("'", "''");
+}
+
+/**
  * Shorten the host name for display
  */
 export function shortenHostNameForDisplay(name: string | null): string {

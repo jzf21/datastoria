@@ -17,8 +17,9 @@ import {
   type TableInfo,
 } from "@/lib/connection/connection";
 import { hostNameManager } from "@/lib/host-name-manager";
+import { escapeSqlString } from "@/lib/string-utils";
 import { AlertCircle, CheckCircle2, Circle, Loader2, RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Panel,
   PanelGroup,
@@ -118,6 +119,15 @@ async function getConnectionMetadata(connection: Connection): Promise<void> {
         const internalUser = data.data[0][0];
         const timezone = data.data[0][1];
         const hostname = data.data[0][2] as string;
+        // Index mapping for JSONCompact row:
+        // 0: currentUser()
+        // 1: timezone()
+        // 2: FQDN()
+        // 3: hasColumnInTable('system','functions','description')
+        // 4: hasColumnInTable('system','metric_log','ProfileEvent_MergeSourceParts')
+        // 5: hasColumnInTable('system','metric_log','ProfileEvent_MutationTotalParts')
+        // 6: hasColumnInTable('system','query_log','hostname')
+        // 7: hasColumnInTable('system','part_log','node_name')
 
         const isCluster = connection.cluster && connection.cluster.length > 0;
         connection.metadata = {
@@ -128,11 +138,11 @@ async function getConnectionMetadata(connection: Connection): Promise<void> {
           timezone: timezone as string,
 
           // Table columns
-          function_table_has_description_column: data.data[0][2] ? true : false,
-          metric_log_table_has_ProfileEvent_MergeSourceParts: data.data[0][3] ? true : false,
-          metric_log_table_has_ProfileEvent_MutationTotalParts: data.data[0][4] ? true : false,
-          query_log_table_has_hostname_column: data.data[0][5] ? true : false,
-          part_log_table_has_node_name_column: data.data[0][6] ? true : false,
+          function_table_has_description_column: Boolean(data.data[0][3]),
+          metric_log_table_has_ProfileEvent_MergeSourceParts: Boolean(data.data[0][4]),
+          metric_log_table_has_ProfileEvent_MutationTotalParts: Boolean(data.data[0][5]),
+          query_log_table_has_hostname_column: Boolean(data.data[0][6]),
+          part_log_table_has_node_name_column: Boolean(data.data[0][7]),
         };
       }
     });
@@ -158,9 +168,12 @@ async function getConnectionMetadata(connection: Connection): Promise<void> {
   // Pre-load hostnames for shortening if cluster is configured
   const clusterHostQuery = connection.cluster
     ? connection
-        .query(`SELECT host_name FROM system.clusters WHERE cluster = '${connection.cluster}'`, {
-          default_format: "JSONCompact",
-        })
+        .query(
+          `SELECT host_name FROM system.clusters WHERE cluster = '${escapeSqlString(connection.cluster)}'`,
+          {
+            default_format: "JSONCompact",
+          }
+        )
         .response.then((clusterHostResponse) => {
           if (clusterHostResponse.httpStatus === 200) {
             const data = clusterHostResponse.data.json<JSONCompactFormatResponse>();
@@ -468,10 +481,9 @@ export function MainPage() {
   // 3. No active connection (fresh state)
   const showWizard = isInitialized && !pendingConfig && !connection;
 
-  // Resize panels when display mode changes
-  useEffect(() => {
-    // Use requestAnimationFrame to ensure DOM is ready
-    requestAnimationFrame(() => {
+  // Resize panels when display mode changes (layout side-effect)
+  useLayoutEffect(() => {
+    const rafId = requestAnimationFrame(() => {
       switch (displayMode) {
         case "hidden":
           // Schema tree and tabs take full width
@@ -498,6 +510,10 @@ export function MainPage() {
           break;
       }
     });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
   }, [displayMode]);
 
   if (showWizard) {

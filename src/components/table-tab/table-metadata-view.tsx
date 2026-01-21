@@ -12,6 +12,7 @@ import {
   type TimeSpan,
 } from "@/components/shared/dashboard/timespan-selector";
 import type { ObjectFormatter } from "@/lib/formatter";
+import { escapeSqlString } from "@/lib/string-utils";
 import { forwardRef, memo, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { OpenDatabaseTabButton } from "./open-database-tab-button";
 import { OpenTableTabButton } from "./open-table-tab-button";
@@ -80,9 +81,11 @@ const TableMetadataViewComponent = forwardRef<RefreshableTabViewRef, TableMetada
           dashboardPanelsRef.current?.refresh(selectedTimeSpan);
         }
       },
-    }));
+    }), [selectedTimeSpan]);
 
     const dashboard = useMemo<Dashboard>(() => {
+      const escapedDatabase = escapeSqlString(database);
+      const escapedTable = escapeSqlString(table);
       const d: Dashboard = {
         version: 3,
         filter: {
@@ -105,7 +108,7 @@ const TableMetadataViewComponent = forwardRef<RefreshableTabViewRef, TableMetada
             },
             query: {
               sql: `
-SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'
+SELECT * FROM system.tables WHERE database = '${escapedDatabase}' AND name = '${escapedTable}'
 `,
             },
             fieldOptions: {
@@ -127,7 +130,7 @@ SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'
               h: 12,
             },
             query: {
-              sql: `SELECT * FROM system.columns WHERE database = '${database}' AND table = '${table}'`,
+              sql: `SELECT * FROM system.columns WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'`,
             },
             fieldOptions: {
               // Hide database and table columns
@@ -139,6 +142,7 @@ SELECT * FROM system.tables WHERE database = '${database}' AND name = '${table}'
       } as Dashboard;
 
       if (connection?.cluster && connection.cluster.length > 0) {
+        const escapedCluster = escapeSqlString(connection.cluster);
         d.charts.push({
           type: "table",
           titleOption: {
@@ -172,7 +176,7 @@ SELECT
   create_table_query, 
   sipHash64(create_table_query) as table_query_hash,
   metadata_modification_time
-FROM clusterAllReplicas('${connection.cluster}', system.tables) WHERE database = '${database}' AND name = '${table}'
+FROM clusterAllReplicas('${escapedCluster}', system.tables) WHERE database = '${escapedDatabase}' AND name = '${escapedTable}'
 ORDER BY host
 `,
           },
@@ -180,7 +184,7 @@ ORDER BY host
       }
 
       return d;
-    }, [database, table]);
+    }, [database, table, connection?.cluster]);
 
     return (
       <DashboardPanelContainer

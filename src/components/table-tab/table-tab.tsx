@@ -100,13 +100,13 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
   );
 
   // Refs for each tab view
-  const dataSampleRef = useRef<RefreshableTabViewRef>(null);
-  const metadataRef = useRef<RefreshableTabViewRef>(null);
-  const dependenciesRef = useRef<RefreshableTabViewRef>(null);
-  const tableOverviewRef = useRef<RefreshableTabViewRef>(null);
-  const partitionRef = useRef<RefreshableTabViewRef>(null);
-  const queryHistoryRef = useRef<RefreshableTabViewRef>(null);
-  const partHistoryRef = useRef<RefreshableTabViewRef>(null);
+  const dataSampleRef = useRef<RefreshableTabViewRef | null>(null);
+  const metadataRef = useRef<RefreshableTabViewRef | null>(null);
+  const dependenciesRef = useRef<RefreshableTabViewRef | null>(null);
+  const tableOverviewRef = useRef<RefreshableTabViewRef | null>(null);
+  const partitionRef = useRef<RefreshableTabViewRef | null>(null);
+  const queryHistoryRef = useRef<RefreshableTabViewRef | null>(null);
+  const partHistoryRef = useRef<RefreshableTabViewRef | null>(null);
 
   // Helper function to get the current ref based on active tab
   // Directly access refs to avoid unnecessary callback recreation
@@ -165,7 +165,7 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
       setIsRefreshing(true);
       // Reset refreshing state after a short delay to allow child components to update their loading state
       // The FloatingProgressBar will show the actual loading state
-      setTimeout(() => setIsRefreshing(false), 100);
+      requestAnimationFrame(() => setIsRefreshing(false));
 
       const currentRef = getCurrentRef();
       if (hasRefreshCapability(currentRef)) {
@@ -276,6 +276,8 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
                   onClick={() => handleRefresh()}
                   className="h-8 w-8"
                   disabled={isRefreshing}
+                  type="button"
+                  aria-label="Refresh current tab"
                 >
                   {isRefreshing ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -305,6 +307,8 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
               onClick={() => handleRefresh()}
               className="h-9 w-9"
               disabled={isRefreshing}
+              type="button"
+              aria-label="Refresh current tab"
             >
               {isRefreshing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

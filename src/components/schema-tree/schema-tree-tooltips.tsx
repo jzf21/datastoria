@@ -1,36 +1,5 @@
 import { CopyButton } from "@/components/ui/copy-button";
-
-// Parse Enum type to extract base type and key-value pairs
-function parseEnumType(
-  typeString: string
-): { baseType: string; pairs: Array<[string, string]> } | null {
-  const type = String(typeString || "").trim();
-
-  // Match Enum8, Enum16, Enum, etc.
-  const enumMatch = type.match(/^(Enum\d*)\s*\((.+)\)$/);
-  if (!enumMatch) {
-    return null;
-  }
-
-  const baseType = enumMatch[1];
-  const content = enumMatch[2];
-  const pairs: Array<[string, string]> = [];
-
-  // Parse key-value pairs: 'NewPart' = 1, 'MergeParts' = 2
-  // Handle quoted strings and numbers
-  const pairRegex = /'([^']+)'\s*=\s*(\d+)/g;
-  let match;
-  while ((match = pairRegex.exec(content)) !== null) {
-    // Remove single quotes from key if present
-    let key = match[1];
-    key = key.replace(/^'|'$/g, "");
-    // Keep value as string
-    const value = match[2];
-    pairs.push([key, value]);
-  }
-
-  return { baseType, pairs };
-}
+import { parseEnumType } from "./schema-tree-utils";
 
 export function ColumnTooltip({
   column,
@@ -71,8 +40,8 @@ export function ColumnTooltip({
         <div className="pt-1 mt-1 border-t space-y-1">
           <div className="font-medium text-muted-foreground">{enumInfo.baseType}</div>
           <div className="space-y-1">
-            {enumInfo.pairs.map(([key, value], index) => (
-              <div key={index} className="font-mono break-words">
+            {enumInfo.pairs.map(([key, value]) => (
+              <div key={`${key}:${value}`} className="font-mono break-words">
                 <span className="text-muted-foreground break-all">{key}</span>
                 <span className="mx-2">=</span>
                 <span className="break-all">{value}</span>

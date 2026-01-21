@@ -10,6 +10,7 @@ import {
   BUILT_IN_TIME_SPAN_LIST,
   type TimeSpan,
 } from "@/components/shared/dashboard/timespan-selector";
+import { escapeSqlString } from "@/lib/string-utils";
 import { forwardRef, memo, useImperativeHandle, useMemo, useRef } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
 
@@ -32,11 +33,13 @@ const PartHistoryView = memo(
         },
         supportsTimeSpanSelector: true,
       }),
-      []
+      [defaultTimeSpan]
     );
 
     // Create dashboard with the stat chart
     const dashboard = useMemo<Dashboard>(() => {
+      const escapedDatabase = escapeSqlString(database);
+      const escapedTable = escapeSqlString(table);
       return {
         name: `part-history-${database}-${table}`,
         version: 3,
@@ -81,8 +84,8 @@ WHERE
     AND event_date >= toDate({to:String})
     AND event_time >= {from:String}
     AND event_time < {to:String}
-    AND database = '${database}'
-    AND table = '${table}'
+    AND database = '${escapedDatabase}'
+    AND table = '${escapedTable}'
     AND event_type = 'NewPart'
 GROUP BY t
 ORDER BY t
@@ -98,7 +101,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -134,7 +137,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -191,8 +194,8 @@ WHERE
     AND event_date >= toDate({to:String})
     AND event_time >= {from:String}
     AND event_time < {to:String}
-    AND database = '${database}'
-    AND table = '${table}'
+    AND database = '${escapedDatabase}'
+    AND table = '${escapedTable}'
     AND event_type = 'DownloadPart'
 GROUP BY t
 ORDER BY t
@@ -208,7 +211,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -241,7 +244,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -304,8 +307,8 @@ WHERE
     AND event_date >= toDate({to:String})
     AND event_time >= {from:String}
     AND event_time < {to:String}
-    AND database = '${database}'
-    AND table = '${table}'
+    AND database = '${escapedDatabase}'
+    AND table = '${escapedTable}'
     AND event_type = 'MergeParts'
 GROUP BY t
 ORDER BY t
@@ -321,7 +324,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -355,7 +358,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -414,8 +417,8 @@ WHERE
     AND event_date >= toDate({to:String})
     AND event_time >= {from:String}
     AND event_time < {to:String}
-    AND database = '${database}'
-    AND table = '${table}'
+    AND database = '${escapedDatabase}'
+    AND table = '${escapedTable}'
     AND event_type = 'MutatePart'
 GROUP BY t
 ORDER BY t
@@ -431,7 +434,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -465,7 +468,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -525,8 +528,8 @@ WHERE
     AND event_date >= toDate({to:String})
     AND event_time >= {from:String}
     AND event_time < {to:String}
-    AND database = '${database}'
-    AND table = '${table}'
+    AND database = '${escapedDatabase}'
+    AND table = '${escapedTable}'
     AND event_type = 'RemovePart'
 GROUP BY t
 ORDER BY t
@@ -541,7 +544,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})
@@ -575,7 +578,7 @@ WITH FILL STEP {rounding:UInt32}
                 },
                 query: {
                   sql: `
-                SELECT * FROM system.part_log WHERE database = '${database}' AND table = '${table}'
+                SELECT * FROM system.part_log WHERE database = '${escapedDatabase}' AND table = '${escapedTable}'
                 AND 
                     event_date >= toDate({from:String}) 
                     AND event_date >= toDate({to:String})

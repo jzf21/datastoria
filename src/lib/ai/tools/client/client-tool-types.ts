@@ -1,4 +1,5 @@
 import type { Connection } from "@/lib/connection/connection";
+export { escapeSqlString } from "@/lib/string-utils";
 
 /**
  * Status of a tool execution stage
@@ -25,10 +26,3 @@ export type ToolExecutor<TInput, TOutput> = (
   connection: Connection,
   progressCallback?: ToolProgressCallback
 ) => Promise<TOutput>;
-
-/**
- * Escape single quotes in SQL strings to prevent SQL injection
- */
-export function escapeSqlString(str: string): string {
-  return str.replace(/'/g, "''");
-}
