@@ -50,6 +50,9 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile
+          target: runner-prebuilt
+          build-args: |
+            BUILD_FROM_SOURCE=0
           platforms: linux/amd64,linux/arm64
           push: false
           tags: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
@@ -73,6 +76,9 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile
+          target: runner-prebuilt
+          build-args: |
+            BUILD_FROM_SOURCE=0
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |

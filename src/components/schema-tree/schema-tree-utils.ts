@@ -28,4 +28,3 @@ export function parseEnumType(typeString: string): ParsedEnumType | null {
 
   return { baseType, pairs };
 }
-

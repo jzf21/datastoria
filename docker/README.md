@@ -2,8 +2,17 @@
 
 ## 1. Build the image
 
+**From source (default):**
 ```bash
 docker build -t datastoria -f docker/Dockerfile .
+```
+
+**With prebuilt artifacts (CI / fast):**
+```bash
+-- run build outside docker
+npm run build
+
+docker build -t datastoria -f docker/Dockerfile --target runner-prebuilt --build-arg BUILD_FROM_SOURCE=0 .
 ```
 
 ## 2. Run the container

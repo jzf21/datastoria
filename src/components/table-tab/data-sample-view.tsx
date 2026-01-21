@@ -3,6 +3,7 @@ import type { TableDescriptor } from "@/components/shared/dashboard/dashboard-mo
 import type { DashboardVisualizationComponent } from "@/components/shared/dashboard/dashboard-visualization-layout";
 import { DashboardVisualizationPanel } from "@/components/shared/dashboard/dashboard-visualization-panel";
 import type { TimeSpan } from "@/components/shared/dashboard/timespan-selector";
+import { escapeSqlString } from "@/lib/string-utils";
 import { forwardRef, memo, useImperativeHandle, useMemo, useRef } from "react";
 import type { RefreshableTabViewRef } from "./table-tab";
 
@@ -10,12 +11,6 @@ export interface DataSampleViewProps {
   database: string;
   table: string;
   autoLoad?: boolean;
-}
-
-function escapeSqlIdentifier(identifier: string): string {
-  // ClickHouse supports backtick-quoted identifiers.
-  // Escape backticks by doubling them.
-  return `\`${identifier.replaceAll("`", "``")}\``;
 }
 
 const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleViewProps>(
@@ -39,7 +34,7 @@ const DataSampleViewComponent = forwardRef<RefreshableTabViewRef, DataSampleView
           isSticky: true,
         },
         query: {
-          sql: `SELECT * FROM ${escapeSqlIdentifier(database)}.${escapeSqlIdentifier(table)} LIMIT 1000`,
+          sql: `SELECT * FROM ${escapeSqlString(database)}.${escapeSqlString(table)} LIMIT 1000`,
           params: {
             default_format: "JSON",
             output_format_json_quote_64bit_integers: 0,

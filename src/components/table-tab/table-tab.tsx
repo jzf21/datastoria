@@ -80,7 +80,8 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
 
   // Remove overview and partitions for System tables
   const availableTabs = useMemo(() => {
-    return isSystemTable ? new Set(["data-sample", "metadata", "dependencies"]) : baseAvailableTabs;
+    // System tables should not show dependencies either.
+    return isSystemTable ? new Set(["data-sample", "metadata"]) : baseAvailableTabs;
   }, [isSystemTable, baseAvailableTabs]);
 
   const initialTab = useMemo(() => {
@@ -90,6 +91,13 @@ const TableTabComponent = ({ database, table, engine }: TableTabProps) => {
 
   // Track which tabs have been loaded (to load data only once)
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set([initialTab]));
+
+  // If engine/table changes and the current tab becomes unavailable, fall back to the initial tab.
+  useEffect(() => {
+    if (!availableTabs.has(currentTab)) {
+      setCurrentTab(initialTab);
+    }
+  }, [availableTabs, currentTab, initialTab]);
 
   // Track refresh state for button animation
   const [isRefreshing, setIsRefreshing] = useState(false);

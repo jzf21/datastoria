@@ -1,4 +1,5 @@
 import type { Connection } from "@/lib/connection/connection";
+
 export { escapeSqlString } from "@/lib/string-utils";
 
 /**

@@ -72,16 +72,20 @@ const TableMetadataViewComponent = forwardRef<RefreshableTabViewRef, TableMetada
 
     const { connection } = useConnection();
 
-    useImperativeHandle(ref, () => ({
-      refresh: (timeSpan?: TimeSpan) => {
-        if (timeSpan) {
-          setSelectedTimeSpan(timeSpan);
-        } else {
-          // Force refresh
-          dashboardPanelsRef.current?.refresh(selectedTimeSpan);
-        }
-      },
-    }), [selectedTimeSpan]);
+    useImperativeHandle(
+      ref,
+      () => ({
+        refresh: (timeSpan?: TimeSpan) => {
+          if (timeSpan) {
+            setSelectedTimeSpan(timeSpan);
+          } else {
+            // Force refresh
+            dashboardPanelsRef.current?.refresh(selectedTimeSpan);
+          }
+        },
+      }),
+      [selectedTimeSpan]
+    );
 
     const dashboard = useMemo<Dashboard>(() => {
       const escapedDatabase = escapeSqlString(database);

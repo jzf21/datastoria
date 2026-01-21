@@ -54,7 +54,13 @@ docker-compose*.yml
 .dockerignore
 
 # Other
+# Keep Next.js build output in Docker context (prebuilt in CI).
+# Note: negate rules must appear after the ignore rule.
 .next
+!.next/standalone
+!.next/standalone/**
+!.next/static
+!.next/static/**
 coverage
 .nyc_output
 *.log

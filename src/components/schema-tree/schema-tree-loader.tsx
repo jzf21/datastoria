@@ -9,7 +9,7 @@ export type {
   SchemaLoadResult,
   SchemaNodeData,
   TableItemDO,
-  TableNodeData
+  TableNodeData,
 } from "./schema-tree-types";
 
 export class SchemaTreeLoader {

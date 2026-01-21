@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { SchemaTreeBadge, SchemaTreeHostSelector } from "./schema-tree-host-selector";
 import { ColumnTooltip, DatabaseTooltip, HostTooltip, TableTooltip } from "./schema-tree-tooltips";
-import { parseEnumType } from "./schema-tree-utils";
 import type {
   ColumnNodeData,
   DatabaseNodeData,
@@ -27,6 +26,7 @@ import type {
   TableItemDO,
   TableNodeData,
 } from "./schema-tree-types";
+import { parseEnumType } from "./schema-tree-utils";
 
 // Map column types to appropriate icons
 function getColumnIcon(typeString: string): LucideIcon | undefined {
