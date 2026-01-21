@@ -109,7 +109,7 @@ async function getConnectionMetadata(connection: Connection): Promise<void> {
     hasColumnInTable('system', 'metric_log', 'ProfileEvent_MergeSourceParts'),
     hasColumnInTable('system', 'metric_log', 'ProfileEvent_MutationTotalParts'),
     hasColumnInTable('system', 'query_log', 'hostname'),
-    hasColumnInTable('system', 'part_log', 'node_name')
+    hasColumnInTable('system', 'part_log', 'hostname')
 `,
       { default_format: "JSONCompact" }
     )
@@ -127,7 +127,7 @@ async function getConnectionMetadata(connection: Connection): Promise<void> {
         // 4: hasColumnInTable('system','metric_log','ProfileEvent_MergeSourceParts')
         // 5: hasColumnInTable('system','metric_log','ProfileEvent_MutationTotalParts')
         // 6: hasColumnInTable('system','query_log','hostname')
-        // 7: hasColumnInTable('system','part_log','node_name')
+        // 7: hasColumnInTable('system','part_log','hostname')
 
         const isCluster = connection.cluster && connection.cluster.length > 0;
         connection.metadata = {

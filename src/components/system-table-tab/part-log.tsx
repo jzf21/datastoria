@@ -185,7 +185,7 @@ ORDER BY event_time DESC
     ].filter((spec) => {
       const hasCluster = connection?.cluster && connection?.cluster.length > 0;
       if (hasCluster) {
-        return spec;
+        return true;
       } else if (spec.filterType === "select" && spec.name === hostname) {
         // NOT in the cluster mode, remove the FQDN filter
         return false;
