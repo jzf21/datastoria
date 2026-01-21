@@ -20,37 +20,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: development
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create or update release branch
+      - name: Merge development into master
         run: |
           # Fetch all branches
           git fetch origin
 
-          # Check if release branch exists
-          if git show-ref --verify --quiet refs/remotes/origin/release; then
-            echo "Release branch exists, updating..."
-            git checkout release
-            git merge origin/master --no-edit -m "Release: merge master into release"
-          else
-            echo "Creating release branch from master..."
-            git checkout -b release origin/master
-          fi
+          # Checkout master and merge development into it
+          git checkout master
+          git merge origin/development --no-edit -m "Release: merge development into master"
 
-          # Push to remote
-          git push origin release
+          # Push to remote (triggers Vercel production deployment)
+          git push origin master
 
       - name: Create release summary
         run: |
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** release" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** master (production)" >> $GITHUB_STEP_SUMMARY
+          echo "**Merged from:** development" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** $(git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
           echo "**Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

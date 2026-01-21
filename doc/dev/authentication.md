@@ -6,18 +6,26 @@ Data Storia supports optional authentication using NextAuth.js with OAuth provid
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Setting Up OAuth Providers](#setting-up-oauth-providers)
-  - [Google OAuth](#google-oauth)
-  - [GitHub OAuth](#github-oauth)
-  - [Microsoft Entra ID OAuth](#microsoft-entra-id-oauth)
-- [Running the Application](#running-the-application)
-- [Troubleshooting](#troubleshooting)
-- [Security Best Practices](#security-best-practices)
-- [Additional Resources](#additional-resources)
+- [Authentication Setup Guide](#authentication-setup-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+    - [1. Generate Secret](#1-generate-secret)
+    - [2. Create `.env` file](#2-create-env-file)
+    - [3. Configure OAuth Callback URLs](#3-configure-oauth-callback-urls)
+  - [Configuration](#configuration)
+  - [Setting Up OAuth Providers](#setting-up-oauth-providers)
+    - [Google OAuth](#google-oauth)
+    - [GitHub OAuth](#github-oauth)
+    - [Microsoft Entra ID OAuth](#microsoft-entra-id-oauth)
+  - [Running the Application](#running-the-application)
+    - [Development Mode](#development-mode)
+    - [Production Mode](#production-mode)
+  - [Troubleshooting](#troubleshooting)
+    - [Common Issues](#common-issues)
+  - [Security Best Practices](#security-best-practices)
+  - [Additional Resources](#additional-resources)
 
 ---
 
