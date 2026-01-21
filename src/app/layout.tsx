@@ -52,7 +52,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                const storageKey = 'app-ui-theme';
+                const storageKey = 'datastoria:settings:ui:theme';
                 const theme = localStorage.getItem(storageKey) || 'dark';
                 const root = document.documentElement;
                 root.classList.remove('light', 'dark');

@@ -6,7 +6,6 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { QueryControl } from "./query-control/query-control";
 import { QueryExecutionProvider, useQueryExecutor } from "./query-execution/query-executor";
-import { QueryInputLocalStorage } from "./query-input/query-input-local-storage";
 import type { QueryInputViewRef } from "./query-input/query-input-view";
 
 // Dynamically import QueryInputView to prevent SSR issues with ace editor
@@ -129,7 +128,7 @@ const QueryTabContent = ({
             ref={queryInputRef}
             initialQuery={initialQuery}
             initialMode={initialMode}
-            storageKey="editing-sql"
+            storageKey="sql:input"
             language="dsql"
             onRun={handleInputRun}
           />

@@ -1,3 +1,4 @@
+import { appLocalStorage } from "@/lib/local-storage";
 import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "dark" | "light" | "system";
@@ -5,7 +6,6 @@ type Theme = "dark" | "light" | "system";
 type ThemeProviderProps = {
   children: React.ReactNode;
   defaultTheme?: Theme;
-  storageKey?: string;
 };
 
 type ThemeProviderState = {
@@ -20,22 +20,19 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+const themeStorage = appLocalStorage.subStorage("settings:ui:theme");
+
 export function ThemeProvider({
   children,
   defaultTheme = "dark",
-  storageKey = "vite-ui-theme",
   ...props
-}: ThemeProviderProps) {
+}: Omit<ThemeProviderProps, "storageKey">) {
   const [theme, setThemeState] = useState<Theme>(() => {
     // Only access localStorage on client side
     if (typeof window === "undefined") {
       return defaultTheme;
     }
-    try {
-      return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
-    } catch {
-      return defaultTheme;
-    }
+    return (themeStorage.getString() as Theme) || defaultTheme;
   });
 
   useEffect(() => {
@@ -56,11 +53,7 @@ export function ThemeProvider({
   }, [theme]);
 
   const setTheme = (theme: Theme) => {
-    try {
-      localStorage.setItem(storageKey, theme);
-    } catch {
-      // Ignore localStorage errors
-    }
+    themeStorage.setString(theme);
     setThemeState(theme);
   };
 

@@ -1,51 +1,38 @@
+import { appLocalStorage } from "@/lib/local-storage";
 import type { Chat, Message } from "../chat-message-types";
 import type { ChatStorage } from "./chat-storage";
 
 /**
  * LocalStorage-based implementation of ChatStorage for simplicity
  */
-export class LocalStorageChatStorage implements ChatStorage {
-  private readonly CHATS_KEY = "datastoria:chats";
-  private readonly MESSAGES_PREFIX = "datastoria:messages:";
+export class ChatStorageLocal implements ChatStorage {
+  //
+  // The chats and messages are stored separated
+  //
+  // All chats are stored in one object
+  private readonly chatsStorage = appLocalStorage.subStorage("chats");
 
-  /**
-   * Get the localStorage key for a specific chat's messages
-   */
-  private getMessagesKey(chatId: string): string {
-    return `${this.MESSAGES_PREFIX}${chatId}`;
-  }
+  // Messages are stored per chatId
+  private readonly messagesStorage = appLocalStorage.subStorage("messages");
 
   /**
    * Get messages for a specific chat as a Map (object) keyed by message ID
    * This allows O(1) lookups instead of O(n) array searches
    */
   private getMessagesForChat(chatId: string): Record<string, Message> {
-    const key = this.getMessagesKey(chatId);
-    const data = localStorage.getItem(key);
-    if (!data) return {};
-
-    try {
-      const parsed = JSON.parse(data);
-      return parsed as Record<string, Message>;
-    } catch {
-      return {};
-    }
+    return this.messagesStorage.getChildAsJSON<Record<string, Message>>(chatId, () => ({}));
   }
 
   /**
    * Save messages for a specific chat as a Map (object) keyed by message ID
    */
   private saveMessagesForChat(chatId: string, messages: Record<string, Message>): void {
-    const key = this.getMessagesKey(chatId);
-    localStorage.setItem(key, JSON.stringify(messages));
+    this.messagesStorage.setChildJSON(chatId, messages);
   }
 
   // Chat operations
   async getChat(id: string): Promise<Chat | null> {
-    const data = localStorage.getItem(this.CHATS_KEY);
-    if (!data) return null;
-
-    const chats = JSON.parse(data) as Record<string, Chat>;
+    const chats = this.chatsStorage.getAsJSON<Record<string, Chat>>(() => ({}));
     const chat = chats[id];
 
     if (!chat) return null;
@@ -59,50 +46,40 @@ export class LocalStorageChatStorage implements ChatStorage {
   }
 
   async saveChat(chat: Chat): Promise<void> {
-    const data = localStorage.getItem(this.CHATS_KEY);
-    const chats = data ? JSON.parse(data) : {};
+    const chats = this.chatsStorage.getAsJSON<Record<string, Chat>>(() => ({}));
 
     chats[chat.chatId] = {
       ...chat,
       updatedAt: new Date(),
     };
 
-    localStorage.setItem(this.CHATS_KEY, JSON.stringify(chats));
+    this.chatsStorage.setJSON(chats);
   }
 
   async updateChatTitle(id: string, title: string): Promise<void> {
-    const chatData = localStorage.getItem(this.CHATS_KEY);
-    if (!chatData) return;
-
-    const chats = JSON.parse(chatData) as Record<string, Chat>;
+    const chats = this.chatsStorage.getAsJSON<Record<string, Chat>>(() => ({}));
     if (chats[id]) {
       chats[id] = {
         ...chats[id],
         title,
         updatedAt: new Date(),
       };
-      localStorage.setItem(this.CHATS_KEY, JSON.stringify(chats));
+      this.chatsStorage.setJSON(chats);
     }
   }
 
   async deleteChat(id: string): Promise<void> {
     // Delete chat
-    const chatData = localStorage.getItem(this.CHATS_KEY);
-    if (chatData) {
-      const chats = JSON.parse(chatData) as Record<string, Chat>;
-      delete chats[id];
-      localStorage.setItem(this.CHATS_KEY, JSON.stringify(chats));
-    }
+    const chats = this.chatsStorage.getAsJSON<Record<string, Chat>>(() => ({}));
+    delete chats[id];
+    this.chatsStorage.setJSON(chats);
 
     // Delete all messages for this chat
     await this.clearMessages(id);
   }
 
   async getCharts(): Promise<Chat[]> {
-    const data = localStorage.getItem(this.CHATS_KEY);
-    if (!data) return [];
-
-    const chats = JSON.parse(data) as Record<string, Chat>;
+    const chats = this.chatsStorage.getAsJSON<Record<string, Chat>>(() => ({}));
 
     return Object.values(chats)
       .map((chat) => ({
@@ -194,7 +171,7 @@ export class LocalStorageChatStorage implements ChatStorage {
         delete messagesMap[id];
         if (Object.keys(messagesMap).length === 0) {
           // Remove the key if no messages left
-          localStorage.removeItem(this.getMessagesKey(chat.chatId));
+          this.messagesStorage.removeChild(chat.chatId);
         } else {
           this.saveMessagesForChat(chat.chatId, messagesMap);
         }
@@ -204,23 +181,14 @@ export class LocalStorageChatStorage implements ChatStorage {
   }
 
   async clearMessages(chatId: string): Promise<void> {
-    localStorage.removeItem(this.getMessagesKey(chatId));
+    this.messagesStorage.removeChild(chatId);
   }
 
   async clearAll(): Promise<void> {
     // Remove chats
-    localStorage.removeItem(this.CHATS_KEY);
+    this.chatsStorage.remove();
 
     // Remove all per-chat message keys
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(this.MESSAGES_PREFIX)) {
-        keysToRemove.push(key);
-      }
-    }
-    for (const key of keysToRemove) {
-      localStorage.removeItem(key);
-    }
+    this.messagesStorage.clear();
   }
 }

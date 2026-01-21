@@ -61,7 +61,7 @@ const applyQueryToEditor = (
   editor: Ace.Editor,
   query: string,
   mode: "replace" | "insert",
-  storageKey: string = "editing-sql"
+  storageKey: string = "editor"
 ) => {
   const session = editor.getSession();
 
@@ -119,7 +119,7 @@ const getKeyBindings = () => {
 
 export const QueryInputView = forwardRef<QueryInputViewRef, QueryInputViewProps>(
   (
-    { initialQuery, initialMode = "replace", storageKey = "editing-sql", language = "dsql", onRun },
+    { initialQuery, initialMode = "replace", storageKey = "editor", language = "dsql", onRun },
     ref
   ) => {
     const { connection } = useConnection();

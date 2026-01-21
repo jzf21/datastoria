@@ -1,5 +1,5 @@
 import type { Connection } from "@/lib/connection/connection";
-import { LocalStorage } from "@/lib/local-storage";
+import { appLocalStorage } from "@/lib/local-storage";
 import type { Ace } from "ace-builds";
 import { builtinSnippet } from "./builtin-snippet";
 import type { Snippet } from "./snippet";
@@ -13,13 +13,11 @@ export class QuerySnippetManager {
 
   private readonly snippets: Map<string, Snippet>;
   private snippetCompletionList: Ace.SnippetCompletion[];
+  private readonly storage = appLocalStorage.subStorage("sql:snippet");
 
   constructor() {
     try {
-      const stored = LocalStorage.getInstance().getAsJSON<Record<string, Snippet>>(
-        "query-snippet",
-        () => ({})
-      );
+      const stored = this.storage.getAsJSON<Record<string, Snippet>>(() => ({}));
       this.snippets = new Map(Object.entries(stored));
     } catch (e) {
       this.snippets = new Map<string, Snippet>();
@@ -39,7 +37,7 @@ export class QuerySnippetManager {
   public addSnippet(caption: string, sql: string): void {
     this.snippets.set(caption, { caption: caption, sql: sql, builtin: false });
     const snippetsObj = Object.fromEntries(this.snippets);
-    LocalStorage.getInstance().setJSON("query-snippet", snippetsObj);
+    this.storage.setJSON(snippetsObj);
     this.snippetCompletionList = this.toCompletion();
   }
 

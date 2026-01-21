@@ -1,5 +1,5 @@
 import type { Chat, Message } from "@/components/chat/chat-message-types";
-import { LocalStorageChatStorage } from "./chat-storage-local";
+import { ChatStorageLocal } from "./chat-storage-local";
 
 // Storage interface for abstraction (localStorage now, IndexedDB later)
 export interface ChatStorage {
@@ -22,4 +22,4 @@ export interface ChatStorage {
   clearAll(): Promise<void>;
 }
 
-export const chatStorage = new LocalStorageChatStorage();
+export const chatStorage = new ChatStorageLocal();

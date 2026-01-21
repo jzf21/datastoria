@@ -1,4 +1,4 @@
-import { LocalStorage } from "../local-storage";
+import { appLocalStorage } from "../local-storage";
 import type { ConnectionConfig } from "./connection-config";
 
 export const ConnectionChangeType = {
@@ -16,7 +16,6 @@ export interface ConnectionChangeEventArgs {
   afterChange: ConnectionConfig | null;
 }
 
-const ConnectionKey: string = "connections";
 export class ConnectionManager {
   private static instance: ConnectionManager;
 
@@ -26,11 +25,12 @@ export class ConnectionManager {
 
   private connectionMap: Map<string, ConnectionConfig>;
   private connectionArray: ConnectionConfig[];
+  private connectionStorage = appLocalStorage.subStorage("connections");
 
   constructor() {
     let savedConnections: unknown[] = [];
     try {
-      savedConnections = LocalStorage.getInstance().getAsJSON<unknown[]>(ConnectionKey, () => []);
+      savedConnections = this.connectionStorage.getAsJSON<unknown[]>(() => []);
     } catch {
       // Ignore
     }
@@ -92,7 +92,7 @@ export class ConnectionManager {
     this.connectionArray.push(connection);
 
     try {
-      LocalStorage.getInstance().setJSON(ConnectionKey, this.connectionArray);
+      this.connectionStorage.setJSON(this.connectionArray);
     } catch (e) {
       this.connectionArray.pop();
       throw e;
@@ -117,7 +117,7 @@ export class ConnectionManager {
     const oldConnection = this.connectionArray[index];
     this.connectionArray[index] = newConnection;
     try {
-      LocalStorage.getInstance().setJSON(ConnectionKey, this.connectionArray);
+      this.connectionStorage.setJSON(this.connectionArray);
     } catch (e) {
       this.connectionArray[index] = oldConnection;
       throw e;
@@ -147,7 +147,7 @@ export class ConnectionManager {
     }
 
     if (oldConnection !== null) {
-      LocalStorage.getInstance().setJSON(ConnectionKey, newConnectionArray);
+      this.connectionStorage.setJSON(newConnectionArray);
 
       this.connectionArray = newConnectionArray;
       this.connectionMap.delete(name);
@@ -172,17 +172,15 @@ export class ConnectionManager {
   }
 
   public saveLastSelected(name: string | undefined) {
-    const key = ConnectionKey + ".selected";
-
     if (name === undefined) {
-      LocalStorage.getInstance().remove(key);
+      this.connectionStorage.removeChild("selected");
     } else {
-      LocalStorage.getInstance().setString(key, name);
+      this.connectionStorage.setChildAsString("selected", name);
     }
   }
 
   public getLastSelectedOrFirst() {
-    const selected = LocalStorage.getInstance().getString(ConnectionKey + ".selected");
+    const selected = this.connectionStorage.getChildAsString("selected");
     if (selected === null) {
       return this.first();
     }

@@ -1,5 +1,5 @@
 import { MODELS, type ModelProps } from "@/lib/ai/llm/llm-provider-factory";
-import { LocalStorage } from "@/lib/local-storage";
+import { appLocalStorage } from "@/lib/local-storage";
 
 export interface ModelSetting {
   modelId: string;
@@ -13,14 +13,25 @@ export interface ProviderSetting {
   apiKey: string;
 }
 
-const MODEL_SETTINGS_STORAGE_KEY = "settings/ai/model-settings";
-const PROVIDER_SETTINGS_STORAGE_KEY = "settings/ai/provider-settings";
-const SELECTED_MODEL_ID_STORAGE_KEY = "settings/ai/selected-model-id";
-
 export const MODEL_CONFIG_UPDATED_EVENT = "MODEL_CONFIG_UPDATED";
 
 class ModelManager {
   private static instance: ModelManager;
+
+  /**
+   * Which models are enabled or disabled
+   */
+  private readonly modelSettingsStorage = appLocalStorage.subStorage("settings:ai:model-settings");
+
+  /**
+   * API Key configuration of providers
+   */
+  private readonly providerSettingsStorage = appLocalStorage.subStorage(
+    "settings:ai:provider-settings"
+  );
+  private readonly selectedModelStorage = appLocalStorage.subStorage(
+    "settings:ai:selected-model-id"
+  );
 
   public static getInstance(): ModelManager {
     if (!ModelManager.instance) {
@@ -43,7 +54,7 @@ class ModelManager {
    * @returns The selected model configuration or undefined
    */
   public getSelectedModel(): { provider: string; modelId: string } | undefined {
-    const stored = LocalStorage.getInstance().getString(SELECTED_MODEL_ID_STORAGE_KEY);
+    const stored = this.selectedModelStorage.getString();
     if (!stored) return undefined;
 
     try {
@@ -77,7 +88,7 @@ class ModelManager {
    * @param model - The model configuration to select
    */
   public setSelectedModel(model: { provider: string; modelId: string }): void {
-    LocalStorage.getInstance().setString(SELECTED_MODEL_ID_STORAGE_KEY, JSON.stringify(model));
+    this.selectedModelStorage.setString(JSON.stringify(model));
     this.notify();
   }
 
@@ -86,10 +97,7 @@ class ModelManager {
    * @returns Array of model settings
    */
   public getModelSettings(): ModelSetting[] {
-    return LocalStorage.getInstance().getAsJSON<ModelSetting[]>(
-      MODEL_SETTINGS_STORAGE_KEY,
-      () => []
-    );
+    return this.modelSettingsStorage.getAsJSON<ModelSetting[]>(() => []);
   }
 
   /**
@@ -97,7 +105,7 @@ class ModelManager {
    * @param settings - Array of model settings to save
    */
   public setModelSettings(settings: ModelSetting[]): void {
-    LocalStorage.getInstance().setJSON(MODEL_SETTINGS_STORAGE_KEY, settings);
+    this.modelSettingsStorage.setJSON(settings);
     this.notify();
   }
 
@@ -106,10 +114,7 @@ class ModelManager {
    * @returns Array of provider settings
    */
   public getProviderSettings(): ProviderSetting[] {
-    return LocalStorage.getInstance().getAsJSON<ProviderSetting[]>(
-      PROVIDER_SETTINGS_STORAGE_KEY,
-      () => []
-    );
+    return this.providerSettingsStorage.getAsJSON<ProviderSetting[]>(() => []);
   }
 
   /**
@@ -117,7 +122,7 @@ class ModelManager {
    * @param settings - Array of provider settings to save
    */
   public setProviderSettings(settings: ProviderSetting[]): void {
-    LocalStorage.getInstance().setJSON(PROVIDER_SETTINGS_STORAGE_KEY, settings);
+    this.providerSettingsStorage.setJSON(settings);
     this.notify();
   }
 

@@ -1,10 +1,9 @@
-import { LocalStorage } from "@/lib/local-storage";
+import { appLocalStorage } from "@/lib/local-storage";
 import type { QueryContext } from "./query-context";
-
-const QUERY_CONTEXT_STORAGE_KEY = "query-context";
 
 class QueryContextManager {
   private static instance: QueryContextManager;
+  private readonly storage = appLocalStorage.subStorage("settings:query-context");
   private defaultContext: QueryContext = {
     opentelemetry_start_trace_probability: false,
     output_format_pretty_row_numbers: true,
@@ -27,16 +26,13 @@ class QueryContextManager {
 
   public getStoredContext(): Partial<QueryContext> {
     // Get stored context without defaults (for editing)
-    return LocalStorage.getInstance().getAsJSON<Partial<QueryContext>>(
-      QUERY_CONTEXT_STORAGE_KEY,
-      () => ({})
-    );
+    return this.storage.getAsJSON<Partial<QueryContext>>(() => ({}));
   }
 
   public setContext(context: Partial<QueryContext>): void {
     // Save exactly what is passed, without merging with defaults
     // Defaults will be applied when reading via getContext()
-    LocalStorage.getInstance().setJSON(QUERY_CONTEXT_STORAGE_KEY, context);
+    this.storage.setJSON(context);
   }
 
   public updateContext(updates: Partial<QueryContext>): void {

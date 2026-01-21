@@ -1,12 +1,14 @@
-import { LocalStorage } from "@/lib/local-storage";
+import { appLocalStorage } from "@/lib/local-storage";
+
+const queryStorage = appLocalStorage.subStorage("query");
 
 export class QueryInputLocalStorage {
-  public static getInput(key: string = "editing-sql"): string {
-    const value = LocalStorage.getInstance().getString(key);
+  public static getInput(key: string): string {
+    const value = queryStorage.getChildAsString(key);
     return value || "";
   }
 
-  public static saveInput(text: string, key: string = "editing-sql"): void {
-    LocalStorage.getInstance().setString(key, text);
+  public static saveInput(text: string, key: string): void {
+    queryStorage.setChildAsString(key, text);
   }
 }
