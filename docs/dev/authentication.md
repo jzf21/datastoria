@@ -1,6 +1,6 @@
 # Authentication Setup Guide
 
-Data Storia supports optional authentication using NextAuth.js with OAuth providers. This guide will help you set up Google, GitHub, and/or Microsoft authentication.
+DataStoria supports optional authentication using NextAuth.js with OAuth providers. This guide will help you set up Google, GitHub, and/or Microsoft authentication.
 
 ---
 
@@ -31,7 +31,7 @@ Data Storia supports optional authentication using NextAuth.js with OAuth provid
 
 ## Overview
 
-Authentication is **optional** in Data Storia. If no OAuth providers are configured, the application will run without authentication and users can access it directly.
+Authentication is **optional** in DataStoria. If no OAuth providers are configured, the application will run without authentication and users can access it directly.
 
 When authentication is enabled:
 - Users must sign in before accessing the console
@@ -136,7 +136,7 @@ NEXTAUTH_GOOGLE_ENABLED=true
    - Go to [GitHub Developer Settings](https://github.com/settings/developers)
    - Click **New OAuth App**
    - Fill in the application details:
-     - **Application name**: Data Storia
+     - **Application name**: DataStoria
      - **Homepage URL**: `http://localhost:3000` (or your domain)
      - **Authorization callback URL**: `http://localhost:3000/api/auth/callback/github`
 
@@ -155,7 +155,7 @@ NEXTAUTH_GITHUB_ENABLED=true
    - Navigate to **Azure Active Directory** → **App registrations**
    - Click **New registration**
    - Fill in the details:
-     - **Name**: Data Storia
+     - **Name**: DataStoria
      - **Supported account types**: Choose based on your needs
      - **Redirect URI**: Select **Web** and enter `http://localhost:3000/api/auth/callback/microsoft-entra-id`
    - After creation, note the **Application (client) ID** and **Directory (tenant) ID**

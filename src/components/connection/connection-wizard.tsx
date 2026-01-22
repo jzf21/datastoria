@@ -39,7 +39,7 @@ export function ConnectionWizard() {
             <CardHeader className="text-center space-y-1 pb-4">
               <div className="flex justify-center items-center">
                 <AppLogo width={64} height={64} />
-                <CardTitle>Data Storia</CardTitle>
+                <CardTitle>DataStoria</CardTitle>
               </div>
               <CardDescription className="text-base">
                 AI-powered ClickHouse management console with visualization and insights

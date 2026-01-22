@@ -126,12 +126,12 @@ function SettingsDialogWrapper({
               <div className="flex flex-col">
                 <div className="text-sm">
                   {activeSection === "query-context"
-                    ? "Configure query execution settings and parameters."
-                    : "Configure AI model settings and API keys."}
+                    ? "Configure query execution settings and parameters"
+                    : "Configure AI models"}
                 </div>
                 {activeSection === "models" && (
                   <div className="text-[11px] text-muted-foreground">
-                    API keys are only stored at your client side.
+                    API keys are only stored at your client side
                   </div>
                 )}
               </div>

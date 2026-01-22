@@ -2,7 +2,7 @@ import "@/index.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Data Storia",
+  title: "DataStoria",
   description: "AI-powered ClickHouse database management console with visualization capabilities",
   icons: {
     icon: "/logo.png",

@@ -684,6 +684,7 @@ export function ConnectionEditComponent({
               value={password}
               onChange={handlePasswordChange}
               className="pr-10"
+              autoComplete="current-password"
             />
             <Button
               type="button"
