@@ -38,8 +38,13 @@ jobs:
           git checkout master
           git merge origin/development --ff-only
 
-          # Push to remote (triggers Vercel production deployment)
+          # Push to remote
           git push origin master
+
+      - name: Trigger Vercel Production Deployment
+        run: |
+          curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
+        if: success()
 
       - name: Create release summary
         run: |
@@ -50,4 +55,4 @@ jobs:
           echo "**Commit:** $(git rev-parse HEAD)" >> $GITHUB_STEP_SUMMARY
           echo "**Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Vercel will automatically deploy this release to production." >> $GITHUB_STEP_SUMMARY
+          echo "Vercel production deployment has been triggered via deploy hook." >> $GITHUB_STEP_SUMMARY
