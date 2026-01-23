@@ -1,17 +1,27 @@
 import { useConnection } from "@/components/connection/connection-context";
 import FloatingProgressBar from "@/components/shared/floating-progress-bar";
 import type { GraphEdge } from "@/components/shared/graphviz/Graph";
-import { ThemedSyntaxHighlighter } from "@/components/shared/themed-syntax-highlighter";
-import { OpenTableTabButton } from "@/components/table-tab/open-table-tab-button";
-import { Button } from "@/components/ui/button";
-import { type DependencyTableInfo, type QueryError } from "@/lib/connection/connection";
+import { type QueryError } from "@/lib/connection/connection";
 import { StringUtils } from "@/lib/string-utils";
 import { toastManager } from "@/lib/toast";
-import { X } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { DependencyGraphFlow } from "./dependency-graph-flow";
 import { DependencyBuilder, type DependencyGraphNode } from "./DependencyBuilder";
+import { TablePanel } from "./table-panel";
+
+// Dependency table information
+interface DependencyTableInfo {
+  id: string;
+  uuid: string;
+  database: string;
+  name: string;
+  engine: string;
+  tableQuery: string;
+  dependenciesDatabase: string[];
+  dependenciesTable: string[];
+  metadataModificationTime?: string;
+}
 
 // The response data object from API
 interface TableResponse {
@@ -31,6 +41,8 @@ interface TableResponse {
   serverVersion: string;
 
   isTargetDatabase: boolean;
+
+  metadataModificationTime?: string;
 }
 
 export interface DependencyViewProps {
@@ -84,7 +96,8 @@ SELECT
     engine,
     ${connection.metadata.has_format_query_function ? "formatQuery(create_table_query)" : "create_table_query"} AS tableQuery,
     dependencies_database AS dependenciesDatabase,
-    dependencies_table AS dependenciesTable
+    dependencies_table AS dependenciesTable,
+    metadata_modification_time AS metadataModificationTime
 FROM system.tables
 WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
 `,
@@ -104,15 +117,20 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
           dependencyTables = new Map<string, DependencyTableInfo>();
           if (tables && tables.length > 0) {
             for (const t of tables) {
+              // Format query if formatQuery function is not available
+              const formattedQuery = connection.metadata.has_format_query_function
+                ? t.tableQuery
+                : StringUtils.prettyFormatQuery(t.tableQuery);
               dependencyTables.set(t.id, {
                 id: t.id,
                 uuid: t.uuid,
                 database: t.database,
                 name: t.name,
                 engine: t.engine,
-                tableQuery: t.tableQuery,
+                tableQuery: formattedQuery,
                 dependenciesDatabase: t.dependenciesDatabase,
                 dependenciesTable: t.dependenciesTable,
+                metadataModificationTime: t.metadataModificationTime,
               });
             }
           }
@@ -133,6 +151,7 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
             tableInfo.dependenciesDatabase?.includes(database) ?? false;
 
           if (isInTargetDatabase || dependsOnTargetDatabase) {
+            // Query is already formatted when stored in cache
             tables.push({
               id: tableInfo.id,
               uuid: tableInfo.uuid,
@@ -144,6 +163,7 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
               dependenciesTable: tableInfo.dependenciesTable,
               serverVersion: "",
               isTargetDatabase: isInTargetDatabase,
+              metadataModificationTime: tableInfo.metadataModificationTime,
             });
           }
         }
@@ -307,38 +327,7 @@ WHERE NOT startsWith(name, '.inner.') AND NOT startsWith(name, '.inner_id.')
               maxSize={70}
               className="bg-background shadow-lg flex flex-col border-l border-t rounded-sm rounded-r-none"
             >
-              {/* Header with close button */}
-              <div className="flex items-center justify-between pl-2 border-b flex-shrink-0">
-                <OpenTableTabButton
-                  database={showTableNode.namespace}
-                  table={showTableNode.name}
-                  engine={showTableNode.category}
-                  variant="shadcn-link"
-                  showDatabase={true}
-                  className="truncate"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleCloseTableNode}
-                  className="h-8 w-8"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* DDL content */}
-              <div className="flex-1 overflow-auto">
-                <ThemedSyntaxHighlighter
-                  customStyle={{ fontSize: "14px", margin: 0 }}
-                  language="sql"
-                  showLineNumbers={true}
-                >
-                  {connection!.metadata.has_format_query_function
-                    ? showTableNode.query
-                    : StringUtils.prettyFormatQuery(showTableNode.query)}
-                </ThemedSyntaxHighlighter>
-              </div>
+              <TablePanel tableNode={showTableNode} onClose={handleCloseTableNode} />
             </Panel>
           )}
         </>

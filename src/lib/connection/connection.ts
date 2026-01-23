@@ -73,18 +73,6 @@ export interface JSONFormatResponse {
   };
 }
 
-// Dependency table information
-export interface DependencyTableInfo {
-  id: string;
-  uuid: string;
-  database: string;
-  name: string;
-  engine: string;
-  tableQuery: string;
-  dependenciesDatabase: string[];
-  dependenciesTable: string[];
-}
-
 export interface ConnectionMetadata {
   // The display name of the connection, will be used to display in the UI
   displayName: string;

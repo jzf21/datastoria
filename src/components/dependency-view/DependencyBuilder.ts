@@ -19,6 +19,8 @@ interface Table {
   // 1: inner table, .inner.
   // 2: inner table, .inner_id.
   innerTable: number;
+
+  metadataModificationTime?: string;
 }
 
 export interface DependencyGraphNode {
@@ -35,6 +37,8 @@ export interface DependencyGraphNode {
 
   // ids of target nodes
   targets: string[];
+
+  metadataModificationTime?: string;
 }
 
 type DependencyInfo = Pick<DependencyGraphNode, "type" | "category" | "namespace" | "name"> & {
@@ -305,6 +309,7 @@ export class DependencyBuilder {
         category: source.engine,
         query: source.tableQuery,
         targets: [],
+        metadataModificationTime: source.metadataModificationTime,
       };
       this.nodes.set(source.id, sourceNode);
     }
@@ -329,6 +334,7 @@ export class DependencyBuilder {
           category: targetTable?.engine ?? "",
           query: targetTable?.tableQuery ?? "NOT FOUND",
           targets: [],
+          metadataModificationTime: targetTable?.metadataModificationTime,
         };
         this.nodes.set(targetTableId, targetNode);
       }
