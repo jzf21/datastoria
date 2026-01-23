@@ -202,10 +202,11 @@ class ModelManager {
 
   /**
    * Get all available models that are enabled and have an API key configured.
-   * Includes a special 'Auto' model representing the server-side default.
+   * Includes a special 'Auto' model representing the server-side default if available.
+   * @param autoSelectAvailable - Whether server-side auto-select is available. If false or undefined, the "System (Auto)" model will not be included.
    * @returns Array of available models
    */
-  public getAvailableModels(): ModelProps[] {
+  public getAvailableModels(autoSelectAvailable?: boolean): ModelProps[] {
     const modelSettings = this.getModelSettings();
     const providerSettings = this.getProviderSettings();
 
@@ -223,16 +224,20 @@ class ModelManager {
       return true;
     });
 
-    // Add the special 'Auto' model at the beginning
-    const autoModel: ModelProps = {
-      provider: "System",
-      modelId: "Auto",
-      description: `Use the server-side default model configuration. 
+    // Add the special 'Auto' model at the beginning only if auto-select is available
+    if (autoSelectAvailable) {
+      const autoModel: ModelProps = {
+        provider: "System",
+        modelId: "Auto",
+        description: `Use the server-side default model configuration. 
 Rate limit on request/token will apply.
 If you have your API keys, you can configure your models in the settings.`,
-    };
+      };
 
-    return [autoModel, ...userModels];
+      return [autoModel, ...userModels];
+    }
+
+    return userModels;
   }
 }
 
