@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { EllipsisVertical, RotateCw } from "lucide-react";
+import { ChevronRight, EllipsisVertical, RotateCw } from "lucide-react";
 import React, { useState } from "react";
 import type { TitleOption } from "./dashboard-model";
 import type { TimeSpan } from "./timespan-selector";
@@ -83,6 +83,7 @@ export interface DashboardVisualizationLayoutProps {
 interface DashboardPanelHeaderProps {
   titleOption: TitleOption;
   isCollapsible: boolean;
+  isCollapsed?: boolean;
   headerBackground: boolean;
   headerClassName?: string;
   wrapInTrigger: boolean;
@@ -95,6 +96,7 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
   ({
     titleOption,
     isCollapsible,
+    isCollapsed,
     headerBackground,
     headerClassName,
     wrapInTrigger,
@@ -182,6 +184,9 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
           headerBackground && "bg-muted/50"
         )}
       >
+        {isCollapsible && isCollapsed && (
+          <ChevronRight className="h-3 w-3 text-muted-foreground mr-1 flex-shrink-0" />
+        )}
         <div className="flex-1 text-left min-w-0">
           <CardDescription
             className={cn(
@@ -257,6 +262,7 @@ export function DashboardVisualizationLayout({
       <DashboardPanelHeader
         titleOption={titleOption}
         isCollapsible={isCollapsible}
+        isCollapsed={isCollapsed}
         headerBackground={headerBackground}
         headerClassName={headerClassName}
         wrapInTrigger={wrapInTrigger}

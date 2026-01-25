@@ -2,6 +2,7 @@ import Dashboards from "./dashboards";
 import DistributedDDLQueue from "./distributed-ddl-queue";
 import PartLog from "./part-log";
 import QueryLog from "./query-log";
+import { QueryViewLog } from "./query-view-log";
 
 /**
  * Type definition for a system table tab entry
@@ -20,6 +21,7 @@ export const SYSTEM_TABLE_REGISTRY = new Map<string, SystemTableTabEntry>([
   ["dashboards", { title: "System Dashboard", component: Dashboards }],
   ["distributed_ddl_queue", { title: "DDL Queue", component: DistributedDDLQueue }],
   ["query_log", { title: "Query Log", component: QueryLog }],
+  ["query_view_log", { title: "Query View Log", component: QueryViewLog }],
   ["part_log", { title: "Part Log", component: PartLog }],
 ]);
 

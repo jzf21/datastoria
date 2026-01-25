@@ -99,6 +99,7 @@ const isIdentifierChar = (char: string) => /[a-zA-Z0-9_]/.test(char);
 const CODE_46_PATTERNS = [
   /(Unknown function ([a-zA-Z0-9_]+))/i,
   /(Function with name [`']([^`']+)['`] does not exist)/i,
+  /(Unknown table function ([^\s]+))/i,
 ];
 
 const CODE_47_PATTERNS = [
@@ -114,6 +115,8 @@ const CODE_60_PATTERNS = [
 ];
 
 const CODE_81_PATTERNS = [/(Database ([^ ]+) doesn't exist)/i];
+
+const CODE_701_PATTERNS = [/(Requested cluster ([`'][^`']+['`]) not found)/i];
 
 /**
  * Helper to find location of an unknown identifier in SQL
@@ -175,6 +178,9 @@ const createIdentifierHandler = (patterns: RegExp[]): ErrorHandler => {
     if (!identifier) {
       return null;
     }
+
+    // Trim trailing punctuation (periods, commas, etc.) that might appear in error messages
+    identifier = identifier.replace(/[.,;:!?]+$/, "");
 
     return findIdentifierLocation(identifier, sql, message);
   };
@@ -243,6 +249,7 @@ const ERROR_HANDLERS: Record<string, ErrorHandler> = {
   "60": createIdentifierHandler(CODE_60_PATTERNS),
   "62": handleCode62,
   "81": createIdentifierHandler(CODE_81_PATTERNS),
+  "701": createIdentifierHandler(CODE_701_PATTERNS),
 };
 
 /**
