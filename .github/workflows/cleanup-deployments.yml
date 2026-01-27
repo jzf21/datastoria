@@ -39,7 +39,7 @@ jobs:
             // Keep more production deployments for rollback capability
             const keepCountByEnv = {
               'Production': 3,
-              'Preview': defaultKeepCount
+              'Preview': defaultKeepCount,
               'datastoria (Production)': 1
             };
             
