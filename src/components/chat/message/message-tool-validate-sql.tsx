@@ -1,6 +1,5 @@
 import type { AppUIMessage } from "@/lib/ai/common-types";
 import {
-  CLIENT_TOOL_NAMES,
   type ValidateSqlToolInput,
   type ValidateSqlToolOutput,
 } from "@/lib/ai/tools/client/client-tools";
@@ -23,11 +22,7 @@ export const MessageToolValidateSql = memo(function MessageToolValidateSql({
   const state = toolPart.state;
 
   return (
-    <CollapsiblePart
-      toolName={CLIENT_TOOL_NAMES.VALIDATE_SQL}
-      state={state}
-      success={output?.success}
-    >
+    <CollapsiblePart toolName={"Validate SQL"} state={state} success={output?.success}>
       {input?.sql && (
         <>
           <div className="text-[10px] text-muted-foreground">input:</div>

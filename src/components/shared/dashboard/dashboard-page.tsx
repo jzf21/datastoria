@@ -73,10 +73,14 @@ const DashboardPage = forwardRef<DashboardPageRef, DashboardPageProps>(
       async (query: SQLQuery) => {
         if (!connection) return [];
         try {
-          const { response } = connection.queryOnNode(query.sql, {
+          // Cluster template replacement is now handled by connection.queryOnNode()
+          const sql = query.sql;
+
+          const { response } = connection.queryOnNode(sql, {
             default_format: "JSONCompact",
             ...query.params,
           });
+
           const apiResponse = await response;
           return apiResponse.data
             .json<JSONCompactFormatResponse>()
