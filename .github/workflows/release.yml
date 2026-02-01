@@ -83,6 +83,7 @@ jobs:
         if: steps.prepare.outputs.skip_notes != 'true'
         run: |
           cp public/release-notes.json /tmp/release-notes.json
+          rm -f public/release-notes.json
           git fetch origin ${{ env.RELEASE_BRANCH }} 2>/dev/null || true
           if git rev-parse --verify refs/remotes/origin/${{ env.RELEASE_BRANCH }} >/dev/null 2>&1; then
             git checkout ${{ env.RELEASE_BRANCH }}
