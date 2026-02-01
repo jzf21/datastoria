@@ -35,10 +35,8 @@ jobs:
       - name: Fetch previous release notes
         id: previous
         run: |
-          URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ env.RELEASE_BRANCH }}/public/release-notes.json"
-          PREV=$(curl -sL -o /dev/null -w "%{http_code}" "$URL")
-          if [ "$PREV" = "200" ]; then
-            curl -sL "$URL" | jq -c '.' > previous.json || echo "[]" > previous.json
+          git fetch origin ${{ env.RELEASE_BRANCH }} 2>/dev/null || true
+          if git show origin/${{ env.RELEASE_BRANCH }}:public/release-notes.json > previous.json 2>/dev/null; then
             echo "has_previous=true" >> $GITHUB_OUTPUT
           else
             echo "[]" > previous.json
