@@ -25,10 +25,12 @@ export default function Home() {
                 <DialogProvider />
                 <SidebarProvider open={false}>
                   <AppSidebar />
-                  <SidebarInset className="min-w-0 overflow-x-hidden h-screen">
-                    <ErrorBoundary>
-                      <MainPage />
-                    </ErrorBoundary>
+                  <SidebarInset className="min-w-0 flex flex-col overflow-x-hidden h-screen">
+                    <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+                      <ErrorBoundary>
+                        <MainPage />
+                      </ErrorBoundary>
+                    </div>
                   </SidebarInset>
                 </SidebarProvider>
               </ReleaseDetectorProvider>
