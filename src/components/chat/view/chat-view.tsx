@@ -7,10 +7,12 @@ import "@/lib/number-utils"; // Ensure formatTimeDiff is available
 
 import { useChat, type Chat } from "@ai-sdk/react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { ChatActionProvider } from "../chat-action-context";
 import { ChatContext } from "../chat-context";
 import { ChatInput, type ChatInputHandle } from "../input/chat-input";
 import { getTableContextByMentions } from "../input/mention-utils";
 import { ChatMessageList } from "../message/chat-message-list";
+import type { UserActionInput } from "../message/message-user-actions";
 import { useTokenUsage } from "./use-token-usage";
 
 export type Question = { text: string; autoRun?: boolean };
@@ -20,10 +22,14 @@ const GREETINGS = [
   "Hi there! What would you like to explore?",
   "Good to see you! Ready to dive into your data?",
   "Nice to meet you! What can I help you analyze?",
-  "Hello and welcome! Let's explore your ClickHouse data!",
+  "Hello and welcome! Let's explore your ClickHouse cluster and data!",
 ];
 
 export const DEFAULT_CHAT_QUESTIONS: Question[] = [
+  {
+    text: "Help me optimize a query",
+    autoRun: true,
+  },
   {
     text: "Show me the number of error queries by hour from @system.query_log over the past 3 hours in line chart",
     autoRun: true,
@@ -40,7 +46,7 @@ export const DEFAULT_CHAT_QUESTIONS: Question[] = [
     text: "Visualize the trend of ProfileEvent_DistributedConnectionFailTry from the @system.metric_log by hour in the last 12 hours",
     autoRun: true,
   },
-  { text: "Please help me optimize a slow SQL", autoRun: true },
+  { text: "Find the top 1 slowest query in the last 1 day and optimize it", autoRun: true },
   { text: "Help me write a JOIN query", autoRun: false },
   { text: "What are the best practices for partitioning?", autoRun: false },
 ];
@@ -99,7 +105,7 @@ export const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatV
       chatInputRef.current?.focus();
     }, 100);
     return () => clearTimeout(timer);
-  }, []);
+  }, [chat.id]);
 
   // Notify parent when streaming state changes
   useEffect(() => {
@@ -162,50 +168,63 @@ export const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatV
     [handleSubmit]
   );
 
+  const handleUserAction = useCallback(
+    (input: UserActionInput) => {
+      if (input.autoRun) {
+        handleSubmit(input.text);
+        return;
+      }
+      setPromptInput(input.text);
+    },
+    [handleSubmit]
+  );
+
   return (
-    <div className="flex flex-col h-full bg-background overflow-hidden relative">
-      {isEmpty ? (
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3">
-          <div className="flex flex-col items-center w-full max-w-full pt-6 sm:pt-8">
-            <div className="mb-0">
-              <AppLogo width={64} height={64} />
-            </div>
-            <p className="text-xl text-center font-medium mb-4 mt-0">
-              {GREETINGS[Math.floor(Math.random() * GREETINGS.length)]}
-            </p>
-            {questions && questions.length > 0 && (
-              <div className="w-full flex flex-col items-center space-y-2">
-                {questions.map((question, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className="w-max max-w-full text-left px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg border border-border/50 whitespace-normal hover:border-border transition-colors"
-                    onClick={() => handleQuestionClick(question)}
-                  >
-                    {question.text}
-                  </button>
-                ))}
+    <ChatActionProvider onAction={handleUserAction} chatId={chat.id}>
+      <div className="flex flex-col h-full bg-background overflow-hidden relative">
+        {isEmpty ? (
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 flex flex-col">
+            <div className="flex flex-col items-center w-full max-w-full my-auto pb-8 pt-6">
+              <div className="mb-0">
+                <AppLogo width={64} height={64} />
               </div>
-            )}
+              <p className="text-xl text-center font-medium mb-4 mt-0">
+                {GREETINGS[Math.floor(Math.random() * GREETINGS.length)]}
+              </p>
+              {questions && questions.length > 0 && (
+                <div className="w-full flex flex-col items-center space-y-2">
+                  {questions.map((question, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      className="w-max max-w-full text-left px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg border border-border/50 whitespace-normal hover:border-border transition-colors"
+                      onClick={() => handleQuestionClick(question)}
+                    >
+                      {question.text}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
-        <ChatMessageList
-          messages={messages as AppUIMessage[]}
+        ) : (
+          <ChatMessageList
+            messages={messages as AppUIMessage[]}
+            isRunning={isRunning}
+            error={error || null}
+          />
+        )}
+        <ChatInput
+          ref={chatInputRef}
+          onSubmit={handleSubmit}
+          onStop={stop}
           isRunning={isRunning}
-          error={error || null}
+          hasMessages={messages.length > 0}
+          tokenUsage={tokenUsage}
+          onNewChat={onNewChat}
+          externalInput={promptInput}
         />
-      )}
-      <ChatInput
-        ref={chatInputRef}
-        onSubmit={handleSubmit}
-        onStop={stop}
-        isRunning={isRunning}
-        hasMessages={messages.length > 0}
-        tokenUsage={tokenUsage}
-        onNewChat={onNewChat}
-        externalInput={promptInput}
-      />
-    </div>
+      </div>
+    </ChatActionProvider>
   );
 });

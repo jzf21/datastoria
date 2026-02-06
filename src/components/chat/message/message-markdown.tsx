@@ -7,12 +7,14 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MessageMarkdownChartSpec } from "./message-markdown-chat";
 import { MessageMarkdownSql } from "./message-markdown-sql";
+import { MessageMarkdownUserActions } from "./message-user-actions";
 
 /**
  * Render text message with markdown support
  */
 interface MessageMarkdownProps {
   text: string;
+  messageId?: string;
   customStyle?: React.CSSProperties;
   showExecuteButton?: boolean;
   /**
@@ -23,6 +25,7 @@ interface MessageMarkdownProps {
 
 export const MessageMarkdown = memo(function MessageMarkdown({
   text,
+  messageId,
   customStyle,
   showExecuteButton = true,
   expandable = false,
@@ -58,6 +61,9 @@ export const MessageMarkdown = memo(function MessageMarkdown({
 
         if (codeClassName === "language-chart-spec") {
           return <MessageMarkdownChartSpec spec={String(children)} />;
+        }
+        if (codeClassName === "language-user_actions") {
+          return <MessageMarkdownUserActions spec={String(children)} messageId={messageId} />;
         }
 
         // Check if inline code is a table name or database name
@@ -211,7 +217,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
         </h6>
       ),
     }),
-    [customStyle, showExecuteButton]
+    [customStyle, expandable, showExecuteButton, messageId]
   );
 
   return (
