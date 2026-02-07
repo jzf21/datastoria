@@ -58,7 +58,7 @@ function extractErrorMessageFromLLMProvider(
       parsed.error?.metadata?.raw || parsed.error?.message || parsed.message || fallbackMessage
     );
   } catch {
-    return fallbackMessage;
+    return responseBody;
   }
 }
 

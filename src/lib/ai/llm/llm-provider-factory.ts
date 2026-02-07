@@ -4,8 +4,10 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createGitHubCopilotOpenAICompatible } from "@opeoginni/github-copilot-openai-compatible";
 import type { LanguageModel } from "ai";
 import { mockModel } from "./models.mock";
+import { PROVIDER_GITHUB_COPILOT } from "./provider-ids";
 
 /**
  * Check if mock mode is enabled
@@ -18,10 +20,11 @@ type ModelCreator = (modelId: string, apiKey: string) => LanguageModel;
 export interface ModelProps {
   provider: string;
   modelId: string;
+  description?: string;
   free?: boolean;
   autoSelectable?: boolean;
   disabled?: boolean;
-  description?: string;
+  supportedEndpoints?: string[];
 }
 
 /**
@@ -54,6 +57,18 @@ export const CREATORS: Record<string, ModelCreator> = {
     createCerebras({
       apiKey,
     })(modelId),
+  [PROVIDER_GITHUB_COPILOT]: (modelId, apiKey) => {
+    console.log(`${PROVIDER_GITHUB_COPILOT} modelId:`, modelId);
+    return createGitHubCopilotOpenAICompatible({
+      apiKey: apiKey,
+      headers: {
+        "Copilot-Integration-Id": "vscode-chat",
+        "User-Agent": "GitHubCopilotChat/0.26.7",
+        "Editor-Version": "vscode/1.104.1",
+        "Editor-Plugin-Version": "copilot-chat/0.26.7",
+      },
+    })(modelId);
+  },
 };
 
 /**
@@ -315,25 +330,13 @@ export class LanguageModelProviderFactory {
    * @param provider - Provider name (e.g., "OpenAI", "Google", "Anthropic", "OpenRouter", "Groq")
    * @param modelId - Model ID to use
    * @param apiKey - API key to use
-   * @returns A tuple containing [LanguageModel, ModelProps] where ModelProps contains metadata like the 'free' flag
-   * @throws Error if provider, modelId, or apiKey are missing, or if the model/provider is not supported
+   * @returns The created LanguageModel instance
+   * @throws Error if provider, modelId, or apiKey are missing, or if the provider is not supported
    */
-  static createModel(
-    provider: string,
-    modelId: string,
-    apiKey: string
-  ): [LanguageModel, ModelProps] {
+  static createModel(provider: string, modelId: string, apiKey: string): LanguageModel {
     if (isMockMode) {
       console.log("🤖 Using MOCK LLM models (no API costs)");
-      // Return mock model with a default ModelProps object
-      return [
-        mockModel,
-        {
-          provider: "Mock",
-          modelId: "mock-model",
-          free: false,
-        },
-      ];
+      return mockModel;
     }
 
     if (!provider || !modelId || !apiKey) {
@@ -341,9 +344,11 @@ export class LanguageModelProviderFactory {
     }
 
     // Look up model in the flattened models array
-    const modelProps = MODELS.find((m) => m.provider === provider && m.modelId === modelId);
-    if (!modelProps) {
-      throw new Error(`Model ${modelId} is not supported for provider ${provider}`);
+    if (provider !== PROVIDER_GITHUB_COPILOT) {
+      const modelProps = MODELS.find((m) => m.provider === provider && m.modelId === modelId);
+      if (!modelProps) {
+        throw new Error(`Model ${modelId} is not supported for provider ${provider}`);
+      }
     }
 
     // Get the creator function for this provider
@@ -352,6 +357,6 @@ export class LanguageModelProviderFactory {
       throw new Error(`Provider ${provider} is not supported`);
     }
 
-    return [creator(modelId, apiKey), modelProps];
+    return creator(modelId, apiKey);
   }
 }
