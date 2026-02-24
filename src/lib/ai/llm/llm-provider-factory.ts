@@ -74,7 +74,7 @@ export const CREATORS: Record<string, ModelCreator> = {
     createOpenAICompatible({
       name: "nebius",
       apiKey,
-      baseURL: "https://api.tokenfactory.us-central1.nebius.com/v1/",
+      baseURL: "https://api.tokenfactory.nebius.com/v1/",
     })(modelId),
 };
 
@@ -293,7 +293,8 @@ export const MODELS: ModelProps[] = [
     modelId: "zai-org/GLM-4.7-FP8",
     free: false,
     autoSelectable: true,
-    description: "Flagship GLM model with strong multilingual reasoning, long context, and robust tool use.",
+    description:
+      "Flagship GLM model with strong multilingual reasoning, long context, and robust tool use.",
   },
   {
     provider: PROVIDER_NEBIUS,
