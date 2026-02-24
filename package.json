@@ -5,7 +5,7 @@
   "type": "module",
   "description": "A modern, AI-powered ClickHouse management console that transforms how you interact with your data and manage your clusters",
   "scripts": {
-    "_postinstall": "npm run build:deps",
+    "postinstall": "npm run build:deps",
     "prebuild": "npm run build:deps",
     "postbuild": "node scripts/copy-skills.mjs",
     "build:deps": "npm run build:number-flow-core && npm run build:number-flow-react && npm run build:cmdk",
