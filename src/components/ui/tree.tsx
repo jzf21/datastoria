@@ -34,6 +34,8 @@ interface TreeDataItem {
   tagTooltip?: React.ReactNode;
   // Tooltip for the entire node - if provided, the entire row will be wrapped in a HoverCard
   nodeTooltip?: React.ReactNode;
+  // Optional className override for nodeTooltip HoverCard content
+  nodeTooltipClassName?: string;
   // Internal: used for testing to store original label
   _originalLabel?: string;
 }
@@ -603,7 +605,7 @@ const Tree = React.forwardRef<TreeRef, TreeProps>(
     return (
       <div
         ref={parentRef}
-        className={cn("relative overflow-auto px-2", className)}
+        className={cn("relative overflow-auto px-1", className)}
         tabIndex={0}
         onKeyDown={handleKeyDown}
         style={{ outline: "none" }}
@@ -682,24 +684,27 @@ const Tree = React.forwardRef<TreeRef, TreeProps>(
                 {/* Icon */}
                 {Icon && <Icon className="h-4 w-4 shrink-0 mr-2 text-accent-foreground/50" aria-hidden="true" />}
 
-                {/* Text and child count */}
+                {/* Text, tag and child count */}
                 <span className="flex items-center justify-between flex-grow min-w-0">
                   {renderTooltip(
-                    <span className="text-sm truncate">
-                      {node.labelContent}
-                      {showChildCount && hasChildren && (
-                        <Badge variant="secondary" className="ml-2 rounded-sm px-1 font-normal whitespace-nowrap">
-                          {childCount}
-                        </Badge>
-                      )}
-                    </span>,
-                    node.labelTooltip
+                    <span className="text-sm truncate">{node.labelContent}</span>,
+                    node.labelTooltip,
+                    {
+                      className: node.nodeTooltipClassName,
+                    }
                   )}
-                  {/* Tag */}
-                  {renderTooltip(
-                    <span className="flex items-center gap-1 shrink-0">{renderTag(node.tag)}</span>,
-                    node.tagTooltip
-                  )}
+                  <span className="flex items-center gap-1 shrink-0">
+                    {/* Tag */}
+                    {renderTooltip(
+                      <span className="flex items-center gap-1 shrink-0">{renderTag(node.tag)}</span>,
+                      node.tagTooltip
+                    )}
+                    {showChildCount && hasChildren && (
+                      <Badge variant="secondary" className="py-0 ml-1 rounded-sm px-1 font-normal whitespace-nowrap">
+                        {childCount}
+                      </Badge>
+                    )}
+                  </span>
                 </span>
               </div>
             );
@@ -708,7 +713,9 @@ const Tree = React.forwardRef<TreeRef, TreeProps>(
             if (node.nodeTooltip) {
               return (
                 <React.Fragment key={node.id}>
-                  {renderTooltip(rowContent, node.nodeTooltip)}
+                  {renderTooltip(rowContent, node.nodeTooltip, {
+                    className: node.nodeTooltipClassName,
+                  })}
                 </React.Fragment>
               );
             }
