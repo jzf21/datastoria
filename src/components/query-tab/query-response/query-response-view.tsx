@@ -75,7 +75,13 @@ export function QueryResponseView({
         fetchTableData(queryRequest.queryId, queryRequest.sql);
       }
     },
-    [fetchTableData, queryRequest.queryId, queryRequest.sql, queryResponse.tableData, isLoadingTableData]
+    [
+      fetchTableData,
+      queryRequest.queryId,
+      queryRequest.sql,
+      queryResponse.tableData,
+      isLoadingTableData,
+    ]
   );
 
   // Auto-switch to table view once table data is loaded
@@ -144,12 +150,7 @@ export function QueryResponseView({
             onValueChange={handleDisplayModeChange}
             className="h-7"
           >
-            <ToggleGroupItem
-              value="text"
-              size="sm"
-              className="h-7 w-7 p-0"
-              title="Text view"
-            >
+            <ToggleGroupItem value="text" size="sm" className="h-7 w-7 p-0" title="Text view">
               <FileText className="h-3.5 w-3.5" />
             </ToggleGroupItem>
             <ToggleGroupItem

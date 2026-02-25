@@ -362,9 +362,7 @@ export function QueryExecutionProvider({ children }: { children: ReactNode }) {
 
       // Set loading state
       setSqlMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === queryId ? { ...msg, isLoadingTableData: true } : msg
-        )
+        prev.map((msg) => (msg.id === queryId ? { ...msg, isLoadingTableData: true } : msg))
       );
 
       // Execute query with JSON format
@@ -408,9 +406,7 @@ export function QueryExecutionProvider({ children }: { children: ReactNode }) {
           if (apiError.name !== "AbortError" && !apiError.message?.includes("aborted")) {
             // Real error - clear loading state
             setSqlMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === queryId ? { ...msg, isLoadingTableData: false } : msg
-              )
+              prev.map((msg) => (msg.id === queryId ? { ...msg, isLoadingTableData: false } : msg))
             );
           }
 
