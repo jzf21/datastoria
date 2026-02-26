@@ -14,6 +14,7 @@ export type TabType =
   | "node"
   | "cluster"
   | "dashboard"
+  | "custom-dashboard"
   | "query-log"
   | "span-log"
   | "system-table";
@@ -74,6 +75,12 @@ export interface SystemTableTabInfo extends BaseTabInfo {
   tableName: string;
 }
 
+export interface CustomDashboardTabInfo extends BaseTabInfo {
+  type: "custom-dashboard";
+  dashboardId: string;
+  dashboardName?: string;
+}
+
 export type TabInfo =
   | QueryTabInfo
   | TableTabInfo
@@ -83,7 +90,8 @@ export type TabInfo =
   | ClusterTabInfo
   | QueryLogTabInfo
   | SpanLogTabInfo
-  | SystemTableTabInfo;
+  | SystemTableTabInfo
+  | CustomDashboardTabInfo;
 
 /**
  * Event detail for active tab changes

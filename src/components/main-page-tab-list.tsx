@@ -2,6 +2,7 @@ import { AppLogo } from "@/components/app-logo";
 import { useChatPanel } from "@/components/chat/view/use-chat-panel";
 import { ClusterTab } from "@/components/cluster-tab/cluster-tab";
 import { useConnection } from "@/components/connection/connection-context";
+import { CustomDashboardTab } from "@/components/dashboard-tab/custom-dashboard-tab";
 import { DatabaseTab } from "@/components/database-tab/database-tab";
 import { NodeTab } from "@/components/node-tab/node-tab";
 import { QueryLogInspectorTab } from "@/components/query-log-inspector/query-log-inspector-tab";
@@ -33,6 +34,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  LayoutDashboard,
   Monitor,
   Network,
   ScrollText,
@@ -380,6 +382,22 @@ export const MainPageTabList = memo(function MainPageTabList({
     return unsubscribe;
   }, [handleCloseTab]);
 
+  // Handle tab title update events (e.g. when a custom dashboard is renamed)
+  useEffect(() => {
+    const unsubscribe = TabManager.onUpdateTabTitle((event) => {
+      const { tabId, title } = event.detail;
+      setTabs((prevTabs) =>
+        prevTabs.map((tab) => {
+          if (tab.id === tabId && tab.type === "custom-dashboard") {
+            return { ...tab, dashboardName: title };
+          }
+          return tab;
+        })
+      );
+    });
+    return unsubscribe;
+  }, []);
+
   // Handle closing tabs to the right of a given tab
   const handleCloseTabsToRight = useCallback(
     (tabId: string) => {
@@ -610,6 +628,12 @@ export const MainPageTabList = memo(function MainPageTabList({
         } else if (tab.type === "system-table") {
           const tabTitle = `system.${tab.tableName}`;
           return { id: tab.id, label: tabTitle, icon: Telescope };
+        } else if (tab.type === "custom-dashboard") {
+          return {
+            id: tab.id,
+            label: tab.dashboardName ?? "Dashboard",
+            icon: LayoutDashboard,
+          };
         }
         return null;
       })
@@ -727,6 +751,21 @@ export const MainPageTabList = memo(function MainPageTabList({
             aria-hidden={activeTab !== tab.id}
           >
             <SpanLogInspectorTab initialTraceId={tab.traceId} initialEventDate={tab.eventDate} />
+          </div>
+        );
+      }
+      if (tab.type === "custom-dashboard") {
+        return (
+          <div
+            key={tab.id}
+            className={`h-full ${activeTab === tab.id ? "block" : "hidden"}`}
+            role="tabpanel"
+            aria-hidden={activeTab !== tab.id}
+          >
+            <CustomDashboardTab
+              dashboardId={tab.dashboardId}
+              dashboardName={tab.dashboardName}
+            />
           </div>
         );
       }

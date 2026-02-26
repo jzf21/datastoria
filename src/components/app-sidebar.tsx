@@ -41,6 +41,7 @@ import {
   Database,
   HelpCircle,
   History,
+  LayoutDashboard,
   LogOut,
   Monitor,
   Network,
@@ -51,6 +52,7 @@ import {
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import React, { useCallback, useEffect, useState } from "react";
+import { CustomDashboardList } from "./dashboard-tab/custom-dashboard-list";
 import { showSettingsDialog } from "./settings/settings-dialog";
 import { useTheme } from "./shared/theme-provider";
 import { TabManager } from "./tab-manager";
@@ -257,6 +259,43 @@ function SystemTableIntrospectionSidebarMenuItem() {
   );
 }
 
+function CustomDashboardsSidebarMenuItem() {
+  const { state, isMobile } = useSidebar();
+  const isExpanded = state === "expanded" || isMobile;
+
+  if (isExpanded) {
+    return (
+      <Collapsible defaultOpen={false} className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton size="default" tooltip="Custom Dashboards">
+              <LayoutDashboard className="h-5 w-5" />
+              <span>Custom Dashboards</span>
+              <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-2 py-1">
+              <CustomDashboardList />
+            </div>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    );
+  }
+
+  return (
+    <HoverCardSidebarMenuItem
+      icon={<LayoutDashboard className="h-5 w-5" />}
+      description="Custom Dashboards"
+      content={(_isOpen, onClose) => (
+        <CustomDashboardList onClose={onClose} />
+      )}
+      contentClassName="w-56 p-2"
+    />
+  );
+}
+
 function DashboardSidebarMenuItem() {
   const { connection } = useConnection();
   const { state } = useSidebar();
@@ -408,6 +447,8 @@ export function AppSidebar() {
                 </SidebarMenuItem>
 
                 <DashboardSidebarMenuItem />
+
+                <CustomDashboardsSidebarMenuItem />
 
                 <SystemTableIntrospectionSidebarMenuItem />
 

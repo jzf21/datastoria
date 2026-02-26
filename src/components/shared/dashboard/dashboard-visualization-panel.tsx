@@ -16,6 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useCustomDashboardActions } from "@/components/dashboard-tab/custom-dashboard-context";
 import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import type {
@@ -137,6 +138,7 @@ export const DashboardVisualizationPanel = forwardRef<
     | StatDescriptor;
 
   const { connection } = useConnection();
+  const customDashboardActions = useCustomDashboardActions();
 
   // State - unified for all visualization types
   const [data, setData] = useState<Record<string, unknown>[]>([]);
@@ -575,6 +577,19 @@ export const DashboardVisualizationPanel = forwardRef<
     });
   }, [data, meta, typedDescriptor.titleOption?.title]);
 
+  // Handlers for custom dashboard edit/delete
+  const handleEditThisPanel = useCallback(() => {
+    if (!customDashboardActions) return;
+    const index = customDashboardActions.getPanelIndex(descriptor);
+    if (index >= 0) customDashboardActions.onEditPanel(index);
+  }, [customDashboardActions, descriptor]);
+
+  const handleDeleteThisPanel = useCallback(() => {
+    if (!customDashboardActions) return;
+    const index = customDashboardActions.getPanelIndex(descriptor);
+    if (index >= 0) customDashboardActions.onDeletePanel(index);
+  }, [customDashboardActions, descriptor]);
+
   // Get dropdown items - combine facade-level items with visualization-specific items
   const getDropdownItems = useCallback(() => {
     // Get visualization-specific dropdown items (without "Show query")
@@ -583,6 +598,22 @@ export const DashboardVisualizationPanel = forwardRef<
     // Combine with facade-level items
     return (
       <>
+        {customDashboardActions && (
+          <>
+            <DashboardDropdownMenuItem onClick={handleEditThisPanel}>
+              Edit panel
+            </DashboardDropdownMenuItem>
+            <DashboardDropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={handleDeleteThisPanel}
+            >
+              Delete panel
+            </DashboardDropdownMenuItem>
+            {(typedDescriptor.datasource?.sql || data.length > 0 || vizItems) && (
+              <div className="my-1 h-px bg-border" />
+            )}
+          </>
+        )}
         {typedDescriptor.datasource?.sql && (
           <DashboardDropdownMenuItem onClick={handleShowQuery}>
             Show query
@@ -596,7 +627,7 @@ export const DashboardVisualizationPanel = forwardRef<
         {vizItems}
       </>
     );
-  }, [typedDescriptor.datasource, handleShowQuery, data.length, handleShowRawData]);
+  }, [typedDescriptor.datasource, handleShowQuery, data.length, handleShowRawData, customDashboardActions, handleEditThisPanel, handleDeleteThisPanel]);
 
   // Render error state
   const renderError = () => (
