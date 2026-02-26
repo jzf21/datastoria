@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "882b5e27e04b",
+  "session_id": "99325f1d-5f31-4eda-8b5a-8f20ff0afe09",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-26T12:14:18.131711Z",
+  "branch": "fix/run-query-chat-issue",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/components/query-tab/query-execution/query-executor.tsx",
+    "src/components/query-tab/query-response/query-response-view.tsx"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 202,
+    "cache_creation_tokens": 53871,
+    "cache_read_tokens": 1055358,
+    "output_tokens": 67,
+    "api_call_count": 28
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-26T12:14:18.05137Z",
+    "agent_lines": 18,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 18,
+    "agent_percentage": 100
+  },
+  "transcript_path": ".claude/projects/-Users-actio-codebase-datastoria/99325f1d-5f31-4eda-8b5a-8f20ff0afe09.jsonl"
+}

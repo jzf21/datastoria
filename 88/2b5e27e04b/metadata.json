@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "882b5e27e04b",
+  "strategy": "manual-commit",
+  "branch": "fix/run-query-chat-issue",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/components/query-tab/query-execution/query-executor.tsx",
+    "src/components/query-tab/query-response/query-response-view.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/88/2b5e27e04b/0/metadata.json",
+      "transcript": "/88/2b5e27e04b/0/full.jsonl",
+      "context": "/88/2b5e27e04b/0/context.md",
+      "content_hash": "/88/2b5e27e04b/0/content_hash.txt",
+      "prompt": "/88/2b5e27e04b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 202,
+    "cache_creation_tokens": 53871,
+    "cache_read_tokens": 1055358,
+    "output_tokens": 67,
+    "api_call_count": 28
+  }
+}
