@@ -67,7 +67,7 @@ export const NodeTab = memo((_props: NodeTabProps) => {
 
   return (
     <div className="flex flex-col px-2" style={{ height: "calc(100vh - 49px)" }}>
-      <DashboardPage panels={dashboard} headerActions={null} />
+      <DashboardPage dashboardId="node-overview" panels={dashboard} headerActions={null} />
     </div>
   );
 });

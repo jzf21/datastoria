@@ -399,6 +399,7 @@ ORDER BY event_time DESC
 
   return (
     <DashboardPage
+      dashboardId="query-views-log"
       panels={dashboard}
       filterSpecs={filterSpecs}
       showInputFilter={true}

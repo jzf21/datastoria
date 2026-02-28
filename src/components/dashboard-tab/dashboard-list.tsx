@@ -3,22 +3,25 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TabManager } from "@/components/tab-manager";
-import { LayoutDashboard, Plus, Trash2 } from "lucide-react";
+import { LayoutDashboard, Monitor, Network, Plus, Trash2 } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import {
   CustomDashboardStorage,
   type CustomDashboardConfig,
 } from "./custom-dashboard-storage";
+import { hostNameManager } from "@/lib/host-name-manager";
+import type { Connection } from "@/lib/connection/connection";
 
-interface CustomDashboardListProps {
+interface DashboardListProps {
   onClose?: () => void;
+  connection?: Connection | null;
 }
 
 /**
  * A list of all saved custom dashboards with create/open/delete actions.
  * Used inside the sidebar hover card or popover.
  */
-const CustomDashboardListComponent = ({ onClose }: CustomDashboardListProps) => {
+const DashboardListComponent = ({ onClose, connection }: DashboardListProps) => {
   const storage = CustomDashboardStorage.getInstance();
   const [dashboards, setDashboards] = useState<CustomDashboardConfig[]>(() =>
     storage.getAll()
@@ -69,6 +72,28 @@ const CustomDashboardListComponent = ({ onClose }: CustomDashboardListProps) => 
     [storage, refreshList]
   );
 
+  const isClusterMode = connection?.cluster && connection.cluster.length > 0;
+
+  const handleOpenNode = useCallback(() => {
+    if (!connection) return;
+    TabManager.openTab({
+      id: `node:${connection.metadata.displayName}`,
+      type: "node",
+      host: hostNameManager.getShortHostname(connection.metadata.displayName),
+    });
+    onClose?.();
+  }, [connection, onClose]);
+
+  const handleOpenCluster = useCallback(() => {
+    if (!connection?.cluster) return;
+    TabManager.openTab({
+      id: `cluster:${connection.cluster}`,
+      type: "cluster",
+      cluster: connection.cluster,
+    });
+    onClose?.();
+  }, [connection, onClose]);
+
   return (
     <div className="space-y-2">
       {/* Create new */}
@@ -99,10 +124,32 @@ const CustomDashboardListComponent = ({ onClose }: CustomDashboardListProps) => 
         </button>
       )}
 
-      {/* Dashboard list */}
-      {dashboards.length === 0 && !showCreate && (
+      {/* Built-in dashboards */}
+      {connection && (
+        <>
+          <div
+            className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+            onClick={handleOpenNode}
+          >
+            <Monitor className="h-4 w-4 shrink-0" />
+            <span className="truncate flex-1 text-left">Default</span>
+          </div>
+          {isClusterMode && (
+            <div
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+              onClick={handleOpenCluster}
+            >
+              <Network className="h-4 w-4 shrink-0" />
+              <span className="truncate flex-1 text-left">Cluster Status</span>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Custom dashboard list */}
+      {dashboards.length === 0 && !connection && !showCreate && (
         <p className="text-xs text-muted-foreground px-2 py-1">
-          No custom dashboards yet
+          No dashboards yet
         </p>
       )}
 
@@ -126,6 +173,6 @@ const CustomDashboardListComponent = ({ onClose }: CustomDashboardListProps) => 
   );
 };
 
-CustomDashboardListComponent.displayName = "CustomDashboardList";
+DashboardListComponent.displayName = "DashboardList";
 
-export const CustomDashboardList = memo(CustomDashboardListComponent);
+export const DashboardList = memo(DashboardListComponent);

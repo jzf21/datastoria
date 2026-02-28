@@ -645,6 +645,7 @@ ORDER BY host`,
   }, [connection]);
   return (
     <DashboardPage
+      dashboardId="distributed-ddl-queue"
       filterSpecs={filterSpecs}
       panels={ddlQueueDashboard}
       chartSelectionFilterName="host"

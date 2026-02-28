@@ -80,6 +80,11 @@ export class CustomDashboardStorage {
    */
   createNew(name: string): CustomDashboardConfig {
     const now = Date.now();
+    const defaultSection: DashboardGroup = {
+      title: "Default",
+      charts: [],
+      collapsed: false,
+    };
     const config: CustomDashboardConfig = {
       id: `dashboard-${now}-${Math.random().toString(36).slice(2, 8)}`,
       name,
@@ -90,7 +95,7 @@ export class CustomDashboardStorage {
         showRefresh: true,
       },
       filterSpecs: [],
-      panels: [],
+      panels: [defaultSection],
     };
     this.save(config);
     return config;

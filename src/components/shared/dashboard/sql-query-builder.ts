@@ -48,12 +48,20 @@ export class SQLQueryBuilder {
   private static replaceTimeSpanParams(
     sql: string,
     timeSpan: TimeSpan | undefined,
-    timezone: string
+    timezone: string,
+    timeColumn: string = "event_time"
   ): string {
     if (!timeSpan) {
       return sql;
     }
     const params = SQLQueryBuilder.calculateTimeSpanParams(timeSpan);
+
+    // Replace {timeFilter} with a standard time filter expression BEFORE replacing {from:String}/{to:String}
+    // This allows {timeFilter} to expand to an expression that uses those placeholders
+    sql = sql.replace(
+      /{timeFilter}/g,
+      `${timeColumn} >= {from:String} AND ${timeColumn} < {to:String}`
+    );
 
     sql = sql.replace(/{rounding:UInt32}/g, String(params.rounding));
     sql = sql.replace(/{seconds:UInt32}/g, String(params.seconds));
@@ -82,16 +90,20 @@ export class SQLQueryBuilder {
 
   /**
    * Replace time span template parameters in the SQL query.
-   * Replaces: {rounding:UInt32}, {seconds:UInt32}, {startTimestamp:UInt32},
+   * Replaces: {timeFilter}, {rounding:UInt32}, {seconds:UInt32}, {startTimestamp:UInt32},
    *           {endTimestamp:UInt32}, {from:String}, {to:String}
+   *
+   * The {timeFilter} placeholder is expanded to: `{timeColumn} >= {from:String} AND {timeColumn} < {to:String}`
+   * before the {from:String} and {to:String} placeholders are replaced with actual values.
    *
    * @param timeSpan The time span to use for replacement
    * @param timezone The timezone to use for time formatting (required)
+   * @param timeColumn The column name to use in {timeFilter} expression (defaults to "event_time")
    * @returns this builder for chaining
    */
-  timeSpan(timeSpan: TimeSpan | undefined, timezone: string): this {
+  timeSpan(timeSpan: TimeSpan | undefined, timezone: string, timeColumn: string = "event_time"): this {
     if (timeSpan) {
-      this.sql = SQLQueryBuilder.replaceTimeSpanParams(this.sql, timeSpan, timezone);
+      this.sql = SQLQueryBuilder.replaceTimeSpanParams(this.sql, timeSpan, timezone, timeColumn);
     }
     return this;
   }

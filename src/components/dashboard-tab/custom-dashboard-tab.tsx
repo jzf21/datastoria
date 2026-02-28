@@ -2,7 +2,6 @@
 
 import type {
   DashboardGroup,
-  FilterSpec,
   PanelDescriptor,
 } from "@/components/shared/dashboard/dashboard-model";
 import DashboardPage from "@/components/shared/dashboard/dashboard-page";
@@ -17,14 +16,12 @@ import {
 import {
   Check,
   Edit2,
-  Filter,
   Pencil,
   Plus,
   Trash2,
   X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { DashboardFilterConfigDialog } from "./dashboard-filter-config-dialog";
 import {
   CustomDashboardStorage,
   type CustomDashboardConfig,
@@ -52,14 +49,12 @@ const CustomDashboardTabComponent = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState("");
   const [showPanelDialog, setShowPanelDialog] = useState(false);
-  const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [editingPanel, setEditingPanel] = useState<PanelDescriptor | null>(null);
   const [editingPanelIndex, setEditingPanelIndex] = useState<number>(-1);
-  const [editingFilter, setEditingFilter] = useState<FilterSpec | null>(null);
-  const [editingFilterIndex, setEditingFilterIndex] = useState<number>(-1);
 
   // Track the rendered dashboard key to force re-render after edits
   const [dashboardKey, setDashboardKey] = useState(0);
+
 
   // Load from storage on mount
   useEffect(() => {
@@ -79,7 +74,7 @@ const CustomDashboardTabComponent = ({
     }
   }, [dashboardId, dashboardName, storage]);
 
-  // Save config to storage
+  // Save config to storage (forces dashboard re-render for structural changes)
   const saveConfig = useCallback(
     (updatedConfig: CustomDashboardConfig) => {
       storage.save(updatedConfig);
@@ -105,18 +100,19 @@ const CustomDashboardTabComponent = ({
     );
   }, [config, editingName, saveConfig, dashboardId]);
 
-  // Add panel
+  // Add panel to the first available section
   const handleAddPanel = useCallback(
     (panel: PanelDescriptor) => {
       if (!config) return;
+
       if (editingPanelIndex >= 0) {
-        // Update existing panel
-        const updatedPanels = [...config.panels];
-        updatedPanels[editingPanelIndex] = panel;
+        // Update existing panel - need to find it in the correct section
+        const updatedPanels = updatePanelAtFlatIndex(config.panels, editingPanelIndex, panel);
         saveConfig({ ...config, panels: updatedPanels });
       } else {
-        // Add new panel
-        saveConfig({ ...config, panels: [...config.panels, panel] });
+        // Add new panel to the first section
+        const updatedPanels = addPanelToFirstSection(config.panels, panel);
+        saveConfig({ ...config, panels: updatedPanels });
       }
       setEditingPanel(null);
       setEditingPanelIndex(-1);
@@ -138,90 +134,12 @@ const CustomDashboardTabComponent = ({
     [config]
   );
 
-  // Delete panel
+  // Delete panel by flat index
   const handleDeletePanel = useCallback(
     (index: number) => {
       if (!config) return;
-      const panels = [...config.panels];
-      // For flat panels, direct removal
-      panels.splice(index, 1);
-      saveConfig({ ...config, panels });
-    },
-    [config, saveConfig]
-  );
-
-  // Add filter
-  const handleAddFilter = useCallback(
-    (filter: FilterSpec) => {
-      if (!config) return;
-      const updatedSpecs = [...config.filterSpecs, filter];
-      saveConfig({
-        ...config,
-        filterSpecs: updatedSpecs,
-        filter: {
-          ...config.filter,
-          selectors: [
-            {
-              type: "filter",
-              name: "filters",
-              fields: updatedSpecs,
-            },
-          ],
-        },
-      });
-      setEditingFilter(null);
-      setEditingFilterIndex(-1);
-    },
-    [config, saveConfig]
-  );
-
-  // Update filter
-  const handleUpdateFilter = useCallback(
-    (filter: FilterSpec) => {
-      if (!config || editingFilterIndex < 0) return;
-      const updatedSpecs = [...config.filterSpecs];
-      updatedSpecs[editingFilterIndex] = filter;
-      saveConfig({
-        ...config,
-        filterSpecs: updatedSpecs,
-        filter: {
-          ...config.filter,
-          selectors: [
-            {
-              type: "filter",
-              name: "filters",
-              fields: updatedSpecs,
-            },
-          ],
-        },
-      });
-      setEditingFilter(null);
-      setEditingFilterIndex(-1);
-    },
-    [config, editingFilterIndex, saveConfig]
-  );
-
-  // Delete filter
-  const handleDeleteFilter = useCallback(
-    (index: number) => {
-      if (!config) return;
-      const updatedSpecs = config.filterSpecs.filter((_, i) => i !== index);
-      saveConfig({
-        ...config,
-        filterSpecs: updatedSpecs,
-        filter: {
-          ...config.filter,
-          selectors: updatedSpecs.length
-            ? [
-                {
-                  type: "filter",
-                  name: "filters",
-                  fields: updatedSpecs,
-                },
-              ]
-            : undefined,
-        },
-      });
+      const updatedPanels = deletePanelAtFlatIndex(config.panels, index);
+      saveConfig({ ...config, panels: updatedPanels });
     },
     [config, saveConfig]
   );
@@ -306,21 +224,6 @@ const CustomDashboardTabComponent = ({
 
         <div className="flex-1" />
 
-        {/* Add filter */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs gap-1"
-          onClick={() => {
-            setEditingFilter(null);
-            setEditingFilterIndex(-1);
-            setShowFilterDialog(true);
-          }}
-        >
-          <Filter className="h-3.5 w-3.5" />
-          Add Filter
-        </Button>
-
         {/* Add panel */}
         <Button
           variant="outline"
@@ -337,45 +240,14 @@ const CustomDashboardTabComponent = ({
         </Button>
       </div>
 
-      {/* Filter chips bar (when filters exist) */}
-      {config.filterSpecs.length > 0 && (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 border-b bg-muted/30 shrink-0 flex-wrap">
-          <span className="text-xs text-muted-foreground mr-1">Filters:</span>
-          {config.filterSpecs.map((spec, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-xs"
-            >
-              <span>{spec.displayText}</span>
-              <button
-                className="hover:text-foreground text-muted-foreground"
-                onClick={() => {
-                  setEditingFilter(spec);
-                  setEditingFilterIndex(index);
-                  setShowFilterDialog(true);
-                }}
-              >
-                <Edit2 className="h-3 w-3" />
-              </button>
-              <button
-                className="hover:text-destructive text-muted-foreground"
-                onClick={() => handleDeleteFilter(index)}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Dashboard content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <CustomDashboardContext.Provider value={panelActions}>
           {hasPanels ? (
             <DashboardPage
+              dashboardId={`custom-dashboard-${dashboardKey}`}
               key={dashboardKey}
               panels={dashboard}
-              filterSpecs={config.filterSpecs}
               showTimeSpanSelector={config.filter.showTimeSpanSelector}
               showRefresh={config.filter.showRefresh}
               headerActions={
@@ -406,13 +278,6 @@ const CustomDashboardTabComponent = ({
         editingPanel={editingPanel}
       />
 
-      <DashboardFilterConfigDialog
-        open={showFilterDialog}
-        onOpenChange={setShowFilterDialog}
-        onAdd={handleAddFilter}
-        editingFilter={editingFilter}
-        onUpdate={handleUpdateFilter}
-      />
     </div>
   );
 };
@@ -498,6 +363,13 @@ function PanelEditOverlay({
 }
 
 /**
+ * Check if an item is a DashboardGroup
+ */
+function isDashboardGroup(item: PanelDescriptor | DashboardGroup): item is DashboardGroup {
+  return "charts" in item && Array.isArray((item as DashboardGroup).charts);
+}
+
+/**
  * Flatten panels from dashboard config (handles groups)
  */
 function flattenPanels(
@@ -505,12 +377,117 @@ function flattenPanels(
 ): PanelDescriptor[] {
   const result: PanelDescriptor[] = [];
   for (const item of panels) {
-    if ("charts" in item && Array.isArray((item as DashboardGroup).charts)) {
-      result.push(...(item as DashboardGroup).charts);
+    if (isDashboardGroup(item)) {
+      result.push(...item.charts);
     } else {
-      result.push(item as PanelDescriptor);
+      result.push(item);
     }
   }
+  return result;
+}
+
+/**
+ * Add a panel to the first section (DashboardGroup).
+ * If no section exists, creates a default one.
+ */
+function addPanelToFirstSection(
+  panels: (PanelDescriptor | DashboardGroup)[],
+  newPanel: PanelDescriptor
+): (PanelDescriptor | DashboardGroup)[] {
+  const updatedPanels = [...panels];
+
+  // Find the first DashboardGroup
+  const firstGroupIndex = updatedPanels.findIndex(isDashboardGroup);
+
+  if (firstGroupIndex >= 0) {
+    // Add to existing first group
+    const group = updatedPanels[firstGroupIndex] as DashboardGroup;
+    updatedPanels[firstGroupIndex] = {
+      ...group,
+      charts: [...group.charts, newPanel],
+    };
+  } else {
+    // No groups exist - create a default section with this panel
+    const defaultSection: DashboardGroup = {
+      title: "Default",
+      charts: [newPanel],
+      collapsed: false,
+    };
+    updatedPanels.push(defaultSection);
+  }
+
+  return updatedPanels;
+}
+
+/**
+ * Update a panel at a flat index (accounting for sections)
+ */
+function updatePanelAtFlatIndex(
+  panels: (PanelDescriptor | DashboardGroup)[],
+  flatIndex: number,
+  updatedPanel: PanelDescriptor
+): (PanelDescriptor | DashboardGroup)[] {
+  const result: (PanelDescriptor | DashboardGroup)[] = [];
+  let currentFlatIndex = 0;
+
+  for (const item of panels) {
+    if (isDashboardGroup(item)) {
+      const groupCharts = [...item.charts];
+      let foundInGroup = false;
+
+      for (let i = 0; i < groupCharts.length; i++) {
+        if (currentFlatIndex === flatIndex) {
+          groupCharts[i] = updatedPanel;
+          foundInGroup = true;
+        }
+        currentFlatIndex++;
+      }
+
+      result.push(foundInGroup ? { ...item, charts: groupCharts } : item);
+    } else {
+      if (currentFlatIndex === flatIndex) {
+        result.push(updatedPanel);
+      } else {
+        result.push(item);
+      }
+      currentFlatIndex++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Delete a panel at a flat index (accounting for sections)
+ */
+function deletePanelAtFlatIndex(
+  panels: (PanelDescriptor | DashboardGroup)[],
+  flatIndex: number
+): (PanelDescriptor | DashboardGroup)[] {
+  const result: (PanelDescriptor | DashboardGroup)[] = [];
+  let currentFlatIndex = 0;
+
+  for (const item of panels) {
+    if (isDashboardGroup(item)) {
+      const groupCharts: PanelDescriptor[] = [];
+
+      for (const chart of item.charts) {
+        if (currentFlatIndex !== flatIndex) {
+          groupCharts.push(chart);
+        }
+        currentFlatIndex++;
+      }
+
+      // Keep the group even if empty (user can delete section explicitly)
+      result.push({ ...item, charts: groupCharts });
+    } else {
+      if (currentFlatIndex !== flatIndex) {
+        result.push(item);
+      }
+      currentFlatIndex++;
+    }
+  }
+
   return result;
 }
 

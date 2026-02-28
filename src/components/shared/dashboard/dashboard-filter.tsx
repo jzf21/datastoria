@@ -40,6 +40,9 @@ interface FilterProps {
   // Callback to load items for a filter selector
   onLoadSourceData?: (query: SQLQuery) => Promise<string[]>;
 
+  // Callback to reset dashboard layout to default
+  onResetLayout?: () => void;
+
   children?: React.ReactNode;
 }
 
@@ -496,6 +499,19 @@ class DashboardFilterComponent extends Component<FilterProps, FilterState> {
 
         <div className="flex items-center gap-1 right-0">
           {this.props.children}
+
+          {this.props.onResetLayout && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 px-2 text-xs"
+              aria-label="Reset Layout"
+              title="Reset panel layout to default"
+              onClick={this.props.onResetLayout}
+            >
+              Reset Layout
+            </Button>
+          )}
 
           {hasTimeFilterSpec && (
             <Button

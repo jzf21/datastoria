@@ -313,7 +313,7 @@ export const Dashboards = memo(({ database, table }: DashboardsProps) => {
 
   return (
     <div className="flex flex-col px-2" style={{ height: "calc(100vh - 49px)" }}>
-      <DashboardPage panels={dashboard} headerActions={headerActions}>
+      <DashboardPage dashboardId="system-dashboards" panels={dashboard} headerActions={headerActions}>
         {/* Render the skipped dashboards if any at the bottom of the container */}
         {skippedDashboards.length > 0 && (
           <DashboardGroupSection

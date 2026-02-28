@@ -2065,6 +2065,7 @@ ORDER BY t WITH FILL STEP {rounding:UInt32}
 export const ClusterTab = memo(() => {
   return (
     <DashboardPage
+      dashboardId="cluster-overview"
       filterSpecs={[
         {
           filterType: "select",

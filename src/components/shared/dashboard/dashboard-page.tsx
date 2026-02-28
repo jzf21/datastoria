@@ -3,13 +3,86 @@
 import { useConnection } from "@/components/connection/connection-context";
 import { Input } from "@/components/ui/input";
 import type { JSONCompactFormatResponse } from "@/lib/connection/connection";
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import DashboardFilterComponent, { type SelectedFilter } from "./dashboard-filter";
-import type { Dashboard, FilterSpec, SQLQuery } from "./dashboard-model";
+import type { Dashboard, FilterSpec, SQLQuery, PanelDescriptor, DashboardGroup } from "./dashboard-model";
+import { DashboardLayoutProvider, useDashboardLayout } from "./dashboard-layout-provider";
+import { getPanelConstraints } from "./dashboard-layout-constraints";
+import type { LayoutItem, ResponsiveLayouts } from 'react-grid-layout';
 import DashboardPanelContainer, {
   type DashboardPanelContainerRef,
 } from "./dashboard-panel-container";
 import type { TimeSpan } from "./timespan-selector";
+
+// Helper to check if an item is a DashboardGroup
+function isDashboardGroup(item: unknown): item is DashboardGroup {
+  return (
+    typeof item === "object" &&
+    item !== null &&
+    "title" in item &&
+    "charts" in item &&
+    Array.isArray((item as { charts: unknown }).charts)
+  );
+}
+
+// Generate default layouts from dashboard panels
+function generateDefaultLayouts(dashboard: Dashboard): ResponsiveLayouts {
+  const allPanels: PanelDescriptor[] = [];
+  dashboard.charts.forEach((item) => {
+    if (isDashboardGroup(item)) {
+      allPanels.push(...item.charts);
+    } else {
+      allPanels.push(item);
+    }
+  });
+
+  const lg: LayoutItem[] = [];
+  const md: LayoutItem[] = [];
+  const sm: LayoutItem[] = [];
+
+  allPanels.forEach((panel, index) => {
+    const gridPos = panel.gridPos ?? { w: 24, h: 6 };
+    const constraints = getPanelConstraints(panel.type);
+    const key = `panel-${index}`;
+
+    lg.push({
+      i: key,
+      x: gridPos.x ?? (index * 6) % 24,
+      y: gridPos.y ?? Math.floor((index * 6) / 24) * 4,
+      w: gridPos.w,
+      h: gridPos.h,
+      ...constraints,
+    });
+
+    const mdW = Math.max(constraints.minW, Math.round((gridPos.w / 24) * 6));
+    md.push({
+      i: key,
+      x: (index * 3) % 6,
+      y: Math.floor((index * 3) / 6) * 4,
+      w: Math.min(mdW, 6),
+      h: gridPos.h,
+      minW: Math.min(constraints.minW, 6),
+      minH: constraints.minH,
+      maxW: 6,
+      maxH: constraints.maxH,
+    });
+
+    sm.push({
+      i: key,
+      x: 0,
+      y: index * 4,
+      w: 1,
+      h: gridPos.h,
+      minW: 1,
+      minH: constraints.minH,
+      maxW: 1,
+      maxH: constraints.maxH,
+      static: true,
+    });
+  });
+
+  return { lg, md, sm };
+}
 
 export interface DashboardPageRef {
   setSelectedTimeSpan: (timeSpan: TimeSpan) => void;
@@ -27,11 +100,74 @@ interface DashboardPageProps {
   showAutoRefresh?: boolean;
   chartSelectionFilterName?: string;
   /**
+   * Unique identifier for this dashboard (used for layout persistence).
+   * If not provided, layout won't be persisted.
+   */
+  dashboardId?: string;
+  /**
    * Children to render below the dashboard panels.
    * Children can use the useDashboardRefresh hook to register
    * themselves for automatic refresh when the dashboard refreshes.
    */
   children?: React.ReactNode;
+  /** Whether to show edit controls for sections (custom dashboards) */
+  showSectionEditControls?: boolean;
+  /** Callback when section is renamed */
+  onSectionRename?: (sectionIndex: number, newTitle: string) => void;
+  /** Callback when section is deleted */
+  onSectionDelete?: (sectionIndex: number) => void;
+  /** Callback when section collapse state changes */
+  onSectionCollapseChange?: (sectionIndex: number, collapsed: boolean) => void;
+  /** Whether to show the reset layout button (default: true) */
+  showResetLayout?: boolean;
+}
+
+// Inner component to access layout context
+interface DashboardFilterWithResetProps {
+  filterRef: React.RefObject<DashboardFilterComponent | null>;
+  filterSpecs: FilterSpec[];
+  onFilterChange?: (filter: SelectedFilter) => void;
+  onTimeSpanChange?: (timeSpan: TimeSpan) => void;
+  onLoadSourceData?: (query: SQLQuery) => Promise<string[]>;
+  timezone?: string;
+  showTimeSpanSelector?: boolean;
+  showRefresh?: boolean;
+  showAutoRefresh?: boolean;
+  headerActions?: React.ReactNode;
+  showResetLayout?: boolean;
+}
+
+function DashboardFilterWithReset({
+  filterRef,
+  filterSpecs,
+  onFilterChange,
+  onTimeSpanChange,
+  onLoadSourceData,
+  timezone,
+  showTimeSpanSelector,
+  showRefresh,
+  showAutoRefresh,
+  headerActions,
+  showResetLayout = true,
+}: DashboardFilterWithResetProps) {
+  const { resetLayout } = useDashboardLayout();
+
+  return (
+    <DashboardFilterComponent
+      ref={filterRef}
+      filterSpecs={filterSpecs}
+      onFilterChange={onFilterChange}
+      onTimeSpanChange={onTimeSpanChange}
+      onLoadSourceData={onLoadSourceData}
+      timezone={timezone}
+      showTimeSpanSelector={showTimeSpanSelector}
+      showRefresh={showRefresh}
+      showAutoRefresh={showAutoRefresh}
+      onResetLayout={showResetLayout ? resetLayout : undefined}
+    >
+      {headerActions}
+    </DashboardFilterComponent>
+  );
 }
 
 const DashboardPage = forwardRef<DashboardPageRef, DashboardPageProps>(
@@ -46,11 +182,19 @@ const DashboardPage = forwardRef<DashboardPageRef, DashboardPageProps>(
       showRefresh = true,
       showAutoRefresh = false,
       chartSelectionFilterName,
+      dashboardId,
       children,
+      showSectionEditControls,
+      onSectionRename,
+      onSectionDelete,
+      onSectionCollapseChange,
     },
     ref
   ) => {
     const { connection } = useConnection();
+
+    // Generate default layouts for the layout provider
+    const defaultLayouts = useMemo(() => generateDefaultLayouts(panels), [panels]);
 
     const inputFilterRef = useRef<HTMLInputElement>(null);
     const filterRef = useRef<DashboardFilterComponent>(null);
@@ -173,29 +317,30 @@ const DashboardPage = forwardRef<DashboardPageRef, DashboardPageProps>(
 
     const hasFilters = filterSpecs && filterSpecs.length > 0;
 
-    return (
+    const dashboardContent = (
       <div className="flex flex-col h-full w-full overflow-hidden p-2 gap-2">
-        {hasFilters && (
-          <DashboardFilterComponent
-            ref={filterRef}
-            filterSpecs={filterSpecs}
-            onFilterChange={handleSelectionFilterChange}
+        {dashboardId ? (
+          // With layout provider - use DashboardFilterWithReset for reset button
+          <DashboardFilterWithReset
+            filterRef={filterRef}
+            filterSpecs={hasFilters ? filterSpecs : []}
+            onFilterChange={hasFilters ? handleSelectionFilterChange : undefined}
             onTimeSpanChange={handleTimeSpanChange}
-            onLoadSourceData={defaultLoadFilterData}
+            onLoadSourceData={hasFilters ? defaultLoadFilterData : undefined}
             timezone={timezone}
             showTimeSpanSelector={showTimeSpanSelector}
             showRefresh={showRefresh}
             showAutoRefresh={showAutoRefresh}
-          >
-            {headerActions}
-          </DashboardFilterComponent>
-        )}
-
-        {!hasFilters && (
+            headerActions={headerActions}
+          />
+        ) : (
+          // Without layout provider - regular filter without reset
           <DashboardFilterComponent
             ref={filterRef}
-            filterSpecs={[]}
+            filterSpecs={hasFilters ? filterSpecs : []}
+            onFilterChange={hasFilters ? handleSelectionFilterChange : undefined}
             onTimeSpanChange={handleTimeSpanChange}
+            onLoadSourceData={hasFilters ? defaultLoadFilterData : undefined}
             timezone={timezone}
             showTimeSpanSelector={showTimeSpanSelector}
             showRefresh={showRefresh}
@@ -220,14 +365,30 @@ const DashboardPage = forwardRef<DashboardPageRef, DashboardPageProps>(
           <DashboardPanelContainer
             ref={panelsRef}
             dashboard={panels}
+            dashboardId={dashboardId}
             initialLoading={false}
             onChartSelection={chartSelectionFilterName ? handleChartSelection : undefined}
+            showSectionEditControls={showSectionEditControls}
+            onSectionRename={onSectionRename}
+            onSectionDelete={onSectionDelete}
+            onSectionCollapseChange={onSectionCollapseChange}
           >
             {children}
           </DashboardPanelContainer>
         </div>
       </div>
     );
+
+    // Wrap with layout provider if dashboardId is provided
+    if (dashboardId) {
+      return (
+        <DashboardLayoutProvider dashboardId={dashboardId} defaultLayouts={defaultLayouts}>
+          {dashboardContent}
+        </DashboardLayoutProvider>
+      );
+    }
+
+    return dashboardContent;
   }
 );
 

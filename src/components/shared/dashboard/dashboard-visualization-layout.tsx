@@ -180,7 +180,8 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
     const headerContent = (
       <div
         className={cn(
-          "flex items-center px-2 py-1 transition-colors",
+          "flex items-center px-2 py-1 transition-colors dashboard-drag-handle",
+          "cursor-grab active:cursor-grabbing",
           headerBackground && "bg-muted/50"
         )}
       >
