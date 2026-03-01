@@ -6,7 +6,7 @@ metadata:
 ---
 
 > ## 🚨 CRITICAL RULE: MANDATORY VALIDATION
-> You **MUST** call `validate_sql(sql)` for **every** new query you generate. 
+> You **MUST** call `validate_sql(sql)` for **every** new query you generate.
 > **Context Note**: Historical validation steps are pruned to save tokens, but this does NOT excuse you from validating new queries in the current turn. Always validate before executing.
 
 # 1. Schema Discovery & Context
@@ -15,6 +15,7 @@ metadata:
 - **Missing Columns**: `explore_schema` limits output. If you don't see the column you expect, you **MUST** retry `explore_schema` using `column_pattern` to search for it specifically.
 - **Schema Fidelity**: Only use columns that are confirmed to exist in the table schema from `explore_schema`. Do not assume standard columns exist if they are not in the tool output.
 - **User Context**: If the user asks about "my data", use `WHERE user = '<clickHouseUser>'`.
+- **System Tables**: For queries on `system.*` tables (e.g., `system.query_log`, `system.parts`, `system.merges`), defer to the `clickhouse-system-queries` skill - it contains table-specific patterns, predicates, and resource metrics that this skill does not cover.
 
 # 2. Syntax Rules (The Grammar)
 - **Tables**: ALWAYS use fully qualified names (e.g., `database.table`).
@@ -22,12 +23,7 @@ metadata:
 - **Enums**: Use exact string literals for Enum columns.
 - **Safety**: ALWAYS use `LIMIT` for data exploration queries.
 
-# 3. ProfileEvents & Metrics (Syntax Rules)
-- If `ProfileEvents` is a Map, use `ProfileEvents['Name']`.
-- If flattened, use `ProfileEvent_Name`.
-- Verify existence in schema first.
-
-# 4. Optimization Rules (Best Practices)
+# 3. Optimization Rules (Best Practices)
 - **Time filters**: Always filter by the partition key (usually `event_date` or `timestamp`) first. Use **bounded time windows** (e.g., last 24h, 7 days) unless the user asks for all history.
 - **Primary Keys (CRITICAL)**: ClickHouse indexes are sparse. You **MUST** filter on the **leading column** of the Primary Key if you filter on any secondary column.
   - *Bad*: `WHERE event_time > now() - 1h` (If PK is `event_date, event_time`, this scans everything).
@@ -35,7 +31,7 @@ metadata:
 - **Approximation**: Use `uniq()` instead of `uniqExact()` unless precision is explicitly requested.
 - **Joins**: Put the **smaller table on the RIGHT**. Use `GLOBAL IN` only for distributed queries.
 
-# 5. Execution Workflow
+# 4. Execution Workflow
 1. **Generate**: Create the SQL following the rules above.
 2. **Validate (MANDATORY)**: Call `validate_sql(sql)`.
    - *If invalid*: Read the error, fix the SQL, and retry (max 3 attempts).
@@ -43,5 +39,3 @@ metadata:
    - *Visualization*: IF the user wants a chart, DO NOT execute. Pass the SQL to the visualization skill logic.
    - *Data*: IF the user wants answers (lists, counts), call `execute_sql(sql)`.
    - *Code Only*: IF the user asks to "write SQL", just output the code block.
-
-
