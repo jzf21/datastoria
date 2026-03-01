@@ -185,9 +185,6 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
           headerBackground && "bg-muted/50"
         )}
       >
-        {isCollapsible && isCollapsed && (
-          <ChevronRight className="h-3 w-3 text-muted-foreground mr-1 flex-shrink-0" />
-        )}
         <div className="flex-1 text-left min-w-0">
           <CardDescription
             className={cn(
@@ -206,7 +203,7 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
       </div>
     );
 
-    const hoverClasses = isCollapsible ? "hover:bg-muted cursor-pointer" : "";
+    const hoverClasses = "";
 
     const headerElement = (
       <CardHeader
