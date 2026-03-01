@@ -26,7 +26,7 @@ import {
   CustomDashboardStorage,
   type CustomDashboardConfig,
 } from "./custom-dashboard-storage";
-import { PanelConfigDialog } from "./panel-config-dialog";
+import { PanelEditView } from "./panel-edit/panel-edit-view";
 import { TabManager } from "@/components/tab-manager";
 import {
   CustomDashboardContext,
@@ -48,7 +48,7 @@ const CustomDashboardTabComponent = ({
   const [config, setConfig] = useState<CustomDashboardConfig | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState("");
-  const [showPanelDialog, setShowPanelDialog] = useState(false);
+  const [editViewOpen, setEditViewOpen] = useState(false);
   const [editingPanel, setEditingPanel] = useState<PanelDescriptor | null>(null);
   const [editingPanelIndex, setEditingPanelIndex] = useState<number>(-1);
 
@@ -100,13 +100,13 @@ const CustomDashboardTabComponent = ({
     );
   }, [config, editingName, saveConfig, dashboardId]);
 
-  // Add panel to the first available section
-  const handleAddPanel = useCallback(
+  // Save panel (create or update)
+  const handleSavePanel = useCallback(
     (panel: PanelDescriptor) => {
       if (!config) return;
 
       if (editingPanelIndex >= 0) {
-        // Update existing panel - need to find it in the correct section
+        // Update existing panel
         const updatedPanels = updatePanelAtFlatIndex(config.panels, editingPanelIndex, panel);
         saveConfig({ ...config, panels: updatedPanels });
       } else {
@@ -116,11 +116,12 @@ const CustomDashboardTabComponent = ({
       }
       setEditingPanel(null);
       setEditingPanelIndex(-1);
+      setEditViewOpen(false);
     },
     [config, editingPanelIndex, saveConfig]
   );
 
-  // Edit panel
+  // Edit panel - opens full-screen edit view
   const handleEditPanel = useCallback(
     (index: number) => {
       if (!config) return;
@@ -128,7 +129,7 @@ const CustomDashboardTabComponent = ({
       if (index >= 0 && index < panels.length) {
         setEditingPanel(panels[index]);
         setEditingPanelIndex(index);
-        setShowPanelDialog(true);
+        setEditViewOpen(true);
       }
     },
     [config]
@@ -232,7 +233,7 @@ const CustomDashboardTabComponent = ({
           onClick={() => {
             setEditingPanel(null);
             setEditingPanelIndex(-1);
-            setShowPanelDialog(true);
+            setEditViewOpen(true);
           }}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -263,20 +264,25 @@ const CustomDashboardTabComponent = ({
               onAddPanel={() => {
                 setEditingPanel(null);
                 setEditingPanelIndex(-1);
-                setShowPanelDialog(true);
+                setEditViewOpen(true);
               }}
             />
           )}
         </CustomDashboardContext.Provider>
       </div>
 
-      {/* Dialogs */}
-      <PanelConfigDialog
-        open={showPanelDialog}
-        onOpenChange={setShowPanelDialog}
-        onSave={handleAddPanel}
-        editingPanel={editingPanel}
-      />
+      {/* Full-screen panel edit view */}
+      {editViewOpen && (
+        <PanelEditView
+          editingPanel={editingPanel}
+          onSave={handleSavePanel}
+          onDiscard={() => {
+            setEditViewOpen(false);
+            setEditingPanel(null);
+            setEditingPanelIndex(-1);
+          }}
+        />
+      )}
 
     </div>
   );
