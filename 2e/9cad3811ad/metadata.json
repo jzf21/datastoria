@@ -3,9 +3,15 @@
   "checkpoint_id": "2e9cad3811ad",
   "strategy": "manual-commit",
   "branch": "feature/customisable-dashboard-experimental",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
     "src/components/dashboard-tab/custom-dashboard-tab.tsx",
+    "src/components/dashboard-tab/panel-edit/panel-edit-header.tsx",
+    "src/components/dashboard-tab/panel-edit/panel-edit-preview.tsx",
+    "src/components/dashboard-tab/panel-edit/panel-edit-sidebar.tsx",
+    "src/components/dashboard-tab/panel-edit/panel-edit-sql-editor.tsx",
+    "src/components/dashboard-tab/panel-edit/panel-edit-view.tsx",
+    "src/components/dashboard-tab/panel-edit/use-panel-edit-state.ts",
     "src/components/shared/dashboard/dashboard-layout-provider.tsx",
     "src/components/shared/dashboard/dashboard-section.tsx",
     "src/lib/ai/skills/optimization/SKILL.md"
@@ -24,13 +30,20 @@
       "context": "/2e/9cad3811ad/1/context.md",
       "content_hash": "/2e/9cad3811ad/1/content_hash.txt",
       "prompt": "/2e/9cad3811ad/1/prompt.txt"
+    },
+    {
+      "metadata": "/2e/9cad3811ad/2/metadata.json",
+      "transcript": "/2e/9cad3811ad/2/full.jsonl",
+      "context": "/2e/9cad3811ad/2/context.md",
+      "content_hash": "/2e/9cad3811ad/2/content_hash.txt",
+      "prompt": "/2e/9cad3811ad/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 118,
-    "cache_creation_tokens": 146921,
-    "cache_read_tokens": 2284274,
-    "output_tokens": 20057,
-    "api_call_count": 38
+    "input_tokens": 164,
+    "cache_creation_tokens": 290353,
+    "cache_read_tokens": 7313166,
+    "output_tokens": 53287,
+    "api_call_count": 79
   }
 }
