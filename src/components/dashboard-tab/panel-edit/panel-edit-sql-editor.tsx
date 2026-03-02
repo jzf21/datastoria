@@ -1,34 +1,23 @@
 "use client";
 
 import { useConnection } from "@/components/connection/connection-context";
-import { useTheme } from "@/components/shared/theme-provider";
 import { QuerySuggestionManager } from "@/components/query-tab/query-input/completion/query-suggestion-manager";
+import { useTheme } from "@/components/shared/theme-provider";
 import type { Ace } from "ace-builds";
 import dynamic from "next/dynamic";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Dynamically import AceEditor (same pattern as query-input-view.tsx)
 const AceEditor = dynamic(
   async () => {
-    const { initAce } = await import(
-      "@/components/query-tab/query-input/ace-setup"
-    );
+    const { initAce } = await import("@/components/query-tab/query-input/ace-setup");
     await initAce();
 
     await import("ace-builds/src-noconflict/ext-language_tools");
     await import("ace-builds/src-noconflict/mode-sql");
     await import("ace-builds/src-noconflict/theme-xcode");
     await import("ace-builds/src-noconflict/theme-solarized_dark");
-    await import(
-      "@/components/query-tab/query-input/completion/clickhouse-sql"
-    );
+    await import("@/components/query-tab/query-input/completion/clickhouse-sql");
 
     const ReactAce = await import("react-ace");
     return ReactAce.default;
@@ -90,9 +79,7 @@ function PanelEditSqlEditorComponent({
   useEffect(() => {
     const checkTheme = () => {
       if (typeof window !== "undefined") {
-        setIsDark(
-          window.document.documentElement.classList.contains("dark")
-        );
+        setIsDark(window.document.documentElement.classList.contains("dark"));
       }
     };
     checkTheme();
@@ -108,9 +95,7 @@ function PanelEditSqlEditorComponent({
     if (theme === "dark") setIsDark(true);
     else if (theme === "light") setIsDark(false);
     else if (theme === "system" && typeof window !== "undefined") {
-      setIsDark(
-        window.document.documentElement.classList.contains("dark")
-      );
+      setIsDark(window.document.documentElement.classList.contains("dark"));
     }
 
     return () => observer.disconnect();
@@ -121,17 +106,12 @@ function PanelEditSqlEditorComponent({
       ? window.document.documentElement.classList.contains("dark")
       : isDark;
 
-  const aceTheme = useMemo(
-    () => (currentDarkMode ? "solarized_dark" : "xcode"),
-    [currentDarkMode]
-  );
+  const aceTheme = useMemo(() => (currentDarkMode ? "solarized_dark" : "xcode"), [currentDarkMode]);
 
   // Initialize completions when connection changes
   useEffect(() => {
     if (connection) {
-      QuerySuggestionManager.getInstance().onConnectionSelected(
-        connection as any
-      );
+      QuerySuggestionManager.getInstance().onConnectionSelected(connection as any);
     }
   }, [connection?.name]);
 
@@ -166,10 +146,7 @@ function PanelEditSqlEditorComponent({
       editor.renderer.setScrollMargin(5, 10, 0, 0);
 
       // Set up completers
-      editor.completers =
-        QuerySuggestionManager.getInstance().getCompleters(
-          editor.completers
-        );
+      editor.completers = QuerySuggestionManager.getInstance().getCompleters(editor.completers);
 
       // Clear selection and move cursor to end
       editor.clearSelection();
@@ -213,9 +190,7 @@ function PanelEditSqlEditorComponent({
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Query
         </span>
-        <span className="text-xs text-muted-foreground/60">
-          {keyBindings} to run
-        </span>
+        <span className="text-xs text-muted-foreground/60">{keyBindings} to run</span>
       </div>
 
       {/* Editor */}
@@ -249,9 +224,7 @@ function PanelEditSqlEditorComponent({
 
       {/* Template variables reference */}
       <div className="flex items-center gap-1.5 px-3 py-1 border-t bg-muted/20 shrink-0 overflow-x-auto">
-        <span className="text-[10px] text-muted-foreground/60 shrink-0">
-          Variables:
-        </span>
+        <span className="text-[10px] text-muted-foreground/60 shrink-0">Variables:</span>
         {TEMPLATE_VARS.map((v) => (
           <code
             key={v}

@@ -1,14 +1,29 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { Layout, ResponsiveLayouts } from 'react-grid-layout';
-import { loadDashboardLayout, saveDashboardLayout, clearDashboardLayout, clearAllSectionLayouts } from './dashboard-layout-storage';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { Layout, ResponsiveLayouts } from "react-grid-layout";
+import {
+  clearAllSectionLayouts,
+  clearDashboardLayout,
+  loadDashboardLayout,
+  saveDashboardLayout,
+} from "./dashboard-layout-storage";
 
 interface DashboardLayoutContextValue {
   layouts: ResponsiveLayouts;
   onLayoutChange: (currentLayout: Layout, allLayouts: ResponsiveLayouts) => void;
   resetLayout: () => void;
   isEditing: boolean;
+  /** Incremented on each reset so sections can re-read cleared storage */
+  layoutVersion: number;
 }
 
 const DashboardLayoutContext = createContext<DashboardLayoutContextValue | null>(null);
@@ -47,11 +62,15 @@ export function DashboardLayoutProvider({
     [dashboardId]
   );
 
+  // Incremented on reset so DashboardSection components re-read (now-cleared) storage
+  const [layoutVersion, setLayoutVersion] = useState(0);
+
   const resetLayout = useCallback(() => {
     // Clear both legacy single-dashboard layout and all section layouts
     clearDashboardLayout(dashboardId);
     clearAllSectionLayouts(dashboardId);
     setLayouts(defaultLayouts);
+    setLayoutVersion((v) => v + 1);
   }, [dashboardId, defaultLayouts]);
 
   // Cleanup timeout on unmount
@@ -69,21 +88,20 @@ export function DashboardLayoutProvider({
       onLayoutChange,
       resetLayout,
       isEditing: true, // Always editable for now
+      layoutVersion,
     }),
-    [layouts, onLayoutChange, resetLayout]
+    [layouts, onLayoutChange, resetLayout, layoutVersion]
   );
 
   return (
-    <DashboardLayoutContext.Provider value={value}>
-      {children}
-    </DashboardLayoutContext.Provider>
+    <DashboardLayoutContext.Provider value={value}>{children}</DashboardLayoutContext.Provider>
   );
 }
 
 export function useDashboardLayout(): DashboardLayoutContextValue {
   const ctx = useContext(DashboardLayoutContext);
   if (!ctx) {
-    throw new Error('useDashboardLayout must be used within DashboardLayoutProvider');
+    throw new Error("useDashboardLayout must be used within DashboardLayoutProvider");
   }
   return ctx;
 }

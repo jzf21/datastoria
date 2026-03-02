@@ -1,13 +1,18 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useMemo, useCallback, useRef, useState, useEffect } from "react";
-import { ResponsiveGridLayout, useContainerWidth, verticalCompactor } from 'react-grid-layout/react';
-import type { Layout, LayoutItem, ResponsiveLayouts } from 'react-grid-layout';
-import type { DashboardGroup, PanelDescriptor, GridPos } from "./dashboard-model";
-import { getPanelConstraints } from './dashboard-layout-constraints';
-import { saveSectionLayout, loadSectionLayout } from './dashboard-layout-storage';
-import { SectionHeader } from './dashboard-section-header';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Layout, LayoutItem, ResponsiveLayouts } from "react-grid-layout";
+import {
+  ResponsiveGridLayout,
+  useContainerWidth,
+  verticalCompactor,
+} from "react-grid-layout/react";
+import { getPanelConstraints } from "./dashboard-layout-constraints";
+import { useDashboardLayoutOptional } from "./dashboard-layout-provider";
+import { loadSectionLayout, saveSectionLayout } from "./dashboard-layout-storage";
+import type { DashboardGroup, GridPos, PanelDescriptor } from "./dashboard-model";
+import { SectionHeader } from "./dashboard-section-header";
 import type { DashboardVisualizationComponent } from "./dashboard-visualization-layout";
 import { DashboardVisualizationPanel } from "./dashboard-visualization-panel";
 import type { TimeSpan } from "./timespan-selector";
@@ -198,23 +203,23 @@ export function DashboardSection({
   const { width, mounted, containerRef } = useContainerWidth();
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Track expand count to force grid remount after collapse/expand cycle
-  const [expandCount, setExpandCount] = useState(0);
-  const prevIsCollapsed = useRef(isCollapsed);
+  // Subscribe to layout reset signals from the provider
+  const layoutContext = useDashboardLayoutOptional();
+  const layoutVersion = layoutContext?.layoutVersion ?? 0;
 
-  useEffect(() => {
-    // When transitioning from collapsed to expanded, increment counter to force remount
-    if (prevIsCollapsed.current && !isCollapsed) {
-      setExpandCount(c => c + 1);
-    }
-    prevIsCollapsed.current = isCollapsed;
-  }, [isCollapsed]);
+  // Track expand count to force grid remount after collapse/expand cycle.
+  // Uses a ref updated synchronously during render to avoid a double render cycle
+  // (useState + useEffect would cause panels to mount twice, triggering two API requests).
+  const expandCountRef = useRef(0);
+  const prevIsCollapsedRef = useRef(isCollapsed);
+
+  if (prevIsCollapsedRef.current && !isCollapsed) {
+    expandCountRef.current += 1;
+  }
+  prevIsCollapsedRef.current = isCollapsed;
 
   // Generate default layouts
-  const defaultLayouts = useMemo(
-    () => generateLayoutsFromPanels(panels),
-    [panels]
-  );
+  const defaultLayouts = useMemo(() => generateLayoutsFromPanels(panels), [panels]);
 
   // Merge saved layouts with defaults: preserve positions for existing panels, use defaults for new ones
   const mergeLayouts = useCallback(
@@ -231,7 +236,13 @@ export function DashboardSection({
           const savedItem = savedMap.get(defaultItem.i);
           if (savedItem) {
             // Preserve saved position, but apply current constraints
-            return { ...defaultItem, x: savedItem.x, y: savedItem.y, w: savedItem.w, h: savedItem.h };
+            return {
+              ...defaultItem,
+              x: savedItem.x,
+              y: savedItem.y,
+              w: savedItem.w,
+              h: savedItem.h,
+            };
           }
           // New panel — use auto-positioned default
           return defaultItem;
@@ -248,11 +259,11 @@ export function DashboardSection({
     return mergeLayouts(saved, defaultLayouts);
   });
 
-  // Update layouts when panels change — merge to preserve existing positions
+  // Update layouts when panels change or layout is reset — merge to preserve existing positions
   useEffect(() => {
     const saved = loadSectionLayout(dashboardId, sectionIndex);
     setLayouts(mergeLayouts(saved, defaultLayouts));
-  }, [dashboardId, sectionIndex, defaultLayouts, mergeLayouts]);
+  }, [dashboardId, sectionIndex, defaultLayouts, mergeLayouts, layoutVersion]);
 
   // Handle layout change with debounced save
   const onLayoutChange = useCallback(
@@ -288,7 +299,20 @@ export function DashboardSection({
   // Don't render header for ungrouped section if there's only ungrouped panels
   const showHeader = group !== null;
 
-  console.log('[DashboardSection] Render - sectionIndex:', sectionIndex, 'isCollapsed:', isCollapsed, 'panels.length:', panels.length, 'showHeader:', showHeader, 'mounted:', mounted, 'width:', width);
+  console.log(
+    "[DashboardSection] Render - sectionIndex:",
+    sectionIndex,
+    "isCollapsed:",
+    isCollapsed,
+    "panels.length:",
+    panels.length,
+    "showHeader:",
+    showHeader,
+    "mounted:",
+    mounted,
+    "width:",
+    width
+  );
 
   return (
     <div className="w-full">
@@ -308,11 +332,11 @@ export function DashboardSection({
         <div
           ref={containerRef}
           className="w-full"
-          style={isCollapsed ? { height: 0, overflow: 'hidden', visibility: 'hidden' } : undefined}
+          style={isCollapsed ? { height: 0, overflow: "hidden", visibility: "hidden" } : undefined}
         >
           {!isCollapsed && mounted && width > 0 && (
             <ResponsiveGridLayout
-              key={`grid-${sectionIndex}-${expandCount}`}
+              key={`grid-${sectionIndex}-${expandCountRef.current}`}
               className="layout"
               width={width}
               layouts={layouts}
@@ -322,12 +346,18 @@ export function DashboardSection({
               margin={[8, 8]}
               containerPadding={[0, 0]}
               onLayoutChange={onLayoutChange}
-              dragConfig={{ enabled: true, bounded: false, handle: ".dashboard-drag-handle", threshold: 3 }}
+              dragConfig={{
+                enabled: true,
+                bounded: false,
+                handle: ".dashboard-drag-handle",
+                threshold: 3,
+              }}
               compactor={verticalCompactor}
             >
               {panels.map((panel, localIndex) => {
                 const globalIndex = globalPanelStartIndex + localIndex;
-                const isPanelCollapsed = panelCollapseStates.get(globalIndex) ?? panel.collapsed ?? false;
+                const isPanelCollapsed =
+                  panelCollapseStates.get(globalIndex) ?? panel.collapsed ?? false;
 
                 return (
                   <div key={`panel-${localIndex}`} className="h-full">
@@ -338,7 +368,9 @@ export function DashboardSection({
                         initialFilterExpression={initialFilterExpression}
                         initialLoading={initialLoading}
                         ref={(el) => onSubComponentUpdated(el, globalIndex)}
-                        onCollapsedChange={(collapsed) => onPanelCollapsedChange(globalIndex, collapsed)}
+                        onCollapsedChange={(collapsed) =>
+                          onPanelCollapsedChange(globalIndex, collapsed)
+                        }
                         onChartSelection={onChartSelection}
                       />
                     </div>

@@ -285,9 +285,7 @@ function DashboardsSidebarMenuItem() {
     <HoverCardSidebarMenuItem
       icon={<LayoutDashboard className="h-5 w-5" />}
       description="Dashboards"
-      content={(_isOpen, onClose) => (
-        <DashboardList onClose={onClose} connection={connection} />
-      )}
+      content={(_isOpen, onClose) => <DashboardList onClose={onClose} connection={connection} />}
       contentClassName="w-56 p-2"
     />
   );
@@ -320,22 +318,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     tooltip={{
-                      children: "Query",
-                      className:
-                        "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
-                    }}
-                    size="default"
-                    onClick={() => TabManager.activateQueryTab()}
-                  >
-                    <Terminal className="h-5 w-5" />
-                    <span>Query</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    tooltip={{
-                      children: "Chat with AI",
+                      children: "Work with AI",
                       className:
                         "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
                     }}
@@ -343,7 +326,22 @@ export function AppSidebar() {
                     onClick={openChatPanel}
                   >
                     <Sparkles className="h-5 w-5" />
-                    <span>AI Assistant</span>
+                    <span>Work with AI</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    tooltip={{
+                      children: "Query Data with SQL",
+                      className:
+                        "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
+                    }}
+                    size="default"
+                    onClick={() => TabManager.activateQueryTab()}
+                  >
+                    <Terminal className="h-5 w-5" />
+                    <span>Query Data with SQL</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 

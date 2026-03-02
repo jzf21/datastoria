@@ -1,6 +1,7 @@
 "use client";
 
 import { useConnection } from "@/components/connection/connection-context";
+import { useCustomDashboardActions } from "@/components/dashboard-tab/custom-dashboard-context";
 import { AskAIButton } from "@/components/shared/ask-ai-button";
 import { Dialog } from "@/components/shared/use-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +17,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useCustomDashboardActions } from "@/components/dashboard-tab/custom-dashboard-context";
 import { showQueryDialog } from "./dashboard-dialog-utils";
 import { DashboardDropdownMenuItem } from "./dashboard-dropdown-menu-item";
 import type {
@@ -627,7 +627,15 @@ export const DashboardVisualizationPanel = forwardRef<
         {vizItems}
       </>
     );
-  }, [typedDescriptor.datasource, handleShowQuery, data.length, handleShowRawData, customDashboardActions, handleEditThisPanel, handleDeleteThisPanel]);
+  }, [
+    typedDescriptor.datasource,
+    handleShowQuery,
+    data.length,
+    handleShowRawData,
+    customDashboardActions,
+    handleEditThisPanel,
+    handleDeleteThisPanel,
+  ]);
 
   // Render error state
   const renderError = () => (

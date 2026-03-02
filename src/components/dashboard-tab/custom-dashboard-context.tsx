@@ -10,8 +10,7 @@ export interface CustomDashboardPanelActions {
   getPanelIndex: (descriptor: PanelDescriptor) => number;
 }
 
-export const CustomDashboardContext =
-  createContext<CustomDashboardPanelActions | null>(null);
+export const CustomDashboardContext = createContext<CustomDashboardPanelActions | null>(null);
 
 export function useCustomDashboardActions(): CustomDashboardPanelActions | null {
   return useContext(CustomDashboardContext);

@@ -1,7 +1,7 @@
 "use client";
 
-import { DashboardVisualizationPanel } from "@/components/shared/dashboard/dashboard-visualization-panel";
 import type { PanelDescriptor } from "@/components/shared/dashboard/dashboard-model";
+import { DashboardVisualizationPanel } from "@/components/shared/dashboard/dashboard-visualization-panel";
 import TimeSpanSelector, {
   BUILT_IN_TIME_SPAN_LIST,
   type DisplayTimeSpan,
@@ -14,23 +14,15 @@ interface PanelEditPreviewProps {
   previewKey: number;
 }
 
-function PanelEditPreviewComponent({
-  descriptor,
-  previewKey,
-}: PanelEditPreviewProps) {
+function PanelEditPreviewComponent({ descriptor, previewKey }: PanelEditPreviewProps) {
   // Default to "Last 15 Mins"
   const defaultTimeSpan = BUILT_IN_TIME_SPAN_LIST[2]; // "Last 15 Mins"
-  const [timeSpan, setTimeSpan] = useState<TimeSpan>(
-    () => defaultTimeSpan.getTimeSpan()
-  );
+  const [timeSpan, setTimeSpan] = useState<TimeSpan>(() => defaultTimeSpan.getTimeSpan());
   const timeSpanSelectorRef = useRef<TimeSpanSelector>(null);
 
-  const handleTimeSpanChange = useCallback(
-    (span: DisplayTimeSpan) => {
-      setTimeSpan(span.getTimeSpan());
-    },
-    []
-  );
+  const handleTimeSpanChange = useCallback((span: DisplayTimeSpan) => {
+    setTimeSpan(span.getTimeSpan());
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -65,9 +57,7 @@ function PanelEditPreviewComponent({
         ) : (
           <div className="h-full w-full flex items-center justify-center text-muted-foreground">
             <div className="text-center">
-              <p className="text-sm">
-                Run a query to see the preview
-              </p>
+              <p className="text-sm">Run a query to see the preview</p>
               <p className="text-xs mt-1 text-muted-foreground/60">
                 Write SQL in the editor below and press Run Query
               </p>

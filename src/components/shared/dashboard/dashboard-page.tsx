@@ -3,12 +3,25 @@
 import { useConnection } from "@/components/connection/connection-context";
 import { Input } from "@/components/ui/input";
 import type { JSONCompactFormatResponse } from "@/lib/connection/connection";
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from "react";
+import type { LayoutItem, ResponsiveLayouts } from "react-grid-layout";
 import DashboardFilterComponent, { type SelectedFilter } from "./dashboard-filter";
-import type { Dashboard, FilterSpec, SQLQuery, PanelDescriptor, DashboardGroup } from "./dashboard-model";
-import { DashboardLayoutProvider, useDashboardLayout } from "./dashboard-layout-provider";
 import { getPanelConstraints } from "./dashboard-layout-constraints";
-import type { LayoutItem, ResponsiveLayouts } from 'react-grid-layout';
+import { DashboardLayoutProvider, useDashboardLayout } from "./dashboard-layout-provider";
+import type {
+  Dashboard,
+  DashboardGroup,
+  FilterSpec,
+  PanelDescriptor,
+  SQLQuery,
+} from "./dashboard-model";
 import DashboardPanelContainer, {
   type DashboardPanelContainerRef,
 } from "./dashboard-panel-container";

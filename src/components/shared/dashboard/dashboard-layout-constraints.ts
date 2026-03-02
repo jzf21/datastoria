@@ -10,7 +10,7 @@ const PANEL_CONSTRAINTS: Record<string, PanelConstraints> = {
   gauge: { minW: 3, minH: 3, maxW: 12, maxH: 8 },
   pie: { minW: 4, minH: 4, maxW: 12, maxH: 10 },
   table: { minW: 6, minH: 3, maxW: 24, maxH: 16 },
-  'transpose-table': { minW: 4, minH: 2, maxW: 24, maxH: 12 },
+  "transpose-table": { minW: 4, minH: 2, maxW: 24, maxH: 12 },
   // Timeseries types
   line: { minW: 6, minH: 3, maxW: 24, maxH: 12 },
   bar: { minW: 6, minH: 3, maxW: 24, maxH: 12 },

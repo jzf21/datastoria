@@ -1,9 +1,9 @@
 "use client";
 
 import type {
+  DateTimeFilterSpec,
   FilterSpec,
   SelectorFilterSpec,
-  DateTimeFilterSpec,
 } from "@/components/shared/dashboard/dashboard-model";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,9 +41,7 @@ function ToggleOption({
       type="button"
       className={cn(
         "px-3 py-1.5 rounded-md border text-sm transition-colors",
-        selected
-          ? "bg-primary text-primary-foreground border-primary"
-          : "hover:bg-muted/50"
+        selected ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/50"
       )}
       onClick={onClick}
     >

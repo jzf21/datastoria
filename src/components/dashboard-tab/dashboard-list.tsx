@@ -1,16 +1,13 @@
 "use client";
 
+import { TabManager } from "@/components/tab-manager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TabManager } from "@/components/tab-manager";
+import type { Connection } from "@/lib/connection/connection";
+import { hostNameManager } from "@/lib/host-name-manager";
 import { LayoutDashboard, Monitor, Network, Plus, Trash2 } from "lucide-react";
 import { memo, useCallback, useState } from "react";
-import {
-  CustomDashboardStorage,
-  type CustomDashboardConfig,
-} from "./custom-dashboard-storage";
-import { hostNameManager } from "@/lib/host-name-manager";
-import type { Connection } from "@/lib/connection/connection";
+import { CustomDashboardStorage, type CustomDashboardConfig } from "./custom-dashboard-storage";
 
 interface DashboardListProps {
   onClose?: () => void;
@@ -23,9 +20,7 @@ interface DashboardListProps {
  */
 const DashboardListComponent = ({ onClose, connection }: DashboardListProps) => {
   const storage = CustomDashboardStorage.getInstance();
-  const [dashboards, setDashboards] = useState<CustomDashboardConfig[]>(() =>
-    storage.getAll()
-  );
+  const [dashboards, setDashboards] = useState<CustomDashboardConfig[]>(() => storage.getAll());
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
 
@@ -148,9 +143,7 @@ const DashboardListComponent = ({ onClose, connection }: DashboardListProps) => 
 
       {/* Custom dashboard list */}
       {dashboards.length === 0 && !connection && !showCreate && (
-        <p className="text-xs text-muted-foreground px-2 py-1">
-          No dashboards yet
-        </p>
+        <p className="text-xs text-muted-foreground px-2 py-1">No dashboards yet</p>
       )}
 
       {dashboards.map((db) => (

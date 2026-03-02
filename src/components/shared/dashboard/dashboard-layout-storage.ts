@@ -1,6 +1,6 @@
-import type { ResponsiveLayouts } from 'react-grid-layout';
+import type { ResponsiveLayouts } from "react-grid-layout";
 
-export const STORAGE_KEY_PREFIX = 'dashboard-layout:';
+export const STORAGE_KEY_PREFIX = "dashboard-layout:";
 const CURRENT_VERSION = 1;
 
 export interface SavedLayout {
@@ -77,14 +77,11 @@ export function clearAllSectionLayouts(dashboardId: string): void {
     }
   }
 
-  keysToRemove.forEach(key => localStorage.removeItem(key));
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
 }
 
 // Legacy functions for backwards compatibility (single-grid dashboards)
-export function saveDashboardLayout(
-  dashboardId: string,
-  layouts: ResponsiveLayouts
-): void {
+export function saveDashboardLayout(dashboardId: string, layouts: ResponsiveLayouts): void {
   const data: SavedLayout = {
     version: CURRENT_VERSION,
     dashboardId,
@@ -94,9 +91,7 @@ export function saveDashboardLayout(
   localStorage.setItem(`${STORAGE_KEY_PREFIX}${dashboardId}`, JSON.stringify(data));
 }
 
-export function loadDashboardLayout(
-  dashboardId: string
-): ResponsiveLayouts | null {
+export function loadDashboardLayout(dashboardId: string): ResponsiveLayouts | null {
   try {
     const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${dashboardId}`);
     if (!stored) return null;

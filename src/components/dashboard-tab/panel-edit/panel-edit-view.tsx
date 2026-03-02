@@ -2,11 +2,7 @@
 
 import type { PanelDescriptor } from "@/components/shared/dashboard/dashboard-model";
 import { memo, useCallback } from "react";
-import {
-  Panel,
-  PanelGroup,
-  PanelResizeHandle,
-} from "react-resizable-panels";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { PanelEditHeader } from "./panel-edit-header";
 import { PanelEditPreview } from "./panel-edit-preview";
 import { PanelEditSidebar } from "./panel-edit-sidebar";
@@ -19,11 +15,7 @@ interface PanelEditViewProps {
   onDiscard: () => void;
 }
 
-function PanelEditViewComponent({
-  editingPanel,
-  onSave,
-  onDiscard,
-}: PanelEditViewProps) {
+function PanelEditViewComponent({ editingPanel, onSave, onDiscard }: PanelEditViewProps) {
   const state = usePanelEditState(editingPanel);
 
   const handleApply = useCallback(() => {

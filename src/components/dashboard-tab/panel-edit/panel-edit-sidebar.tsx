@@ -32,9 +32,7 @@ function ToggleOption({
       type="button"
       className={cn(
         "px-2.5 py-1 rounded-md border text-xs transition-colors",
-        selected
-          ? "bg-primary text-primary-foreground border-primary"
-          : "hover:bg-muted/50"
+        selected ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/50"
       )}
       onClick={onClick}
     >
@@ -61,11 +59,7 @@ function Section({
         className="flex items-center gap-1.5 w-full px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:bg-muted/30 transition-colors"
         onClick={() => setOpen(!open)}
       >
-        {open ? (
-          <ChevronDown className="h-3 w-3" />
-        ) : (
-          <ChevronRight className="h-3 w-3" />
-        )}
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         {title}
       </button>
       {open && <div className="px-3 pb-3 space-y-3">{children}</div>}
@@ -111,9 +105,7 @@ interface PanelEditSidebarProps {
   statOptions: StatOptions;
   onStatOptionsChange: (partial: Partial<StatOptions>) => void;
   timeseriesOptions: TimeseriesOptions;
-  onTimeseriesOptionsChange: (
-    partial: Partial<TimeseriesOptions>
-  ) => void;
+  onTimeseriesOptionsChange: (partial: Partial<TimeseriesOptions>) => void;
   pieOptions: PieOptions;
   onPieOptionsChange: (partial: Partial<PieOptions>) => void;
   gaugeOptions: GaugeOptions;
@@ -177,12 +169,7 @@ function PanelEditSidebarComponent({
           {/* Visualization type */}
           <Section title="Visualization">
             <div className="flex flex-wrap gap-1.5">
-              {(
-                Object.entries(CHART_TYPE_LABELS) as [
-                  ChartType,
-                  string,
-                ][]
-              ).map(([type, label]) => (
+              {(Object.entries(CHART_TYPE_LABELS) as [ChartType, string][]).map(([type, label]) => (
                 <ToggleOption
                   key={type}
                   selected={chartType === type}
@@ -196,14 +183,9 @@ function PanelEditSidebarComponent({
 
           {/* Type-specific options */}
           {chartType === "stat" && (
-            <StatOptionsSection
-              options={statOptions}
-              onChange={onStatOptionsChange}
-            />
+            <StatOptionsSection options={statOptions} onChange={onStatOptionsChange} />
           )}
-          {(chartType === "line" ||
-            chartType === "bar" ||
-            chartType === "area") && (
+          {(chartType === "line" || chartType === "bar" || chartType === "area") && (
             <TimeseriesOptionsSection
               chartType={chartType}
               options={timeseriesOptions}
@@ -211,22 +193,13 @@ function PanelEditSidebarComponent({
             />
           )}
           {chartType === "pie" && (
-            <PieOptionsSection
-              options={pieOptions}
-              onChange={onPieOptionsChange}
-            />
+            <PieOptionsSection options={pieOptions} onChange={onPieOptionsChange} />
           )}
           {chartType === "gauge" && (
-            <GaugeOptionsSection
-              options={gaugeOptions}
-              onChange={onGaugeOptionsChange}
-            />
+            <GaugeOptionsSection options={gaugeOptions} onChange={onGaugeOptionsChange} />
           )}
           {chartType === "table" && (
-            <TableOptionsSection
-              options={tableOptions}
-              onChange={onTableOptionsChange}
-            />
+            <TableOptionsSection options={tableOptions} onChange={onTableOptionsChange} />
           )}
 
           {/* Grid size */}
@@ -245,9 +218,7 @@ function PanelEditSidebarComponent({
                     <ToggleOption
                       key={opt.value}
                       selected={gridW === opt.value}
-                      onClick={() =>
-                        onGridSizeChange(opt.value, gridH)
-                      }
+                      onClick={() => onGridSizeChange(opt.value, gridH)}
                     >
                       {opt.label}
                     </ToggleOption>
@@ -268,9 +239,7 @@ function PanelEditSidebarComponent({
                     <ToggleOption
                       key={opt.value}
                       selected={gridH === opt.value}
-                      onClick={() =>
-                        onGridSizeChange(gridW, opt.value)
-                      }
+                      onClick={() => onGridSizeChange(gridW, opt.value)}
                     >
                       {opt.label}
                     </ToggleOption>
@@ -283,30 +252,12 @@ function PanelEditSidebarComponent({
           {/* Template variables reference */}
           <Section title="Variable Reference" defaultOpen={false}>
             <div className="space-y-1.5 text-[11px]">
-              <VarRow
-                name="{timeFilter}"
-                desc="Time range filter expression"
-              />
-              <VarRow
-                name="{filterExpression}"
-                desc="Combined filter conditions"
-              />
-              <VarRow
-                name="{from:String}"
-                desc="Start datetime string"
-              />
-              <VarRow
-                name="{to:String}"
-                desc="End datetime string"
-              />
-              <VarRow
-                name="{rounding:UInt32}"
-                desc="Time bucket size in seconds"
-              />
-              <VarRow
-                name="{seconds:UInt32}"
-                desc="Total time range in seconds"
-              />
+              <VarRow name="{timeFilter}" desc="Time range filter expression" />
+              <VarRow name="{filterExpression}" desc="Combined filter conditions" />
+              <VarRow name="{from:String}" desc="Start datetime string" />
+              <VarRow name="{to:String}" desc="End datetime string" />
+              <VarRow name="{rounding:UInt32}" desc="Time bucket size in seconds" />
+              <VarRow name="{seconds:UInt32}" desc="Total time range in seconds" />
             </div>
           </Section>
         </div>
@@ -370,10 +321,7 @@ function StatOptionsSection({
         </div>
         <div>
           <Label className="text-xs">Value Format</Label>
-          <FormatSelect
-            value={options.format}
-            onChange={(v) => onChange({ format: v })}
-          />
+          <FormatSelect value={options.format} onChange={(v) => onChange({ format: v })} />
         </div>
       </div>
     </Section>
@@ -419,9 +367,7 @@ function TimeseriesOptionsSection({
             <Label className="text-xs">Stacked</Label>
             <Switch
               checked={options.stacked}
-              onCheckedChange={(checked) =>
-                onChange({ stacked: checked })
-              }
+              onCheckedChange={(checked) => onChange({ stacked: checked })}
             />
           </div>
         )}
@@ -444,17 +390,15 @@ function PieOptionsSection({
         <div>
           <Label className="text-xs">Legend</Label>
           <div className="flex flex-wrap gap-1.5 mt-1">
-            {(["bottom", "inside", "right", "none"] as const).map(
-              (p) => (
-                <ToggleOption
-                  key={p}
-                  selected={options.legendPlacement === p}
-                  onClick={() => onChange({ legendPlacement: p })}
-                >
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                </ToggleOption>
-              )
-            )}
+            {(["bottom", "inside", "right", "none"] as const).map((p) => (
+              <ToggleOption
+                key={p}
+                selected={options.legendPlacement === p}
+                onClick={() => onChange({ legendPlacement: p })}
+              >
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </ToggleOption>
+            ))}
           </div>
         </div>
         <div>
@@ -497,9 +441,7 @@ function GaugeOptionsSection({
             <Input
               type="number"
               value={options.min}
-              onChange={(e) =>
-                onChange({ min: Number(e.target.value) })
-              }
+              onChange={(e) => onChange({ min: Number(e.target.value) })}
               className="h-7 text-xs mt-1"
             />
           </div>
@@ -508,9 +450,7 @@ function GaugeOptionsSection({
             <Input
               type="number"
               value={options.max}
-              onChange={(e) =>
-                onChange({ max: Number(e.target.value) })
-              }
+              onChange={(e) => onChange({ max: Number(e.target.value) })}
               className="h-7 text-xs mt-1"
             />
           </div>
@@ -542,18 +482,14 @@ function TableOptionsSection({
           <Label className="text-xs">Sticky Header</Label>
           <Switch
             checked={options.stickyHeader}
-            onCheckedChange={(checked) =>
-              onChange({ stickyHeader: checked })
-            }
+            onCheckedChange={(checked) => onChange({ stickyHeader: checked })}
           />
         </div>
         <div className="flex items-center justify-between">
           <Label className="text-xs">Server-side Sorting</Label>
           <Switch
             checked={options.serverSideSorting}
-            onCheckedChange={(checked) =>
-              onChange({ serverSideSorting: checked })
-            }
+            onCheckedChange={(checked) => onChange({ serverSideSorting: checked })}
           />
         </div>
       </div>
@@ -562,13 +498,7 @@ function TableOptionsSection({
 }
 
 // --- Format Select (common for value formats) ---
-function FormatSelect({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
+function FormatSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <SimpleSelect
       value={value}

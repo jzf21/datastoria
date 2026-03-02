@@ -5,43 +5,30 @@ import type {
   PanelDescriptor,
 } from "@/components/shared/dashboard/dashboard-model";
 import DashboardPage from "@/components/shared/dashboard/dashboard-page";
+import { TabManager } from "@/components/tab-manager";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Check,
-  Edit2,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, Edit2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  CustomDashboardStorage,
-  type CustomDashboardConfig,
-} from "./custom-dashboard-storage";
-import { PanelEditView } from "./panel-edit/panel-edit-view";
-import { TabManager } from "@/components/tab-manager";
 import {
   CustomDashboardContext,
   type CustomDashboardPanelActions,
 } from "./custom-dashboard-context";
+import { CustomDashboardStorage, type CustomDashboardConfig } from "./custom-dashboard-storage";
+import { PanelEditView } from "./panel-edit/panel-edit-view";
 
 interface CustomDashboardTabProps {
   dashboardId: string;
   dashboardName?: string;
 }
 
-const CustomDashboardTabComponent = ({
-  dashboardId,
-  dashboardName,
-}: CustomDashboardTabProps) => {
+const CustomDashboardTabComponent = ({ dashboardId, dashboardName }: CustomDashboardTabProps) => {
   const storage = CustomDashboardStorage.getInstance();
 
   // Load dashboard config from storage
@@ -54,7 +41,6 @@ const CustomDashboardTabComponent = ({
 
   // Track the rendered dashboard key to force re-render after edits
   const [dashboardKey, setDashboardKey] = useState(0);
-
 
   // Load from storage on mount
   useEffect(() => {
@@ -94,10 +80,7 @@ const CustomDashboardTabComponent = ({
     setIsEditing(false);
 
     // Update tab title
-    TabManager.updateTabTitle(
-      `custom-dashboard:${dashboardId}`,
-      trimmed
-    );
+    TabManager.updateTabTitle(`custom-dashboard:${dashboardId}`, trimmed);
   }, [config, editingName, saveConfig, dashboardId]);
 
   // Save panel (create or update)
@@ -151,10 +134,7 @@ const CustomDashboardTabComponent = ({
     return CustomDashboardStorage.toDashboard(config);
   }, [config, dashboardKey]);
 
-  const allPanels = useMemo(
-    () => (config ? flattenPanels(config.panels) : []),
-    [config]
-  );
+  const allPanels = useMemo(() => (config ? flattenPanels(config.panels) : []), [config]);
 
   // Context value for per-widget edit/delete actions
   const panelActions = useMemo<CustomDashboardPanelActions>(
@@ -283,7 +263,6 @@ const CustomDashboardTabComponent = ({
           }}
         />
       )}
-
     </div>
   );
 };
@@ -295,7 +274,13 @@ function EmptyDashboardState({ onAddPanel }: { onAddPanel: () => void }) {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center p-8">
       <div className="text-muted-foreground mb-4">
-        <svg className="h-16 w-16 mx-auto mb-4 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <svg
+          className="h-16 w-16 mx-auto mb-4 opacity-30"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        >
           <rect x="3" y="3" width="7" height="7" rx="1" />
           <rect x="14" y="3" width="7" height="7" rx="1" />
           <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -378,9 +363,7 @@ function isDashboardGroup(item: PanelDescriptor | DashboardGroup): item is Dashb
 /**
  * Flatten panels from dashboard config (handles groups)
  */
-function flattenPanels(
-  panels: (PanelDescriptor | DashboardGroup)[]
-): PanelDescriptor[] {
+function flattenPanels(panels: (PanelDescriptor | DashboardGroup)[]): PanelDescriptor[] {
   const result: PanelDescriptor[] = [];
   for (const item of panels) {
     if (isDashboardGroup(item)) {

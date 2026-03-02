@@ -158,9 +158,7 @@ function ToggleOption({
       type="button"
       className={cn(
         "px-3 py-1.5 rounded-md border text-sm transition-colors",
-        selected
-          ? "bg-primary text-primary-foreground border-primary"
-          : "hover:bg-muted/50"
+        selected ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/50"
       )}
       onClick={onClick}
     >
@@ -289,20 +287,14 @@ const PanelConfigDialogComponent = ({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {isEditMode ? "Edit Panel" : "Add Panel"}
-          </DialogTitle>
+          <DialogTitle>{isEditMode ? "Edit Panel" : "Add Panel"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {/* Widget templates toggle */}
           {!isEditMode && (
             <div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowTemplates(!showTemplates)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setShowTemplates(!showTemplates)}>
                 {showTemplates ? "Hide Templates" : "Use Built-in Template"}
               </Button>
 
@@ -316,9 +308,7 @@ const PanelConfigDialogComponent = ({
                       onClick={() => applyTemplate(t)}
                     >
                       <div className="text-sm font-medium">{t.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {t.description}
-                      </div>
+                      <div className="text-xs text-muted-foreground">{t.description}</div>
                     </button>
                   ))}
                 </div>
@@ -330,17 +320,15 @@ const PanelConfigDialogComponent = ({
           <div className="space-y-2">
             <Label>Chart Type</Label>
             <div className="flex flex-wrap gap-2">
-              {(Object.entries(CHART_TYPE_LABELS) as [ChartType, string][]).map(
-                ([type, label]) => (
-                  <ToggleOption
-                    key={type}
-                    selected={chartType === type}
-                    onClick={() => setChartType(type)}
-                  >
-                    {label}
-                  </ToggleOption>
-                )
-              )}
+              {(Object.entries(CHART_TYPE_LABELS) as [ChartType, string][]).map(([type, label]) => (
+                <ToggleOption
+                  key={type}
+                  selected={chartType === type}
+                  onClick={() => setChartType(type)}
+                >
+                  {label}
+                </ToggleOption>
+              ))}
             </div>
           </div>
 
@@ -366,9 +354,8 @@ const PanelConfigDialogComponent = ({
               className="font-mono text-sm min-h-[120px]"
             />
             <p className="text-xs text-muted-foreground">
-              Supported template variables: {"{timeFilter}"},{" "}
-              {"{filterExpression}"}, {"{from:String}"}, {"{to:String}"},{" "}
-              {"{rounding:UInt32}"}, {"{seconds:UInt32}"}
+              Supported template variables: {"{timeFilter}"}, {"{filterExpression}"},{" "}
+              {"{from:String}"}, {"{to:String}"}, {"{rounding:UInt32}"}, {"{seconds:UInt32}"}
             </p>
           </div>
 

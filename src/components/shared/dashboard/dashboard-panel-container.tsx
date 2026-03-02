@@ -13,11 +13,11 @@ import React, {
   useState,
 } from "react";
 import type { Dashboard, DashboardGroup, PanelDescriptor } from "./dashboard-model";
+import { DashboardSection } from "./dashboard-section";
 import type {
   DashboardVisualizationComponent,
   RefreshOptions,
 } from "./dashboard-visualization-layout";
-import { DashboardSection } from "./dashboard-section";
 import type { TimeSpan } from "./timespan-selector";
 
 export interface DashboardPanelContainerRef {
@@ -166,7 +166,9 @@ const DashboardPanelContainer = forwardRef<
     // Track individual panel collapse states (keyed by global panel index)
     const [panelCollapseStates, setPanelCollapseStates] = useState<Map<number, boolean>>(new Map());
     // Track section collapse states (keyed by section index) - local state, not persisted
-    const [sectionCollapseStates, setSectionCollapseStates] = useState<Map<number, boolean>>(new Map());
+    const [sectionCollapseStates, setSectionCollapseStates] = useState<Map<number, boolean>>(
+      new Map()
+    );
     const subComponentRefs = useRef<(DashboardVisualizationComponent | null)[]>([]);
 
     // Track registered refreshable children
@@ -248,18 +250,25 @@ const DashboardPanelContainer = forwardRef<
     sectionsRef.current = sections;
 
     // Track pending collapse change to notify parent after state update
-    const pendingCollapseChangeRef = useRef<{ sectionIndex: number; collapsed: boolean } | null>(null);
+    const pendingCollapseChangeRef = useRef<{ sectionIndex: number; collapsed: boolean } | null>(
+      null
+    );
 
     // Toggle section collapse - uses local state, optionally notifies parent
     const handleSectionToggle = useCallback((sectionIndex: number) => {
-      console.log('[handleSectionToggle] Called for section:', sectionIndex);
-      const section = sectionsRef.current.find(s => s.sectionIndex === sectionIndex);
+      console.log("[handleSectionToggle] Called for section:", sectionIndex);
+      const section = sectionsRef.current.find((s) => s.sectionIndex === sectionIndex);
       const configCollapsed = section?.group?.collapsed ?? false;
 
       setSectionCollapseStates((prev) => {
         const currentCollapsed = prev.has(sectionIndex) ? prev.get(sectionIndex)! : configCollapsed;
         const newCollapsed = !currentCollapsed;
-        console.log('[handleSectionToggle] Previous state:', currentCollapsed, '-> New state:', newCollapsed);
+        console.log(
+          "[handleSectionToggle] Previous state:",
+          currentCollapsed,
+          "-> New state:",
+          newCollapsed
+        );
 
         // Store pending change to notify parent after render
         pendingCollapseChangeRef.current = { sectionIndex, collapsed: newCollapsed };
@@ -384,7 +393,14 @@ const DashboardPanelContainer = forwardRef<
             {sections.map((section) => {
               // Use local state for collapse only (no persistence)
               const isCollapsed = sectionCollapseStates.get(section.sectionIndex) ?? false;
-              console.log('[Container] Rendering section:', section.sectionIndex, 'isCollapsed:', isCollapsed, 'stateMap:', Array.from(sectionCollapseStates.entries()));
+              console.log(
+                "[Container] Rendering section:",
+                section.sectionIndex,
+                "isCollapsed:",
+                isCollapsed,
+                "stateMap:",
+                Array.from(sectionCollapseStates.entries())
+              );
 
               return (
                 <DashboardSection
@@ -404,8 +420,14 @@ const DashboardPanelContainer = forwardRef<
                   onPanelCollapsedChange={onPanelCollapsedChange}
                   onChartSelection={onChartSelection}
                   showEditControls={showSectionEditControls && section.group !== null}
-                  onRename={onSectionRename ? (title) => onSectionRename(section.sectionIndex, title) : undefined}
-                  onDelete={onSectionDelete ? () => onSectionDelete(section.sectionIndex) : undefined}
+                  onRename={
+                    onSectionRename
+                      ? (title) => onSectionRename(section.sectionIndex, title)
+                      : undefined
+                  }
+                  onDelete={
+                    onSectionDelete ? () => onSectionDelete(section.sectionIndex) : undefined
+                  }
                 />
               );
             })}

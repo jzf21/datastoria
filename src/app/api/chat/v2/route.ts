@@ -111,8 +111,6 @@ export async function POST(req: Request) {
   try {
     const userEmail = getAuthenticatedUserEmail(req);
 
-    console.log("userEmail", userEmail);
-
     let apiRequest: ChatV2Request;
     try {
       const text = await req.text();
@@ -212,7 +210,9 @@ export async function POST(req: Request) {
         validate_sql: ClientTools.validate_sql,
         execute_sql: ClientTools.execute_sql,
         collect_sql_optimization_evidence: ClientTools.collect_sql_optimization_evidence,
+        // DEPRECATED: kept for backward compatibility.
         find_expensive_queries: ClientTools.find_expensive_queries,
+        collect_cluster_status: ClientTools.collect_cluster_status,
       },
       stopWhen: stepCountIs(10),
       temperature,

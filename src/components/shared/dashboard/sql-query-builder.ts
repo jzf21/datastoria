@@ -101,7 +101,11 @@ export class SQLQueryBuilder {
    * @param timeColumn The column name to use in {timeFilter} expression (defaults to "event_time")
    * @returns this builder for chaining
    */
-  timeSpan(timeSpan: TimeSpan | undefined, timezone: string, timeColumn: string = "event_time"): this {
+  timeSpan(
+    timeSpan: TimeSpan | undefined,
+    timezone: string,
+    timeColumn: string = "event_time"
+  ): this {
     if (timeSpan) {
       this.sql = SQLQueryBuilder.replaceTimeSpanParams(this.sql, timeSpan, timezone, timeColumn);
     }

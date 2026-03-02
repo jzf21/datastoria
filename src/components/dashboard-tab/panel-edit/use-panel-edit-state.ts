@@ -12,14 +12,7 @@ import type {
 } from "@/components/shared/dashboard/dashboard-model";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type ChartType =
-  | "stat"
-  | "line"
-  | "bar"
-  | "area"
-  | "pie"
-  | "gauge"
-  | "table";
+export type ChartType = "stat" | "line" | "bar" | "area" | "pie" | "gauge" | "table";
 
 export const CHART_TYPE_LABELS: Record<ChartType, string> = {
   stat: "Stat",
@@ -179,9 +172,7 @@ const DEFAULT_TIMESERIES_OPTIONS: TimeseriesOptions = {
   stacked: false,
 };
 
-function legendValuesToReducers(
-  preset: "simple" | "detailed" | "full"
-): Reducer[] {
+function legendValuesToReducers(preset: "simple" | "detailed" | "full"): Reducer[] {
   switch (preset) {
     case "simple":
       return ["avg"];
@@ -192,9 +183,7 @@ function legendValuesToReducers(
   }
 }
 
-function reducersToLegendValues(
-  values?: Reducer[]
-): "simple" | "detailed" | "full" {
+function reducersToLegendValues(values?: Reducer[]): "simple" | "detailed" | "full" {
   if (!values || values.length <= 1) return "simple";
   if (values.length <= 3) return "detailed";
   return "full";
@@ -236,32 +225,23 @@ export interface PanelEditState {
 
 export function usePanelEditState(editingPanel?: PanelDescriptor | null) {
   // Preserved original descriptor for merging non-UI options
-  const originalDescriptorRef = useRef<PanelDescriptor | null>(
-    editingPanel ?? null
-  );
+  const originalDescriptorRef = useRef<PanelDescriptor | null>(editingPanel ?? null);
 
   const [chartType, setChartTypeState] = useState<ChartType>(() =>
     editingPanel ? (editingPanel.type as ChartType) : "line"
   );
-  const [title, setTitleState] = useState(
-    () => editingPanel?.titleOption?.title ?? ""
-  );
-  const [sql, setSqlState] = useState(
-    () => editingPanel?.datasource?.sql ?? ""
-  );
+  const [title, setTitleState] = useState(() => editingPanel?.titleOption?.title ?? "");
+  const [sql, setSqlState] = useState(() => editingPanel?.datasource?.sql ?? "");
   const [gridW, setGridW] = useState(() => editingPanel?.gridPos?.w ?? 12);
   const [gridH, setGridH] = useState(() => editingPanel?.gridPos?.h ?? 6);
 
   const [statOptions, setStatOptions] = useState<StatOptions>(() =>
     extractStatOptions(editingPanel)
   );
-  const [timeseriesOptions, setTimeseriesOptions] =
-    useState<TimeseriesOptions>(() =>
-      extractTimeseriesOptions(editingPanel)
-    );
-  const [pieOptions, setPieOptions] = useState<PieOptions>(() =>
-    extractPieOptions(editingPanel)
+  const [timeseriesOptions, setTimeseriesOptions] = useState<TimeseriesOptions>(() =>
+    extractTimeseriesOptions(editingPanel)
   );
+  const [pieOptions, setPieOptions] = useState<PieOptions>(() => extractPieOptions(editingPanel));
   const [gaugeOptions, setGaugeOptions] = useState<GaugeOptions>(() =>
     extractGaugeOptions(editingPanel)
   );
@@ -269,22 +249,23 @@ export function usePanelEditState(editingPanel?: PanelDescriptor | null) {
     extractTableOptions(editingPanel)
   );
 
-  const [previewDescriptor, setPreviewDescriptor] =
-    useState<PanelDescriptor | null>(() =>
-      editingPanel ? buildDescriptorFromState(
-        editingPanel.type as ChartType,
-        editingPanel.titleOption?.title ?? "",
-        editingPanel.datasource?.sql ?? "",
-        editingPanel.gridPos?.w ?? 12,
-        editingPanel.gridPos?.h ?? 6,
-        extractStatOptions(editingPanel),
-        extractTimeseriesOptions(editingPanel),
-        extractPieOptions(editingPanel),
-        extractGaugeOptions(editingPanel),
-        extractTableOptions(editingPanel),
-        editingPanel
-      ) : null
-    );
+  const [previewDescriptor, setPreviewDescriptor] = useState<PanelDescriptor | null>(() =>
+    editingPanel
+      ? buildDescriptorFromState(
+          editingPanel.type as ChartType,
+          editingPanel.titleOption?.title ?? "",
+          editingPanel.datasource?.sql ?? "",
+          editingPanel.gridPos?.w ?? 12,
+          editingPanel.gridPos?.h ?? 6,
+          extractStatOptions(editingPanel),
+          extractTimeseriesOptions(editingPanel),
+          extractPieOptions(editingPanel),
+          extractGaugeOptions(editingPanel),
+          extractTableOptions(editingPanel),
+          editingPanel
+        )
+      : null
+  );
   const [previewKey, setPreviewKey] = useState(0);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -509,9 +490,7 @@ export function usePanelEditState(editingPanel?: PanelDescriptor | null) {
 
 // --- Helper functions ---
 
-function extractStatOptions(
-  panel?: PanelDescriptor | null
-): StatOptions {
+function extractStatOptions(panel?: PanelDescriptor | null): StatOptions {
   if (!panel || panel.type !== "stat") return DEFAULT_STAT_OPTIONS;
   const d = panel as StatDescriptor;
   return {
@@ -521,13 +500,8 @@ function extractStatOptions(
   };
 }
 
-function extractTimeseriesOptions(
-  panel?: PanelDescriptor | null
-): TimeseriesOptions {
-  if (
-    !panel ||
-    (panel.type !== "line" && panel.type !== "bar" && panel.type !== "area")
-  )
+function extractTimeseriesOptions(panel?: PanelDescriptor | null): TimeseriesOptions {
+  if (!panel || (panel.type !== "line" && panel.type !== "bar" && panel.type !== "area"))
     return DEFAULT_TIMESERIES_OPTIONS;
   const d = panel as TimeseriesDescriptor;
   const placement = d.legendOption?.placement;
@@ -538,8 +512,7 @@ function extractTimeseriesOptions(
   let legendPlacement: TimeseriesOptions["legendPlacement"];
   if (mode) {
     legendMode = mode;
-    legendPlacement =
-      placement === "right" ? "right" : "bottom";
+    legendPlacement = placement === "right" ? "right" : "bottom";
   } else if (placement === "none") {
     legendMode = "none";
     legendPlacement = "bottom";
@@ -561,9 +534,7 @@ function extractTimeseriesOptions(
   };
 }
 
-function extractPieOptions(
-  panel?: PanelDescriptor | null
-): PieOptions {
+function extractPieOptions(panel?: PanelDescriptor | null): PieOptions {
   if (!panel || panel.type !== "pie") return DEFAULT_PIE_OPTIONS;
   const d = panel as PieDescriptor;
   return {
@@ -572,9 +543,7 @@ function extractPieOptions(
   };
 }
 
-function extractGaugeOptions(
-  panel?: PanelDescriptor | null
-): GaugeOptions {
+function extractGaugeOptions(panel?: PanelDescriptor | null): GaugeOptions {
   if (!panel || panel.type !== "gauge") return DEFAULT_GAUGE_OPTIONS;
   const d = panel as GaugeDescriptor;
   return {
@@ -584,9 +553,7 @@ function extractGaugeOptions(
   };
 }
 
-function extractTableOptions(
-  panel?: PanelDescriptor | null
-): TableOptions {
+function extractTableOptions(panel?: PanelDescriptor | null): TableOptions {
   if (!panel || panel.type !== "table") return DEFAULT_TABLE_OPTIONS;
   const d = panel as TableDescriptor;
   return {
@@ -620,9 +587,8 @@ function buildDescriptorFromState(
   // Preserve any fields from the original descriptor that aren't managed by the UI
   switch (chartType) {
     case "stat": {
-      const original = originalDescriptor?.type === "stat"
-        ? (originalDescriptor as StatDescriptor)
-        : undefined;
+      const original =
+        originalDescriptor?.type === "stat" ? (originalDescriptor as StatDescriptor) : undefined;
       return {
         ...base,
         type: "stat",
@@ -659,9 +625,7 @@ function buildDescriptorFromState(
     }
     case "pie": {
       const original =
-        originalDescriptor?.type === "pie"
-          ? (originalDescriptor as PieDescriptor)
-          : undefined;
+        originalDescriptor?.type === "pie" ? (originalDescriptor as PieDescriptor) : undefined;
       return {
         ...base,
         type: "pie",
@@ -676,9 +640,7 @@ function buildDescriptorFromState(
     }
     case "gauge": {
       const original =
-        originalDescriptor?.type === "gauge"
-          ? (originalDescriptor as GaugeDescriptor)
-          : undefined;
+        originalDescriptor?.type === "gauge" ? (originalDescriptor as GaugeDescriptor) : undefined;
       return {
         ...base,
         type: "gauge",
@@ -693,9 +655,7 @@ function buildDescriptorFromState(
     }
     case "table": {
       const original =
-        originalDescriptor?.type === "table"
-          ? (originalDescriptor as TableDescriptor)
-          : undefined;
+        originalDescriptor?.type === "table" ? (originalDescriptor as TableDescriptor) : undefined;
       return {
         ...base,
         type: "table",

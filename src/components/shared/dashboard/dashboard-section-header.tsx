@@ -1,10 +1,10 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronRight, Pencil, Trash2, Check, X } from "lucide-react";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
+import { Check, ChevronRight, Pencil, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface SectionHeaderProps {
   /** Section title */
@@ -102,7 +102,7 @@ export function SectionHeader({
       <button
         type="button"
         onClick={() => {
-          console.log('[SectionHeader] Click - isCollapsed:', isCollapsed);
+          console.log("[SectionHeader] Click - isCollapsed:", isCollapsed);
           onToggleCollapse();
         }}
         className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"

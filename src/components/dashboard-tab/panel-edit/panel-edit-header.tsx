@@ -21,9 +21,7 @@ function PanelEditHeaderComponent({
 }: PanelEditHeaderProps) {
   const handleDiscard = useCallback(() => {
     if (isDirty) {
-      const confirmed = window.confirm(
-        "You have unsaved changes. Discard them?"
-      );
+      const confirmed = window.confirm("You have unsaved changes. Discard them?");
       if (!confirmed) return;
     }
     onDiscard();
@@ -77,12 +75,7 @@ function PanelEditHeaderComponent({
       </Button>
 
       {/* Apply */}
-      <Button
-        size="sm"
-        className="h-8"
-        onClick={onApply}
-        disabled={!isValid}
-      >
+      <Button size="sm" className="h-8" onClick={onApply} disabled={!isValid}>
         Apply
       </Button>
 
