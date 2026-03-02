@@ -1,11 +1,12 @@
 "use client";
 
+import { StatusPopover } from "@/components/connection/connection-edit-component";
 import { TabManager } from "@/components/tab-manager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Connection } from "@/lib/connection/connection";
 import { hostNameManager } from "@/lib/host-name-manager";
-import { LayoutDashboard, Monitor, Network, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, LayoutDashboard, Monitor, Network, Plus, Trash2 } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import { CustomDashboardStorage, type CustomDashboardConfig } from "./custom-dashboard-storage";
 
@@ -23,6 +24,7 @@ const DashboardListComponent = ({ onClose, connection }: DashboardListProps) => 
   const [dashboards, setDashboards] = useState<CustomDashboardConfig[]>(() => storage.getAll());
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const refreshList = useCallback(() => {
     setDashboards(storage.getAll());
@@ -58,14 +60,18 @@ const DashboardListComponent = ({ onClose, connection }: DashboardListProps) => 
     [onClose]
   );
 
-  const handleDelete = useCallback(
-    (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      storage.delete(id);
+  const handleDeleteClick = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletingId(id);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (deletingId) {
+      storage.delete(deletingId);
+      setDeletingId(null);
       refreshList();
-    },
-    [storage, refreshList]
-  );
+    }
+  }, [deletingId, storage, refreshList]);
 
   const isClusterMode = connection?.cluster && connection.cluster.length > 0;
 
@@ -154,12 +160,36 @@ const DashboardListComponent = ({ onClose, connection }: DashboardListProps) => 
         >
           <LayoutDashboard className="h-4 w-4 shrink-0" />
           <span className="truncate flex-1 text-left">{db.name}</span>
-          <button
-            className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity shrink-0"
-            onClick={(e) => handleDelete(db.id, e)}
+          <StatusPopover
+            open={deletingId === db.id}
+            onOpenChange={(open) => setDeletingId(open ? db.id : null)}
+            trigger={
+              <button
+                className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity shrink-0"
+                onClick={(e) => handleDeleteClick(db.id, e)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            }
+            side="left"
+            align="end"
+            icon={
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+            }
+            title="Confirm deletion"
           >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+            <div className="text-xs mb-3">
+              Are you sure to delete this dashboard? This action cannot be reverted.
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setDeletingId(null)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" size="sm" onClick={handleDeleteConfirm}>
+                Delete
+              </Button>
+            </div>
+          </StatusPopover>
         </div>
       ))}
     </div>
