@@ -40,9 +40,6 @@ export const MessageToolExploreSchema = memo(function MessageToolExploreSchema({
               <TableHeader className="bg-muted/50">
                 <TableRow className="hover:bg-transparent border-b">
                   <TableHead className="h-7 px-2 font-bold text-muted-foreground border-r last:border-r-0">
-                    database
-                  </TableHead>
-                  <TableHead className="h-7 px-2 font-bold text-muted-foreground border-r last:border-r-0">
                     table
                   </TableHead>
                   <TableHead className="h-7 px-2 font-bold text-muted-foreground border-r last:border-r-0">
@@ -53,9 +50,6 @@ export const MessageToolExploreSchema = memo(function MessageToolExploreSchema({
               <TableBody>
                 {input.tables.map((t: TableSchemaInput, idx: number) => (
                   <TableRow key={idx} className="hover:bg-muted/30 border-b last:border-0">
-                    <TableCell className="py-1 px-2 whitespace-nowrap border-r last:border-r-0">
-                      {t.database}
-                    </TableCell>
                     <TableCell className="py-1 px-2 whitespace-nowrap border-r last:border-r-0">
                       {t.table}
                     </TableCell>
@@ -77,8 +71,17 @@ export const MessageToolExploreSchema = memo(function MessageToolExploreSchema({
               {output.map((table, tableIdx: number) => (
                 <div key={tableIdx} className="mb-2 last:mb-0">
                   <div className="bg-muted/50 px-2 py-1 text-[10px] font-bold border-b">
-                    {table.database}.{table.table} ({table.columns?.length || 0} columns)
+                    {table.database}.{table.table} (
+                    {table.truncated
+                      ? `${table.columns?.length || 0} of ${table.totalColumns} columns`
+                      : `${table.totalColumns} columns`}
+                    )
                   </div>
+                  {table.truncated && table.guidance && (
+                    <div className="bg-amber-50 text-amber-900 px-2 py-1.5 border-b text-[10px]">
+                      {table.guidance}
+                    </div>
+                  )}
                   {(table.primaryKey || table.partitionBy) && (
                     <div className="bg-muted/30 px-2 py-1.5 border-b text-[10px] space-y-0.5">
                       {table.primaryKey && (
