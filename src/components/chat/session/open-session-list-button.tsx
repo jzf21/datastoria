@@ -1,34 +1,34 @@
 "use client";
 
+import { useChatPanel } from "@/components/chat/view/use-chat-panel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Clock } from "lucide-react";
 import * as React from "react";
-import { ChatHistoryList } from "./chat-history-list";
+import { ChatSessionList } from "./chat-session-list";
 
 interface OpenHistoryButtonProps {
   disabled?: boolean;
   currentChatId: string;
   onNewChat: () => void;
   onSelectChat?: (id: string) => void;
-  onClearCurrentChat?: () => void;
   variant?: "ghost" | "outline" | "secondary";
   className?: string;
   iconClassName?: string;
   align?: "center" | "end" | "start";
 }
 
-export const OpenHistoryButton: React.FC<OpenHistoryButtonProps> = ({
+export const OpenSessionListButton: React.FC<OpenHistoryButtonProps> = ({
   disabled = false,
   currentChatId,
   onNewChat,
   onSelectChat,
-  onClearCurrentChat,
   variant = "ghost",
   className = "h-7 w-7",
   iconClassName = "h-4 w-4",
   align = "end",
 }) => {
+  const { requestNewChat } = useChatPanel();
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -45,15 +45,14 @@ export const OpenHistoryButton: React.FC<OpenHistoryButtonProps> = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align={align} sideOffset={5}>
-        <ChatHistoryList
+        <ChatSessionList
           currentChatId={currentChatId}
           onNewChat={() => {
-            onNewChat();
+            (requestNewChat ?? onNewChat)();
             setOpen(false);
           }}
           onClose={() => setOpen(false)}
           onSelectChat={onSelectChat}
-          onClearCurrentChat={onClearCurrentChat}
         />
       </PopoverContent>
     </Popover>
