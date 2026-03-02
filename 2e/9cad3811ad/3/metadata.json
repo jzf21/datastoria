@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "2e9cad3811ad",
+  "session_id": "303699b5-d941-414a-ae3b-99bd19e819b5",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-02T15:40:35.347333Z",
+  "branch": "feature/customisable-dashboard-experimental",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/plans/2026-02-28-unified-dashboard-sidebar-design.md",
+    "docs/plans/2026-02-28-unified-dashboard-sidebar.md"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "ed7ca0ae-f72f-46e6-8f73-3cc35d8896e9",
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 59535,
+    "cache_read_tokens": 1396934,
+    "output_tokens": 8925,
+    "api_call_count": 26
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-02T15:40:35.246495Z",
+    "agent_lines": 0,
+    "human_added": 13317,
+    "human_modified": 343,
+    "human_removed": 0,
+    "total_committed": 13660,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-actio-codebase-datastoria/303699b5-d941-414a-ae3b-99bd19e819b5.jsonl"
+}

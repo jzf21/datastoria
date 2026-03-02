@@ -3,8 +3,10 @@
   "checkpoint_id": "2e9cad3811ad",
   "strategy": "manual-commit",
   "branch": "feature/customisable-dashboard-experimental",
-  "checkpoints_count": 4,
+  "checkpoints_count": 5,
   "files_touched": [
+    "docs/plans/2026-02-28-unified-dashboard-sidebar-design.md",
+    "docs/plans/2026-02-28-unified-dashboard-sidebar.md",
     "src/components/dashboard-tab/custom-dashboard-tab.tsx",
     "src/components/dashboard-tab/panel-edit/panel-edit-header.tsx",
     "src/components/dashboard-tab/panel-edit/panel-edit-preview.tsx",
@@ -37,13 +39,20 @@
       "context": "/2e/9cad3811ad/2/context.md",
       "content_hash": "/2e/9cad3811ad/2/content_hash.txt",
       "prompt": "/2e/9cad3811ad/2/prompt.txt"
+    },
+    {
+      "metadata": "/2e/9cad3811ad/3/metadata.json",
+      "transcript": "/2e/9cad3811ad/3/full.jsonl",
+      "context": "/2e/9cad3811ad/3/context.md",
+      "content_hash": "/2e/9cad3811ad/3/content_hash.txt",
+      "prompt": "/2e/9cad3811ad/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 164,
-    "cache_creation_tokens": 290353,
-    "cache_read_tokens": 7313166,
-    "output_tokens": 53287,
-    "api_call_count": 79
+    "input_tokens": 198,
+    "cache_creation_tokens": 349888,
+    "cache_read_tokens": 8710100,
+    "output_tokens": 62212,
+    "api_call_count": 105
   }
 }
