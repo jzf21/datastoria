@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { getPanelConstraints, type PanelConstraints } from '../dashboard-layout-constraints';
+import { describe, expect, it } from "vitest";
+import { getPanelConstraints, type PanelConstraints } from "../dashboard-layout-constraints";
 
-describe('dashboard-layout-constraints', () => {
-  it('returns constraints for stat panel', () => {
-    const constraints = getPanelConstraints('stat');
+describe("dashboard-layout-constraints", () => {
+  it("returns constraints for stat panel", () => {
+    const constraints = getPanelConstraints("stat");
     expect(constraints).toEqual({
       minW: 3,
       minH: 2,
@@ -12,8 +12,8 @@ describe('dashboard-layout-constraints', () => {
     });
   });
 
-  it('returns constraints for table panel', () => {
-    const constraints = getPanelConstraints('table');
+  it("returns constraints for table panel", () => {
+    const constraints = getPanelConstraints("table");
     expect(constraints).toEqual({
       minW: 6,
       minH: 3,
@@ -22,8 +22,8 @@ describe('dashboard-layout-constraints', () => {
     });
   });
 
-  it('returns constraints for timeseries panel types', () => {
-    for (const type of ['line', 'bar', 'area']) {
+  it("returns constraints for timeseries panel types", () => {
+    for (const type of ["line", "bar", "area"]) {
       const constraints = getPanelConstraints(type);
       expect(constraints).toEqual({
         minW: 6,
@@ -34,8 +34,8 @@ describe('dashboard-layout-constraints', () => {
     }
   });
 
-  it('returns default constraints for unknown type', () => {
-    const constraints = getPanelConstraints('unknown');
+  it("returns default constraints for unknown type", () => {
+    const constraints = getPanelConstraints("unknown");
     expect(constraints.minW).toBeGreaterThan(0);
     expect(constraints.minH).toBeGreaterThan(0);
   });
