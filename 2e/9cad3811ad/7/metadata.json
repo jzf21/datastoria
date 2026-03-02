@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "2e9cad3811ad",
+  "session_id": "70885f41-623f-4b68-8e43-bf6c014ac4bf",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-02T15:40:36.618425Z",
+  "branch": "feature/customisable-dashboard-experimental",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".claude/settings.local.json",
+    "src/components/cluster-tab/cluster-tab.tsx",
+    "src/components/dashboard-tab/custom-dashboard-tab.tsx",
+    "src/components/node-tab/node-tab.tsx",
+    "src/components/shared/dashboard/__tests__/dashboard-layout-constraints.test.ts",
+    "src/components/shared/dashboard/__tests__/dashboard-layout-storage.test.ts",
+    "src/components/shared/dashboard/dashboard-layout-constraints.ts",
+    "src/components/shared/dashboard/dashboard-layout-storage.ts",
+    "src/components/system-table-tab/dashboards.tsx",
+    "src/components/system-table-tab/distributed-ddl-queue.tsx",
+    "src/components/system-table-tab/opentelemetry-span-log.tsx",
+    "src/components/system-table-tab/part-log.tsx",
+    "src/components/system-table-tab/processes.tsx",
+    "src/components/system-table-tab/query-log.tsx",
+    "src/components/system-table-tab/query-views-log.tsx"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 1016,
+    "cache_creation_tokens": 322721,
+    "cache_read_tokens": 12530550,
+    "output_tokens": 6477,
+    "api_call_count": 142
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-02T15:40:36.274133Z",
+    "agent_lines": 183,
+    "human_added": 12853,
+    "human_modified": 326,
+    "human_removed": 0,
+    "total_committed": 13358,
+    "agent_percentage": 1.3699655637071417
+  },
+  "transcript_path": ".claude/projects/-Users-actio-codebase-datastoria/70885f41-623f-4b68-8e43-bf6c014ac4bf.jsonl"
+}
