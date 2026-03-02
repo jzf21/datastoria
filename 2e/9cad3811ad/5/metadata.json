@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "2e9cad3811ad",
+  "session_id": "4ebf1a23-1402-4546-a368-d216c007d2a8",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-02T15:40:35.760692Z",
+  "branch": "feature/customisable-dashboard-experimental",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/lib/ai/skills/optimization/SKILL.md"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 31818,
+    "cache_read_tokens": 146951,
+    "output_tokens": 593,
+    "api_call_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-02T15:40:35.754757Z",
+    "agent_lines": 0,
+    "human_added": 9254,
+    "human_modified": 459,
+    "human_removed": 0,
+    "total_committed": 9254,
+    "agent_percentage": 0
+  },
+  "transcript_path": ".claude/projects/-Users-actio-codebase-datastoria/4ebf1a23-1402-4546-a368-d216c007d2a8.jsonl"
+}
