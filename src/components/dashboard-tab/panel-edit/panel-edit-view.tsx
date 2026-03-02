@@ -37,8 +37,6 @@ function PanelEditViewComponent({
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Header */}
       <PanelEditHeader
-        title={state.title}
-        onTitleChange={state.setTitle}
         onRunQuery={state.runQuery}
         onApply={handleApply}
         onDiscard={onDiscard}
@@ -78,6 +76,8 @@ function PanelEditViewComponent({
           {/* Right: Configuration sidebar */}
           <Panel defaultSize={35} minSize={20} maxSize={50}>
             <PanelEditSidebar
+              title={state.title}
+              onTitleChange={state.setTitle}
               chartType={state.chartType}
               onChartTypeChange={state.setChartType}
               gridW={state.gridW}

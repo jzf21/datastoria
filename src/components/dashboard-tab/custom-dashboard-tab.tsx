@@ -246,7 +246,7 @@ const CustomDashboardTabComponent = ({
         <CustomDashboardContext.Provider value={panelActions}>
           {hasPanels ? (
             <DashboardPage
-              dashboardId={`custom-dashboard-${dashboardKey}`}
+              dashboardId={`custom-dashboard-${dashboardId}`}
               key={dashboardKey}
               panels={dashboard}
               showTimeSpanSelector={config.filter.showTimeSpanSelector}

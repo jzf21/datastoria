@@ -5,11 +5,12 @@ import type {
   GridPos,
   PanelDescriptor,
   PieDescriptor,
+  Reducer,
   StatDescriptor,
   TableDescriptor,
   TimeseriesDescriptor,
 } from "@/components/shared/dashboard/dashboard-model";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ChartType =
   | "stat"
@@ -141,7 +142,9 @@ export interface StatOptions {
 }
 
 export interface TimeseriesOptions {
-  legendPlacement: "bottom" | "inside" | "none";
+  legendMode: "list" | "table" | "none";
+  legendPlacement: "bottom" | "right";
+  legendValues: "simple" | "detailed" | "full";
   yAxisFormat: string;
   stacked: boolean;
 }
@@ -169,10 +172,33 @@ const DEFAULT_STAT_OPTIONS: StatOptions = {
 };
 
 const DEFAULT_TIMESERIES_OPTIONS: TimeseriesOptions = {
+  legendMode: "list",
   legendPlacement: "bottom",
+  legendValues: "simple",
   yAxisFormat: "short_number",
   stacked: false,
 };
+
+function legendValuesToReducers(
+  preset: "simple" | "detailed" | "full"
+): Reducer[] {
+  switch (preset) {
+    case "simple":
+      return ["avg"];
+    case "detailed":
+      return ["min", "max", "avg"];
+    case "full":
+      return ["min", "max", "avg", "sum", "count", "first", "last"];
+  }
+}
+
+function reducersToLegendValues(
+  values?: Reducer[]
+): "simple" | "detailed" | "full" {
+  if (!values || values.length <= 1) return "simple";
+  if (values.length <= 3) return "detailed";
+  return "full";
+}
 
 const DEFAULT_PIE_OPTIONS: PieOptions = {
   legendPlacement: "right",
@@ -261,6 +287,13 @@ export function usePanelEditState(editingPanel?: PanelDescriptor | null) {
     );
   const [previewKey, setPreviewKey] = useState(0);
   const [isDirty, setIsDirty] = useState(false);
+
+  // Track whether a preview has been created (either from editing or from running a query)
+  const hasPreviewRef = useRef(!!editingPanel);
+  // Keep a ref to the latest sql so the auto-update effect uses current sql
+  // without re-firing on every keystroke
+  const sqlRef = useRef(sql);
+  sqlRef.current = sql;
 
   const markDirty = useCallback(() => setIsDirty(true), []);
 
@@ -353,10 +386,43 @@ export function usePanelEditState(editingPanel?: PanelDescriptor | null) {
     );
     setPreviewDescriptor(descriptor);
     setPreviewKey((k) => k + 1);
+    hasPreviewRef.current = true;
   }, [
     chartType,
     title,
     sql,
+    gridW,
+    gridH,
+    statOptions,
+    timeseriesOptions,
+    pieOptions,
+    gaugeOptions,
+    tableOptions,
+  ]);
+
+  // Auto-update preview when visual options change (without re-running the query).
+  // This lets the user see chart type, legend, title, grid size, etc. changes
+  // reflected immediately. SQL changes still require an explicit "Run Query".
+  useEffect(() => {
+    if (!hasPreviewRef.current) return;
+
+    const updated = buildDescriptorFromState(
+      chartType,
+      title,
+      sqlRef.current,
+      gridW,
+      gridH,
+      statOptions,
+      timeseriesOptions,
+      pieOptions,
+      gaugeOptions,
+      tableOptions,
+      originalDescriptorRef.current
+    );
+    setPreviewDescriptor(updated);
+  }, [
+    chartType,
+    title,
     gridW,
     gridH,
     statOptions,
@@ -464,8 +530,32 @@ function extractTimeseriesOptions(
   )
     return DEFAULT_TIMESERIES_OPTIONS;
   const d = panel as TimeseriesDescriptor;
+  const placement = d.legendOption?.placement;
+  const mode = d.legendOption?.mode;
+
+  // Backwards compat: infer mode from placement if mode is not set
+  let legendMode: TimeseriesOptions["legendMode"];
+  let legendPlacement: TimeseriesOptions["legendPlacement"];
+  if (mode) {
+    legendMode = mode;
+    legendPlacement =
+      placement === "right" ? "right" : "bottom";
+  } else if (placement === "none") {
+    legendMode = "none";
+    legendPlacement = "bottom";
+  } else if (placement === "bottom") {
+    legendMode = "table";
+    legendPlacement = "bottom";
+  } else {
+    // "inside" or undefined → list
+    legendMode = "list";
+    legendPlacement = "bottom";
+  }
+
   return {
-    legendPlacement: d.legendOption?.placement ?? "bottom",
+    legendMode,
+    legendPlacement,
+    legendValues: reducersToLegendValues(d.legendOption?.values),
     yAxisFormat: d.yAxis?.[0]?.format ?? "short_number",
     stacked: d.stacked ?? false,
   };

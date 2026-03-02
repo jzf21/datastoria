@@ -66,11 +66,64 @@ function getGridPos(panel: PanelDescriptor): GridPos {
   return { w: 24, h: 6 };
 }
 
+// Auto-position panels by flowing them left-to-right, wrapping to the next row
+function autoPositionPanels(
+  panels: { w: number; h: number }[],
+  cols: number
+): { x: number; y: number }[] {
+  const positions: { x: number; y: number }[] = [];
+  // Track the bottom edge of each column to pack panels efficiently
+  const colHeights = new Array(cols).fill(0);
+
+  for (const panel of panels) {
+    const w = Math.min(panel.w, cols);
+    let bestX = 0;
+    let bestY = Infinity;
+
+    // Find the leftmost position where this panel fits with the lowest y
+    for (let x = 0; x <= cols - w; x++) {
+      // The y position is determined by the tallest column in the span
+      let maxH = 0;
+      for (let col = x; col < x + w; col++) {
+        maxH = Math.max(maxH, colHeights[col]);
+      }
+      if (maxH < bestY) {
+        bestY = maxH;
+        bestX = x;
+      }
+    }
+
+    positions.push({ x: bestX, y: bestY });
+
+    // Update column heights for the occupied span
+    for (let col = bestX; col < bestX + w; col++) {
+      colHeights[col] = bestY + panel.h;
+    }
+  }
+
+  return positions;
+}
+
 // Generate react-grid-layout layouts from panels
 function generateLayoutsFromPanels(panels: PanelDescriptor[]): ResponsiveLayouts {
   const lg: LayoutItem[] = [];
   const md: LayoutItem[] = [];
   const sm: LayoutItem[] = [];
+
+  // Pre-calculate auto positions for panels without explicit x/y
+  const lgSizes = panels.map((p) => {
+    const gp = getGridPos(p);
+    return { w: gp.w, h: gp.h };
+  });
+  const lgPositions = autoPositionPanels(lgSizes, 24);
+
+  const mdSizes = panels.map((p) => {
+    const gp = getGridPos(p);
+    const constraints = getPanelConstraints(p.type);
+    const mdW = Math.min(Math.max(constraints.minW, Math.round((gp.w / 24) * 6)), 6);
+    return { w: mdW, h: gp.h };
+  });
+  const mdPositions = autoPositionPanels(mdSizes, 6);
 
   panels.forEach((panel, index) => {
     const gridPos = getGridPos(panel);
@@ -80,20 +133,20 @@ function generateLayoutsFromPanels(panels: PanelDescriptor[]): ResponsiveLayouts
     // Desktop layout (24 cols)
     lg.push({
       i: key,
-      x: gridPos.x ?? (index * 6) % 24,
-      y: gridPos.y ?? Math.floor((index * 6) / 24) * 4,
+      x: gridPos.x ?? lgPositions[index].x,
+      y: gridPos.y ?? lgPositions[index].y,
       w: gridPos.w,
       h: gridPos.h,
       ...constraints,
     });
 
     // Tablet layout (6 cols)
-    const mdW = Math.max(constraints.minW, Math.round((gridPos.w / 24) * 6));
+    const mdW = Math.min(Math.max(constraints.minW, Math.round((gridPos.w / 24) * 6)), 6);
     md.push({
       i: key,
-      x: (index * 3) % 6,
-      y: Math.floor((index * 3) / 6) * 4,
-      w: Math.min(mdW, 6),
+      x: mdPositions[index].x,
+      y: mdPositions[index].y,
+      w: mdW,
       h: gridPos.h,
       minW: Math.min(constraints.minW, 6),
       minH: constraints.minH,
@@ -163,17 +216,43 @@ export function DashboardSection({
     [panels]
   );
 
-  // Load saved layouts or use defaults
+  // Merge saved layouts with defaults: preserve positions for existing panels, use defaults for new ones
+  const mergeLayouts = useCallback(
+    (saved: ResponsiveLayouts | null, defaults: ResponsiveLayouts): ResponsiveLayouts => {
+      if (!saved) return defaults;
+
+      const result: ResponsiveLayouts = {};
+      for (const breakpoint of Object.keys(defaults) as (keyof ResponsiveLayouts)[]) {
+        const defaultItems = defaults[breakpoint] ?? [];
+        const savedItems = saved[breakpoint] ?? [];
+        const savedMap = new Map(savedItems.map((item) => [item.i, item]));
+
+        result[breakpoint] = defaultItems.map((defaultItem) => {
+          const savedItem = savedMap.get(defaultItem.i);
+          if (savedItem) {
+            // Preserve saved position, but apply current constraints
+            return { ...defaultItem, x: savedItem.x, y: savedItem.y, w: savedItem.w, h: savedItem.h };
+          }
+          // New panel — use auto-positioned default
+          return defaultItem;
+        });
+      }
+      return result;
+    },
+    []
+  );
+
+  // Load saved layouts, merging with defaults for any new panels
   const [layouts, setLayouts] = useState<ResponsiveLayouts>(() => {
     const saved = loadSectionLayout(dashboardId, sectionIndex);
-    return saved ?? defaultLayouts;
+    return mergeLayouts(saved, defaultLayouts);
   });
 
-  // Update layouts when panels change
+  // Update layouts when panels change — merge to preserve existing positions
   useEffect(() => {
     const saved = loadSectionLayout(dashboardId, sectionIndex);
-    setLayouts(saved ?? defaultLayouts);
-  }, [dashboardId, sectionIndex, defaultLayouts]);
+    setLayouts(mergeLayouts(saved, defaultLayouts));
+  }, [dashboardId, sectionIndex, defaultLayouts, mergeLayouts]);
 
   // Handle layout change with debounced save
   const onLayoutChange = useCallback(

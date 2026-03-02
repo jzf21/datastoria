@@ -100,6 +100,8 @@ function SimpleSelect({
 
 // --- Main Sidebar Props ---
 interface PanelEditSidebarProps {
+  title: string;
+  onTitleChange: (title: string) => void;
   chartType: ChartType;
   onChartTypeChange: (type: ChartType) => void;
   gridW: number;
@@ -121,6 +123,8 @@ interface PanelEditSidebarProps {
 }
 
 function PanelEditSidebarComponent({
+  title,
+  onTitleChange,
   chartType,
   onChartTypeChange,
   gridW,
@@ -137,6 +141,8 @@ function PanelEditSidebarComponent({
   tableOptions,
   onTableOptionsChange,
 }: PanelEditSidebarProps) {
+  const isTitleEmpty = title.trim().length === 0;
+
   return (
     <div className="flex flex-col h-full">
       {/* Sidebar header */}
@@ -148,6 +154,26 @@ function PanelEditSidebarComponent({
 
       <ScrollArea className="flex-1">
         <div className="divide-y">
+          {/* Panel title */}
+          <Section title="Panel Title">
+            <div>
+              <Input
+                value={title}
+                onChange={(e) => onTitleChange(e.target.value)}
+                placeholder="Enter panel name"
+                className={cn(
+                  "h-8 text-sm",
+                  isTitleEmpty && "border-destructive focus-visible:ring-destructive"
+                )}
+              />
+              {isTitleEmpty && (
+                <p className="text-[11px] text-destructive mt-1">
+                  Required — Apply is disabled without a name
+                </p>
+              )}
+            </div>
+          </Section>
+
           {/* Visualization type */}
           <Section title="Visualization">
             <div className="flex flex-wrap gap-1.5">

@@ -1,13 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ArrowLeft, Play, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo } from "react";
 
 interface PanelEditHeaderProps {
-  title: string;
-  onTitleChange: (title: string) => void;
   onRunQuery: () => void;
   onApply: () => void;
   onDiscard: () => void;
@@ -16,8 +13,6 @@ interface PanelEditHeaderProps {
 }
 
 function PanelEditHeaderComponent({
-  title,
-  onTitleChange,
   onRunQuery,
   onApply,
   onDiscard,
@@ -65,17 +60,6 @@ function PanelEditHeaderComponent({
         <ArrowLeft className="h-4 w-4" />
         Back
       </Button>
-
-      {/* Separator */}
-      <div className="w-px h-6 bg-border" />
-
-      {/* Title input */}
-      <Input
-        value={title}
-        onChange={(e) => onTitleChange(e.target.value)}
-        placeholder="Panel title"
-        className="h-8 w-64 text-sm font-medium"
-      />
 
       {/* Spacer */}
       <div className="flex-1" />

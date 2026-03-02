@@ -376,7 +376,10 @@ export interface TimeseriesDescriptor extends PanelDescriptor {
   // Legend configuration
   legendOption?: {
     // If not given, it defaults to the 'inside'. Use 'none' to hide the legend.
-    placement: "bottom" | "inside" | "none";
+    placement: "bottom" | "right" | "inside" | "none";
+    // Display mode: 'list' for inline labels, 'table' for sortable table with reducer columns.
+    // If not given, inferred from placement for backwards compat (inside→list, bottom→table).
+    mode?: "list" | "table";
     values?: Reducer[];
   };
 
