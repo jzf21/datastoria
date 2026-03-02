@@ -3,7 +3,7 @@
   "checkpoint_id": "2e9cad3811ad",
   "strategy": "manual-commit",
   "branch": "feature/customisable-dashboard-experimental",
-  "checkpoints_count": 12,
+  "checkpoints_count": 17,
   "files_touched": [
     ".claude/settings.local.json",
     "docs/plans/2026-02-28-unified-dashboard-sidebar-design.md",
@@ -92,13 +92,20 @@
       "context": "/2e/9cad3811ad/7/context.md",
       "content_hash": "/2e/9cad3811ad/7/content_hash.txt",
       "prompt": "/2e/9cad3811ad/7/prompt.txt"
+    },
+    {
+      "metadata": "/2e/9cad3811ad/8/metadata.json",
+      "transcript": "/2e/9cad3811ad/8/full.jsonl",
+      "context": "/2e/9cad3811ad/8/context.md",
+      "content_hash": "/2e/9cad3811ad/8/content_hash.txt",
+      "prompt": "/2e/9cad3811ad/8/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1502,
-    "cache_creation_tokens": 930447,
-    "cache_read_tokens": 24988517,
-    "output_tokens": 93931,
-    "api_call_count": 296
+    "input_tokens": 1714,
+    "cache_creation_tokens": 1002477,
+    "cache_read_tokens": 26568242,
+    "output_tokens": 111415,
+    "api_call_count": 321
   }
 }
