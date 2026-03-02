@@ -3,8 +3,9 @@
   "checkpoint_id": "2e9cad3811ad",
   "strategy": "manual-commit",
   "branch": "feature/customisable-dashboard-experimental",
-  "checkpoints_count": 2,
+  "checkpoints_count": 3,
   "files_touched": [
+    "src/components/dashboard-tab/custom-dashboard-tab.tsx",
     "src/components/shared/dashboard/dashboard-layout-provider.tsx",
     "src/components/shared/dashboard/dashboard-section.tsx",
     "src/lib/ai/skills/optimization/SKILL.md"
@@ -16,13 +17,20 @@
       "context": "/2e/9cad3811ad/0/context.md",
       "content_hash": "/2e/9cad3811ad/0/content_hash.txt",
       "prompt": "/2e/9cad3811ad/0/prompt.txt"
+    },
+    {
+      "metadata": "/2e/9cad3811ad/1/metadata.json",
+      "transcript": "/2e/9cad3811ad/1/full.jsonl",
+      "context": "/2e/9cad3811ad/1/context.md",
+      "content_hash": "/2e/9cad3811ad/1/content_hash.txt",
+      "prompt": "/2e/9cad3811ad/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 104,
-    "cache_creation_tokens": 69418,
-    "cache_read_tokens": 1619472,
-    "output_tokens": 12968,
-    "api_call_count": 26
+    "input_tokens": 118,
+    "cache_creation_tokens": 146921,
+    "cache_read_tokens": 2284274,
+    "output_tokens": 20057,
+    "api_call_count": 38
   }
 }
