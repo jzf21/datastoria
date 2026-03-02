@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.4",
+  "checkpoint_id": "2e9cad3811ad",
+  "session_id": "a471a164-a739-4426-b4db-064e36959ea6",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-02T15:40:37.663427Z",
+  "branch": "feature/customisable-dashboard-experimental",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/components/dashboard-tab/custom-dashboard-tab.tsx"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 62257,
+    "cache_read_tokens": 729176,
+    "output_tokens": 4067,
+    "api_call_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-02T15:40:37.593636Z",
+    "agent_lines": 78,
+    "human_added": 13487,
+    "human_modified": 50,
+    "human_removed": 0,
+    "total_committed": 13615,
+    "agent_percentage": 0.5728975394785164
+  },
+  "transcript_path": ".claude/projects/-Users-actio-codebase-datastoria/a471a164-a739-4426-b4db-064e36959ea6.jsonl"
+}
