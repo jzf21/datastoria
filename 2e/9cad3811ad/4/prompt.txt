@@ -1,0 +1,1 @@
+remove the collapsing of panels on click at the top , its not necessary
