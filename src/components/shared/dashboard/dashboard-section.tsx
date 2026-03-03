@@ -207,17 +207,6 @@ export function DashboardSection({
   const layoutContext = useDashboardLayoutOptional();
   const layoutVersion = layoutContext?.layoutVersion ?? 0;
 
-  // Track expand count to force grid remount after collapse/expand cycle.
-  // Uses a ref updated synchronously during render to avoid a double render cycle
-  // (useState + useEffect would cause panels to mount twice, triggering two API requests).
-  const expandCountRef = useRef(0);
-  const prevIsCollapsedRef = useRef(isCollapsed);
-
-  if (prevIsCollapsedRef.current && !isCollapsed) {
-    expandCountRef.current += 1;
-  }
-  prevIsCollapsedRef.current = isCollapsed;
-
   // Generate default layouts
   const defaultLayouts = useMemo(() => generateLayoutsFromPanels(panels), [panels]);
 
@@ -334,9 +323,9 @@ export function DashboardSection({
           className="w-full"
           style={isCollapsed ? { height: 0, overflow: "hidden", visibility: "hidden" } : undefined}
         >
-          {!isCollapsed && mounted && width > 0 && (
+          {mounted && width > 0 && (
             <ResponsiveGridLayout
-              key={`grid-${sectionIndex}-${expandCountRef.current}`}
+              key={`grid-${sectionIndex}`}
               className="layout"
               width={width}
               layouts={layouts}
