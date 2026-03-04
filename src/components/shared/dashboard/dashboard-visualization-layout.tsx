@@ -203,8 +203,6 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
       </div>
     );
 
-    const hoverClasses = "";
-
     const headerElement = (
       <CardHeader
         className={cn("p-0 relative", hasActions && "group", headerClassName)}
@@ -215,11 +213,9 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
         }}
       >
         {wrapInTrigger ? (
-          <CollapsibleTrigger className={cn("w-full transition-all", hoverClasses)}>
-            {headerContent}
-          </CollapsibleTrigger>
+          <CollapsibleTrigger className="w-full transition-all">{headerContent}</CollapsibleTrigger>
         ) : (
-          <div className={cn("w-full", hoverClasses)}>{headerContent}</div>
+          <div className="w-full">{headerContent}</div>
         )}
         {renderRefreshButton()}
         {renderDropdownMenu()}

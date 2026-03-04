@@ -3,6 +3,7 @@
 import type {
   GaugeDescriptor,
   GridPos,
+  LegendPlacement,
   PanelDescriptor,
   PieDescriptor,
   Reducer,
@@ -136,7 +137,7 @@ export interface StatOptions {
 
 export interface TimeseriesOptions {
   legendMode: "list" | "table" | "none";
-  legendPlacement: "bottom" | "right";
+  legendPlacement: LegendPlacement;
   legendValues: "simple" | "detailed" | "full";
   yAxisFormat: string;
   stacked: boolean;
@@ -508,21 +509,17 @@ function extractTimeseriesOptions(panel?: PanelDescriptor | null): TimeseriesOpt
   const mode = d.legendOption?.mode;
 
   // Backwards compat: infer mode from placement if mode is not set
+  const legendPlacement: TimeseriesOptions["legendPlacement"] = placement ?? "bottom";
   let legendMode: TimeseriesOptions["legendMode"];
-  let legendPlacement: TimeseriesOptions["legendPlacement"];
   if (mode) {
     legendMode = mode;
-    legendPlacement = placement === "right" ? "right" : "bottom";
   } else if (placement === "none") {
     legendMode = "none";
-    legendPlacement = "bottom";
   } else if (placement === "bottom") {
     legendMode = "table";
-    legendPlacement = "bottom";
   } else {
     // "inside" or undefined → list
     legendMode = "list";
-    legendPlacement = "bottom";
   }
 
   return {

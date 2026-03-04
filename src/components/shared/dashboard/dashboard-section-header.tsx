@@ -94,8 +94,9 @@ export function SectionHeader({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-2 py-1.5 bg-muted/30 border-b select-none group",
-        className
+        "flex items-center gap-2 py-1.5 bg-muted/30 select-none group",
+        className,
+        isCollapsed && "border-b"
       )}
     >
       {/* Collapse toggle */}
