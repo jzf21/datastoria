@@ -6,7 +6,7 @@ import type { StageStatus, ToolProgressCallback } from "@/lib/ai/tools/client/cl
 import { ClientToolExecutors } from "@/lib/ai/tools/client/client-tools";
 import { useToolProgressStore } from "@/lib/ai/tools/client/tool-progress-store";
 import { SERVER_TOOL_NAMES } from "@/lib/ai/tools/server/server-tool-names";
-import { Connection } from "@/lib/connection/connection";
+import { Connection, type QueryResponse } from "@/lib/connection/connection";
 import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { v7 as uuidv7 } from "uuid";
@@ -14,6 +14,10 @@ import { ChatContext } from "./chat-context";
 import { ChatUIContext } from "./chat-ui-context";
 import { SessionManager } from "./session/session-manager";
 
+type AbortableQueryResult<TResponse extends QueryResponse | Response> = {
+  response: Promise<TResponse>;
+  abortController: AbortController;
+};
 type ClientToolName = keyof typeof ClientToolExecutors;
 
 /**
@@ -37,6 +41,70 @@ function createToolProgressCallback(
 }
 
 export class ChatFactory {
+  private static readonly clientToolAbortControllers = new Map<string, Set<AbortController>>();
+
+  private static trackAbortController(chatId: string, abortController: AbortController): void {
+    const controllers = this.clientToolAbortControllers.get(chatId) ?? new Set<AbortController>();
+    controllers.add(abortController);
+    this.clientToolAbortControllers.set(chatId, controllers);
+
+    abortController.signal.addEventListener(
+      "abort",
+      () => {
+        const currentControllers = this.clientToolAbortControllers.get(chatId);
+        currentControllers?.delete(abortController);
+        if (currentControllers && currentControllers.size === 0) {
+          this.clientToolAbortControllers.delete(chatId);
+        }
+      },
+      { once: true }
+    );
+  }
+
+  private static untrackAbortController(chatId: string, abortController: AbortController): void {
+    const controllers = this.clientToolAbortControllers.get(chatId);
+    controllers?.delete(abortController);
+    if (controllers && controllers.size === 0) {
+      this.clientToolAbortControllers.delete(chatId);
+    }
+  }
+
+  private static trackAbortableResult<TResponse extends QueryResponse | Response>(
+    chatId: string,
+    result: AbortableQueryResult<TResponse>
+  ): AbortableQueryResult<TResponse> {
+    ChatFactory.trackAbortController(chatId, result.abortController);
+    void result.response.finally(() => {
+      ChatFactory.untrackAbortController(chatId, result.abortController);
+    });
+    return result;
+  }
+
+  private static createClientToolConnection(chatId: string, connection: Connection): Connection {
+    const wrappedConnection = Object.create(connection) as Connection;
+
+    wrappedConnection.query = (sql, params, headers) =>
+      ChatFactory.trackAbortableResult(chatId, connection.query(sql, params, headers));
+    wrappedConnection.queryOnNode = (sql, params, headers) =>
+      ChatFactory.trackAbortableResult(chatId, connection.queryOnNode(sql, params, headers));
+    wrappedConnection.queryRawResponse = (sql, params, headers) =>
+      ChatFactory.trackAbortableResult(chatId, connection.queryRawResponse(sql, params, headers));
+
+    return wrappedConnection;
+  }
+
+  static stopClientTools(chatId: string): void {
+    const controllers = this.clientToolAbortControllers.get(chatId);
+    if (!controllers) {
+      return;
+    }
+
+    for (const controller of [...controllers]) {
+      controller.abort();
+    }
+    this.clientToolAbortControllers.delete(chatId);
+  }
+
   /**
    * Get the current model configuration based on user settings
    */
@@ -83,6 +151,7 @@ export class ChatFactory {
     const skipStorage = options.skipStorage ?? false;
     const modelConfig = options.model;
     const connection = options.connection;
+    const clientToolConnection = ChatFactory.createClientToolConnection(chatId, connection);
 
     // Clear all progress when a new session starts
     useToolProgressStore.getState().clearAllProgress();
@@ -212,7 +281,7 @@ export class ChatFactory {
             useToolProgressStore.getState()
           );
 
-          const output = await executor(input as never, connection, progressCallback);
+          const output = await executor(input as never, clientToolConnection, progressCallback);
           chat.addToolOutput({
             tool: toolName as never,
             toolCallId,
