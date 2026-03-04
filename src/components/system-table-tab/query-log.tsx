@@ -443,6 +443,7 @@ ${row.exception as string}
 
   return (
     <DashboardPage
+      dashboardId="query-log"
       panels={dashboard}
       filterSpecs={filterSpecs}
       showInputFilter={true}

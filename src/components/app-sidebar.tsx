@@ -32,18 +32,15 @@ import {
 } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
 import { UserProfileImage } from "@/components/user-profile-image";
-import { hostNameManager } from "@/lib/host-name-manager";
 import { MoonIcon, SunIcon } from "@radix-ui/react-icons";
 import {
   BookOpen,
-  ChartLine,
   ChevronRight,
   Database,
   HelpCircle,
   History,
+  LayoutDashboard,
   LogOut,
-  Monitor,
-  Network,
   ScrollText,
   Settings,
   Sparkles,
@@ -51,6 +48,7 @@ import {
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import React, { useCallback, useEffect, useState } from "react";
+import { DashboardList } from "./dashboard-tab/dashboard-list";
 import { showSettingsDialog } from "./settings/settings-dialog";
 import { useTheme } from "./shared/theme-provider";
 import { TabManager } from "./tab-manager";
@@ -257,106 +255,39 @@ function SystemTableIntrospectionSidebarMenuItem() {
   );
 }
 
-function DashboardSidebarMenuItem() {
-  const { connection } = useConnection();
+function DashboardsSidebarMenuItem() {
   const { state, isMobile } = useSidebar();
-  const isClusterMode = connection?.cluster && connection.cluster.length > 0;
+  const { connection } = useConnection();
   const isExpanded = state === "expanded" || isMobile;
 
-  const openNodeTab = () => {
-    TabManager.openTab({
-      id: `node:${connection?.metadata.displayName}`,
-      type: "node",
-      host: hostNameManager.getShortHostname(connection!.metadata.displayName),
-    });
-  };
-
-  const openClusterTab = () => {
-    TabManager.openTab({
-      id: `cluster:${connection!.cluster}`,
-      type: "cluster",
-      cluster: connection!.cluster!,
-    });
-  };
-
-  if (isClusterMode && isExpanded) {
+  if (isExpanded) {
     return (
       <Collapsible defaultOpen={false} className="group/collapsible">
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>
-            <SidebarMenuButton size="default" tooltip="Dashboard">
-              <ChartLine className="h-5 w-5" />
-              <span>Dashboard</span>
+            <SidebarMenuButton size="default" tooltip="Dashboards">
+              <LayoutDashboard className="h-5 w-5" />
+              <span>Dashboards</span>
               <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
             </SidebarMenuButton>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <SidebarMenuSub>
-              <SidebarMenuSubItem>
-                <SidebarMenuSubButton asChild onClick={openNodeTab}>
-                  <button type="button">Node Dashboard</button>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-              <SidebarMenuSubItem>
-                <SidebarMenuSubButton asChild onClick={openClusterTab}>
-                  <button type="button">Cluster Dashboard</button>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            </SidebarMenuSub>
+            <div className="px-2 py-1">
+              <DashboardList connection={connection} />
+            </div>
           </CollapsibleContent>
         </SidebarMenuItem>
       </Collapsible>
     );
   }
 
-  if (isClusterMode) {
-    return (
-      <HoverCardSidebarMenuItem
-        icon={<ChartLine className="h-5 w-5" />}
-        description="View dashboards"
-        content={(_isOpen, onClose) => (
-          <div className="space-y-1">
-            <button
-              className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
-              onClick={() => {
-                openNodeTab();
-                onClose();
-              }}
-            >
-              <Monitor className="h-4 w-4" />
-              Node Dashboard
-            </button>
-            <button
-              className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
-              onClick={() => {
-                openClusterTab();
-                onClose();
-              }}
-            >
-              <Network className="h-4 w-4" />
-              Cluster Dashboard
-            </button>
-          </div>
-        )}
-        contentClassName="w-48 p-2"
-      />
-    );
-  }
-
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        tooltip={{
-          children: "Dashboard",
-          className: "bg-primary text-primary-foreground text-xs px-2 py-1 border-0 rounded-sm",
-        }}
-        size="default"
-        onClick={openNodeTab}
-      >
-        <ChartLine className="h-5 w-5" />
-        <span>Dashboard</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
+    <HoverCardSidebarMenuItem
+      icon={<LayoutDashboard className="h-5 w-5" />}
+      description="Dashboards"
+      content={(_isOpen, onClose) => <DashboardList onClose={onClose} connection={connection} />}
+      contentClassName="w-56 p-2"
+    />
   );
 }
 
@@ -417,7 +348,7 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                <DashboardSidebarMenuItem />
+                <DashboardsSidebarMenuItem />
 
                 <SystemTableIntrospectionSidebarMenuItem />
 

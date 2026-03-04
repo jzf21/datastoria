@@ -180,13 +180,11 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
     const headerContent = (
       <div
         className={cn(
-          "flex items-center px-2 py-1 transition-colors",
+          "flex items-center px-2 py-1 transition-colors dashboard-drag-handle",
+          "cursor-grab active:cursor-grabbing",
           headerBackground && "bg-muted/50"
         )}
       >
-        {isCollapsible && isCollapsed && (
-          <ChevronRight className="h-3 w-3 text-muted-foreground mr-1 flex-shrink-0" />
-        )}
         <div className="flex-1 text-left min-w-0">
           <CardDescription
             className={cn(
@@ -205,8 +203,6 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
       </div>
     );
 
-    const hoverClasses = isCollapsible ? "hover:bg-muted cursor-pointer" : "";
-
     const headerElement = (
       <CardHeader
         className={cn("p-0 relative", hasActions && "group", headerClassName)}
@@ -217,11 +213,9 @@ const DashboardPanelHeader = React.memo<DashboardPanelHeaderProps>(
         }}
       >
         {wrapInTrigger ? (
-          <CollapsibleTrigger className={cn("w-full transition-all", hoverClasses)}>
-            {headerContent}
-          </CollapsibleTrigger>
+          <CollapsibleTrigger className="w-full transition-all">{headerContent}</CollapsibleTrigger>
         ) : (
-          <div className={cn("w-full", hoverClasses)}>{headerContent}</div>
+          <div className="w-full">{headerContent}</div>
         )}
         {renderRefreshButton()}
         {renderDropdownMenu()}

@@ -254,6 +254,7 @@ export const Processes = memo(({ database: _database, table: _table }: Processes
 
   return (
     <DashboardPage
+      dashboardId="system-processes"
       panels={dashboard}
       filterSpecs={filterSpecs}
       showInputFilter={false}

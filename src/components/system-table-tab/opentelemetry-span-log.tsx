@@ -169,6 +169,7 @@ ORDER BY start_time_us DESC`,
 
     return (
       <DashboardPage
+        dashboardId="opentelemetry-span-log"
         panels={dashboard}
         filterSpecs={filterSpecs}
         showInputFilter={true}
