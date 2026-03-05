@@ -404,7 +404,8 @@ export function ChatPanel({
 
     const storedSession = await SessionManager.getSession(chat.id);
     const storedMessages = await SessionManager.getMessages(chat.id);
-    const title = (chatTitle || "New Chat").trim() || "New Chat";
+    const title =
+      (storedSession?.title?.trim() || chatTitle?.trim() || "New Chat").trim() || "New Chat";
     const userLabel = authSession?.user?.email?.trim() || "You";
     const markdown = buildSessionMarkdown(title, storedMessages, userLabel);
     const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
@@ -412,12 +413,31 @@ export function ChatPanel({
     const anchor = document.createElement("a");
     const timestamp = (storedSession?.createdAt ?? new Date()).toISOString().replace(/[:.]/g, "-");
     anchor.href = url;
-    anchor.download = `${sanitizeFileName(title) || "chat-session"}-${timestamp}.md`;
+    anchor.download = `${timestamp}-${sanitizeFileName(title) || "chat-session"}.md`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
   }, [authSession?.user?.email, chat?.id, chatTitle]);
+
+  useEffect(() => {
+    if (!chat?.id) {
+      return;
+    }
+
+    const unsubscribe = ChatUIContext.onTitleChange((event) => {
+      const nextTitle = event.detail.title?.trim();
+      if (!nextTitle) {
+        return;
+      }
+
+      // Title change events are global and not chat-scoped, so avoid persisting here.
+      // Persistence remains in chat-scoped flows (for example onFinish/session rename).
+      setChatTitle(nextTitle);
+    });
+
+    return unsubscribe;
+  }, [chat?.id]);
 
   useEffect(() => {
     if (!chat || newChatRequestNonce === processedNewChatRequestRef.current) return;
