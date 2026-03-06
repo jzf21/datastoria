@@ -12,6 +12,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { invalidateLegacySectionLayoutKeys } from "./dashboard-layout-storage";
 import type { Dashboard, DashboardGroup, PanelDescriptor } from "./dashboard-model";
 import { DashboardSection } from "./dashboard-section";
 import type {
@@ -119,6 +120,25 @@ function isDashboardGroup(item: unknown): item is DashboardGroup {
   );
 }
 
+export function requiresLegacySectionLayoutInvalidation(
+  charts: (PanelDescriptor | DashboardGroup)[]
+): boolean {
+  let hasUngroupedPanels = false;
+
+  for (const item of charts) {
+    if (isDashboardGroup(item)) {
+      if (hasUngroupedPanels) {
+        return true;
+      }
+      continue;
+    }
+
+    hasUngroupedPanels = true;
+  }
+
+  return false;
+}
+
 // Helper function to flatten all charts (including charts in groups)
 function getAllCharts(charts: (PanelDescriptor | DashboardGroup)[]): PanelDescriptor[] {
   const allCharts: PanelDescriptor[] = [];
@@ -141,6 +161,33 @@ interface SectionInfo {
   sectionIndex: number;
   panels: PanelDescriptor[];
   globalPanelStartIndex: number; // Global index of first panel in this section
+}
+
+function hashString(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function panelSignature(panel: PanelDescriptor): string {
+  const title = panel.titleOption?.title ?? "";
+  const gp = panel.gridPos;
+  const grid = gp ? `${gp.x ?? "a"},${gp.y ?? "a"},${gp.w},${gp.h}` : "auto";
+  return `${panel.type}|${title}|${grid}|${panel.datasource.sql}`;
+}
+
+function getAutoDashboardId(dashboard: Dashboard): string {
+  const signature = dashboard.charts
+    .map((item) =>
+      isDashboardGroup(item)
+        ? `g:${item.title}[${item.charts.map(panelSignature).join("||")}]`
+        : `p:${panelSignature(item)}`
+    )
+    .join("::");
+  return `auto-${hashString(signature)}`;
 }
 
 const DashboardPanelContainer = forwardRef<
@@ -180,12 +227,30 @@ const DashboardPanelContainer = forwardRef<
     // Build sections from dashboard panels
     const sections = useMemo<SectionInfo[]>(() => {
       const result: SectionInfo[] = [];
-      const ungroupedPanels: PanelDescriptor[] = [];
       let globalPanelIndex = 0;
       let sectionIndex = 0;
+      let ungroupedPanels: PanelDescriptor[] = [];
+      let ungroupedStartIndex: number | null = null;
+
+      const flushUngrouped = () => {
+        if (ungroupedPanels.length === 0 || ungroupedStartIndex === null) {
+          return;
+        }
+        result.push({
+          group: null,
+          sectionIndex,
+          panels: ungroupedPanels,
+          globalPanelStartIndex: ungroupedStartIndex,
+        });
+        sectionIndex++;
+        ungroupedPanels = [];
+        ungroupedStartIndex = null;
+      };
 
       panels.forEach((item) => {
         if (isDashboardGroup(item)) {
+          flushUngrouped();
+
           // This is a group - create a section for it
           result.push({
             group: item,
@@ -196,29 +261,16 @@ const DashboardPanelContainer = forwardRef<
           globalPanelIndex += item.charts.length;
           sectionIndex++;
         } else {
-          // Standalone panel - collect into ungrouped
+          // Standalone panel - collect into current ungrouped block
+          if (ungroupedStartIndex === null) {
+            ungroupedStartIndex = globalPanelIndex;
+          }
           ungroupedPanels.push(item);
+          globalPanelIndex++;
         }
       });
 
-      // If there are ungrouped panels, add them as the last section (without header)
-      if (ungroupedPanels.length > 0) {
-        // Find the correct global start index for ungrouped panels
-        // They may be interleaved with groups, so we need to recalculate
-        let ungroupedStartIndex = 0;
-        panels.forEach((item) => {
-          if (isDashboardGroup(item)) {
-            ungroupedStartIndex += item.charts.length;
-          }
-        });
-
-        result.push({
-          group: null, // null indicates ungrouped section
-          sectionIndex,
-          panels: ungroupedPanels,
-          globalPanelStartIndex: ungroupedStartIndex,
-        });
-      }
+      flushUngrouped();
 
       return result;
     }, [panels]);
@@ -383,8 +435,29 @@ const DashboardPanelContainer = forwardRef<
       []
     );
 
-    // Generate a stable dashboard ID for layout persistence
-    const effectiveDashboardId = dashboardId ?? dashboard.name ?? "default";
+    const effectiveDashboardId = useMemo(() => {
+      const explicitId = dashboardId?.trim();
+      if (explicitId) {
+        return explicitId;
+      }
+      const namedId = dashboard.name?.trim();
+      if (namedId) {
+        return namedId;
+      }
+      return getAutoDashboardId(dashboard);
+    }, [dashboardId, dashboard]);
+
+    const shouldInvalidateLegacySectionLayouts = useMemo(
+      () => requiresLegacySectionLayoutInvalidation(panels),
+      [panels]
+    );
+
+    useEffect(() => {
+      if (!shouldInvalidateLegacySectionLayouts) {
+        return;
+      }
+      invalidateLegacySectionLayoutKeys(effectiveDashboardId);
+    }, [effectiveDashboardId, shouldInvalidateLegacySectionLayouts]);
 
     return (
       <DashboardRefreshContext.Provider value={contextValue}>
