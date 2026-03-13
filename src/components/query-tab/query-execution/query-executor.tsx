@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { v7 as uuid } from "uuid";
+import { queryHistoryManager } from "../query-history/query-history-manager";
 import type { QueryResponseViewModel, SQLMessage } from "../query-view-model";
 
 const MAX_MESSAGE_LIST_SIZE = 100;
@@ -196,6 +197,14 @@ export function QueryExecutionProvider({ children }: { children: ReactNode }) {
               : msg
           )
         );
+
+        if ((view === undefined || view === "query") && connection) {
+          queryHistoryManager.add({
+            rawSQL: rawSQL || processedSQL,
+            timestamp,
+            connectionName: connection.name,
+          });
+        }
 
         abortControllersRef.current.delete(queryId);
         return "success";
