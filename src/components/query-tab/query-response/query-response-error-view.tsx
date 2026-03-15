@@ -1,10 +1,12 @@
-import { AskAIButton } from "@/components/shared/ask-ai-button";
 import { ThemedSyntaxHighlighter } from "@/components/shared/themed-syntax-highlighter";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { parseErrorLocation, type ErrorLocation } from "@/lib/clickhouse/clickhouse-error-parser";
-import { AlertCircleIcon } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { AlertCircleIcon, SparklesIcon } from "lucide-react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { QueryErrorDisplay } from "../query-view-model";
+import { QueryErrorAIExplanation } from "./query-error-ai-explanation";
+import { AutoExplainState, getAutoExplainState } from "./query-error-auto-explain-config";
 
 interface ErrorLocationViewProps {
   errorLocation: ErrorLocation;
@@ -31,7 +33,7 @@ const ErrorLocationView = memo(function ErrorLocationView({
   const startLineNumber = errorLocation.contextLines[0]?.lineNum ?? 1;
 
   return (
-    <div className="mb-3">
+    <div className="mb-3 text-destructive">
       <div className="my-2 font-medium">
         Error Context: Line {errorLocation.lineNumber}, Col {errorLocation.columnNumber}:
       </div>
@@ -57,14 +59,29 @@ const ErrorLocationView = memo(function ErrorLocationView({
 
 interface QueryResponseErrorViewProps {
   error: QueryErrorDisplay;
+  queryId: string;
   sql?: string;
+  enableAutoExplanation?: boolean;
 }
 
 export const QueryResponseErrorView = memo(function QueryResponseErrorView({
   error,
+  queryId,
   sql,
+  enableAutoExplanation = false,
 }: QueryResponseErrorViewProps) {
   const clickHouseErrorCode = error.exceptionCode;
+  const [isManualExplainRequested, setIsManualExplainRequested] = useState(false);
+
+  useEffect(() => {
+    setIsManualExplainRequested(false);
+  }, [queryId]);
+
+  const autoExplainState = useMemo(
+    () => getAutoExplainState(clickHouseErrorCode),
+    [clickHouseErrorCode]
+  );
+  const shouldAutoExplain = enableAutoExplanation && autoExplainState === AutoExplainState.ENABLED;
 
   // Memoize detailMessage computation
   const detailMessage = useMemo(() => {
@@ -99,15 +116,15 @@ export const QueryResponseErrorView = memo(function QueryResponseErrorView({
   );
 
   return (
-    <Alert variant="destructive" className="border-0 p-1 text-destructive">
-      <div className="flex items-center gap-2">
+    <Alert variant="default" className="border-0 p-1">
+      <div className="flex items-center gap-2 text-destructive">
         <AlertCircleIcon className="h-4 w-4" />
         <AlertTitle className="mb-0">{error.message}</AlertTitle>
       </div>
       <AlertDescription className="mt-2 gap-2">
         {errorLocation && <ErrorLocationView errorLocation={errorLocation} />}
         {detailMessage && detailMessage.length > 0 && (
-          <div className="whitespace-pre-wrap overflow-x-auto font-medium bg-muted/50 dark:bg-muted/30">
+          <div className="whitespace-pre-wrap overflow-x-auto font-medium bg-muted/50 dark:bg-muted/30 text-destructive">
             {displayDetailMessage}
             {shouldTruncateDetailMessage && !showFullDetailMessage && (
               <>
@@ -130,16 +147,34 @@ export const QueryResponseErrorView = memo(function QueryResponseErrorView({
             )}
           </div>
         )}
-        {detailMessage && detailMessage.length > 0 && sql && sql.length > 0 && (
-          <div className="mt-3">
-            <AskAIButton
-              errorMessage={detailMessage}
-              errorCode={clickHouseErrorCode}
-              sql={sql}
-              hideAfterClick={true}
-            />
-          </div>
-        )}
+        {detailMessage &&
+          detailMessage.length > 0 &&
+          sql &&
+          sql.length > 0 &&
+          autoExplainState !== AutoExplainState.UNAVAILABLE && (
+            <>
+              {shouldAutoExplain || isManualExplainRequested ? (
+                <QueryErrorAIExplanation
+                  queryId={queryId}
+                  errorMessage={detailMessage}
+                  errorCode={clickHouseErrorCode}
+                  sql={sql}
+                />
+              ) : (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsManualExplainRequested(true)}
+                    className="gap-2 rounded-sm text-primary bg-primary/10 hover:bg-primary/20 hover:text-primary border-primary/50 font-semibold animate-pulse"
+                  >
+                    <SparklesIcon className="h-4 w-4" />
+                    Ask AI for Fix
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
       </AlertDescription>
     </Alert>
   );

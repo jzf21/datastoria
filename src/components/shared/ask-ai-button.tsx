@@ -1,3 +1,4 @@
+import { buildExplainErrorPrompt } from "@/components/query-tab/query-response/explain-error-prompt";
 import { Button } from "@/components/ui/button";
 import { SparklesIcon } from "lucide-react";
 import { memo, useState } from "react";
@@ -22,12 +23,11 @@ export const AskAIButton = memo(function AskAIButton({
   const [isClicked, setIsClicked] = useState(false);
 
   const handleAskAI = () => {
-    const parts: string[] = [];
-    if (errorCode !== undefined) parts.push(`error code: ${errorCode}`);
-    parts.push(`error message: ${errorMessage}`);
-    if (sql) parts.push("sql:\n```sql\n" + sql + "\n```");
-
-    const message = `/explain_error_code ${parts.join("\n\n")}`;
+    const message = buildExplainErrorPrompt({
+      errorMessage,
+      errorCode,
+      sql,
+    });
 
     postMessage(message, { forceNewChat: true });
 
@@ -48,7 +48,7 @@ export const AskAIButton = memo(function AskAIButton({
       className={`gap-2 rounded-sm text-primary bg-primary/10 hover:bg-primary/20 hover:text-primary border-primary/50 font-semibold animate-pulse ${className || ""}`}
     >
       <SparklesIcon className="h-4 w-4" />
-      Ask AI for Help
+      Ask AI for Fix
     </Button>
   );
 });
