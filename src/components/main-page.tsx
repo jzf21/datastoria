@@ -36,7 +36,7 @@ import {
   type ImperativePanelHandle,
 } from "react-resizable-panels";
 import { AppLogo } from "./app-logo";
-import { ConnectionSelectorDialog } from "./connection/connection-selector-dialog";
+import { openConnectionSelectorDialog } from "./connection/connection-selector-dialog";
 import { MainPageTabList } from "./main-page-tab-list";
 import { SchemaTreeView } from "./schema-tree/schema-tree-view";
 
@@ -510,14 +510,17 @@ function ConnectionInitializer({ config, onReady }: ConnectionInitializerProps) 
                 <RotateCcw className="h-4 w-4" />
                 Retry
               </Button>
-              <ConnectionSelectorDialog
-                defaultConnectionName={config?.name}
-                trigger={
-                  <Button variant="outline" className="gap-2 w-40">
-                    Switch Connection
-                  </Button>
+              <Button
+                variant="outline"
+                className="gap-2 w-40"
+                onClick={() =>
+                  openConnectionSelectorDialog({
+                    defaultConnectionName: config?.name,
+                  })
                 }
-              />
+              >
+                Switch Connection
+              </Button>
             </div>
           )}
         </CardContent>
@@ -633,7 +636,7 @@ export function MainPage() {
   if (showInitializer) {
     return (
       <div className="relative h-full w-full flex min-w-0 overflow-hidden">
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[20vh] px-8 pb-8">
+        <div className="fixed inset-0 z-50 bg-background/95 flex items-start justify-center pt-[20vh] px-8 pb-8">
           <ConnectionInitializer config={pendingConfig || null} onReady={handleReady} />
         </div>
       </div>

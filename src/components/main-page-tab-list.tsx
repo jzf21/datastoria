@@ -2,15 +2,8 @@ import { AppLogo } from "@/components/app-logo";
 import { useChatPanel } from "@/components/chat/view/use-chat-panel";
 import { ClusterTab } from "@/components/cluster-tab/cluster-tab";
 import { useConnection } from "@/components/connection/connection-context";
-import { CustomDashboardTab } from "@/components/dashboard-tab/custom-dashboard-tab";
-import { DatabaseTab } from "@/components/database-tab/database-tab";
-import { NodeTab } from "@/components/node-tab/node-tab";
-import { QueryLogInspectorTab } from "@/components/query-log-inspector/query-log-inspector-tab";
-import { QueryTab } from "@/components/query-tab/query-tab";
-import { SpanLogInspectorTab } from "@/components/span-log-inspector/span-log-inspector-tab";
 import { SYSTEM_TABLE_REGISTRY } from "@/components/system-table-tab/system-table-registry";
 import { TabManager, type TabInfo } from "@/components/tab-manager";
-import { TableTab } from "@/components/table-tab/table-tab";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -46,7 +39,58 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+// Lazy-load tabs to reduce initial bundle (Ace, ECharts, @xyflow, table/database UI).
+const QueryTabLazy = dynamic(
+  () => import("@/components/query-tab/query-tab").then((m) => m.QueryTab),
+  { ssr: false, loading: () => <TabChunkLoading /> }
+);
+
+const DatabaseTabLazy = dynamic(
+  () => import("@/components/database-tab/database-tab").then((m) => m.DatabaseTab),
+  { ssr: false, loading: () => <TabChunkLoading /> }
+);
+
+const TableTabLazy = dynamic(
+  () => import("@/components/table-tab/table-tab").then((m) => m.TableTab),
+  { ssr: false, loading: () => <TabChunkLoading /> }
+);
+
+const NodeTabLazy = dynamic(() => import("@/components/node-tab/node-tab").then((m) => m.NodeTab), {
+  ssr: false,
+  loading: () => <TabChunkLoading />,
+});
+
+const CustomDashboardTabLazy = dynamic(
+  () => import("@/components/dashboard-tab/custom-dashboard-tab").then((m) => m.CustomDashboardTab),
+  { ssr: false, loading: () => <TabChunkLoading /> }
+);
+
+const QueryLogInspectorTabLazy = dynamic(
+  () =>
+    import("@/components/query-log-inspector/query-log-inspector-tab").then(
+      (m) => m.QueryLogInspectorTab
+    ),
+  { ssr: false, loading: () => <TabChunkLoading /> }
+);
+
+const SpanLogInspectorTabLazy = dynamic(
+  () =>
+    import("@/components/span-log-inspector/span-log-inspector-tab").then(
+      (m) => m.SpanLogInspectorTab
+    ),
+  { ssr: false, loading: () => <TabChunkLoading /> }
+);
+
+function TabChunkLoading() {
+  return (
+    <div className="flex h-full min-h-[200px] items-center justify-center text-muted-foreground">
+      <span className="text-sm">Loading…</span>
+    </div>
+  );
+}
 
 interface MainPageTabListProps {
   selectedConnection: Connection | null;
@@ -63,7 +107,7 @@ const MainPageTabPanel = memo(function MainPageTabPanel({
 
   if (tab.type === "query") {
     content = (
-      <QueryTab
+      <QueryTabLazy
         initialQuery={tab.initialQuery}
         initialMode={tab.initialMode}
         initialExecute={tab.initialExecute}
@@ -71,13 +115,13 @@ const MainPageTabPanel = memo(function MainPageTabPanel({
       />
     );
   } else if (tab.type === "node") {
-    content = <NodeTab host={tab.host} />;
+    content = <NodeTabLazy host={tab.host} />;
   } else if (tab.type === "cluster") {
     content = <ClusterTab />;
   } else if (tab.type === "database") {
-    content = <DatabaseTab database={tab.database} />;
+    content = <DatabaseTabLazy database={tab.database} />;
   } else if (tab.type === "table") {
-    content = <TableTab database={tab.database} table={tab.table} engine={tab.engine} />;
+    content = <TableTabLazy database={tab.database} table={tab.table} engine={tab.engine} />;
   } else if (tab.type === "system-table") {
     const EntryComponent = SYSTEM_TABLE_REGISTRY.get(tab.tableName)?.component;
     content = EntryComponent ? (
@@ -89,13 +133,15 @@ const MainPageTabPanel = memo(function MainPageTabPanel({
     );
   } else if (tab.type === "query-log") {
     content = (
-      <QueryLogInspectorTab initialQueryId={tab.queryId} initialEventDate={tab.eventDate} />
+      <QueryLogInspectorTabLazy initialQueryId={tab.queryId} initialEventDate={tab.eventDate} />
     );
   } else if (tab.type === "span-log") {
-    content = <SpanLogInspectorTab initialTraceId={tab.traceId} initialEventDate={tab.eventDate} />;
+    content = (
+      <SpanLogInspectorTabLazy initialTraceId={tab.traceId} initialEventDate={tab.eventDate} />
+    );
   } else if (tab.type === "custom-dashboard") {
     content = (
-      <CustomDashboardTab dashboardId={tab.dashboardId} dashboardName={tab.dashboardName} />
+      <CustomDashboardTabLazy dashboardId={tab.dashboardId} dashboardName={tab.dashboardName} />
     );
   }
 
@@ -122,8 +168,9 @@ function EmptyStateButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded transition-colors cursor-pointer"
+      className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
     >
       <Icon className="h-4 w-4" />
       {children}
@@ -205,7 +252,10 @@ function EmptyTabPlaceholderComponent() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded transition-colors cursor-pointer">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+            >
               <ScrollText className="h-4 w-4" />
               System Tables
               <ChevronDown className="h-3 w-3" />
@@ -760,8 +810,9 @@ export const MainPageTabList = memo(function MainPageTabList({
                           )}
                         </TabsTrigger>
                         <button
+                          type="button"
                           onClick={(e) => handleCloseTab(tab.id, e)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted z-10"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 outline-none z-10 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                           aria-label="Close tab"
                         >
                           <X className="h-3 w-3" />
