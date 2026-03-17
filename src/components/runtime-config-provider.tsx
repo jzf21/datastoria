@@ -1,19 +1,23 @@
 "use client";
 
+import type { SessionRepositoryType } from "@/lib/ai/chat-types";
 import type { ModelProps } from "@/lib/ai/llm/llm-provider-factory";
 import { createContext, useContext, type ReactNode } from "react";
 
 export interface RuntimeConfig {
   connectionProviderEnabled: boolean;
   systemModels: ModelProps[];
+  sessionRepositoryType: SessionRepositoryType;
 }
 
 const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   connectionProviderEnabled: false,
   systemModels: [],
+  sessionRepositoryType: "local",
 };
 
 const RuntimeConfigContext = createContext<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
+let currentRuntimeConfig = DEFAULT_RUNTIME_CONFIG;
 
 export function RuntimeConfigProvider({
   children,
@@ -22,9 +26,14 @@ export function RuntimeConfigProvider({
   children: ReactNode;
   value: RuntimeConfig;
 }) {
+  currentRuntimeConfig = value;
   return <RuntimeConfigContext.Provider value={value}>{children}</RuntimeConfigContext.Provider>;
 }
 
 export function useRuntimeConfig() {
   return useContext(RuntimeConfigContext);
+}
+
+export function getRuntimeConfig(): RuntimeConfig {
+  return currentRuntimeConfig;
 }

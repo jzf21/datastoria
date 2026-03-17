@@ -4,7 +4,8 @@ import type { Chat, Message } from "@/lib/ai/chat-types";
 import { useMemo, useSyncExternalStore } from "react";
 import { v7 as uuidv7 } from "uuid";
 import { chatActionStorage } from "./chat-action-storage";
-import { sessionRepository } from "./local-session-repository";
+import { toSessionRepositoryConnectionId } from "./session-connection-id";
+import { getSessionRepository } from "./session-repository-factory";
 
 export interface ManagedSession extends Chat {
   running: boolean;
@@ -13,12 +14,14 @@ export interface ManagedSession extends Chat {
 type SessionState = {
   sessionsByConnection: Record<string, Record<string, ManagedSession>>;
   runningByChatId: Record<string, boolean>;
+  loadingByConnection: Record<string, Promise<ManagedSession[]>>;
   version: number;
 };
 
 const state: SessionState = {
   sessionsByConnection: {},
   runningByChatId: {},
+  loadingByConnection: {},
   version: 0,
 };
 
@@ -58,7 +61,8 @@ export const SessionManager = {
       return [];
     }
 
-    const bucket = state.sessionsByConnection[connectionId] ?? {};
+    const repositoryConnectionId = toSessionRepositoryConnectionId(connectionId);
+    const bucket = state.sessionsByConnection[repositoryConnectionId] ?? {};
     return Object.values(bucket).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   },
 
@@ -67,20 +71,38 @@ export const SessionManager = {
       return [];
     }
 
-    const sessions = await sessionRepository.getSessionsForConnection(connectionId);
-    const bucket = getConnectionBucket(connectionId);
-    const previousChatIds = new Set(Object.keys(bucket));
-
-    const nextBucket: Record<string, ManagedSession> = {};
-    for (const session of sessions) {
-      previousChatIds.delete(session.chatId);
-      nextBucket[session.chatId] = toManagedSession(session, bucket[session.chatId]);
+    const repositoryConnectionId = toSessionRepositoryConnectionId(connectionId);
+    const existingLoad = state.loadingByConnection[repositoryConnectionId];
+    if (existingLoad) {
+      return existingLoad;
     }
 
-    chatActionStorage.clearHiddenActionsForChats(Array.from(previousChatIds));
-    state.sessionsByConnection[connectionId] = nextBucket;
-    emitChange();
-    return this.getSessions(connectionId);
+    const storage = getSessionRepository();
+    const loadPromise = (async () => {
+      const sessions = await storage.getSessionsForConnection(repositoryConnectionId);
+      const bucket = getConnectionBucket(repositoryConnectionId);
+      const previousChatIds = new Set(Object.keys(bucket));
+
+      const nextBucket: Record<string, ManagedSession> = {};
+      for (const session of sessions) {
+        previousChatIds.delete(session.chatId);
+        nextBucket[session.chatId] = toManagedSession(session, bucket[session.chatId]);
+      }
+
+      chatActionStorage.clearHiddenActionsForChats(Array.from(previousChatIds));
+      state.sessionsByConnection[repositoryConnectionId] = nextBucket;
+      emitChange();
+      return this.getSessions(connectionId);
+    })();
+
+    state.loadingByConnection[repositoryConnectionId] = loadPromise;
+    try {
+      return await loadPromise;
+    } finally {
+      if (state.loadingByConnection[repositoryConnectionId] === loadPromise) {
+        delete state.loadingByConnection[repositoryConnectionId];
+      }
+    }
   },
 
   async getSession(chatId: string): Promise<ManagedSession | null> {
@@ -90,7 +112,8 @@ export const SessionManager = {
       }
     }
 
-    const session = await sessionRepository.getSession(chatId);
+    const storage = getSessionRepository();
+    const session = await storage.getSession(chatId);
     if (!session) {
       return null;
     }
@@ -119,33 +142,40 @@ export const SessionManager = {
   },
 
   async createSession(connectionId: string): Promise<ManagedSession> {
+    const repositoryConnectionId = toSessionRepositoryConnectionId(connectionId);
     const now = new Date();
     const session: Chat = {
       chatId: uuidv7(),
-      databaseId: connectionId,
+      databaseId: repositoryConnectionId,
       title: "New Chat",
       createdAt: now,
       updatedAt: now,
     };
 
-    await sessionRepository.saveSession(session);
+    const storage = getSessionRepository();
+    await storage.saveSession(session);
     return this.upsertSession(session);
   },
 
   async getMessages(chatId: string): Promise<Message[]> {
-    return sessionRepository.getMessages(chatId);
+    const storage = getSessionRepository();
+    return storage.getMessages(chatId);
   },
 
   async saveMessages(chatId: string, messages: Message[]): Promise<void> {
-    await sessionRepository.saveMessages(chatId, messages);
+    const storage = getSessionRepository();
+    await storage.saveMessages(chatId, messages);
   },
 
   async saveMessage(chatId: string, message: Message): Promise<void> {
-    await sessionRepository.saveMessage(chatId, message);
+    const storage = getSessionRepository();
+    await storage.saveMessage(chatId, message);
   },
 
   async getOrCreateSession(chatId: string, connectionId: string): Promise<ManagedSession> {
-    const existing = await sessionRepository.getSession(chatId);
+    const repositoryConnectionId = toSessionRepositoryConnectionId(connectionId);
+    const storage = getSessionRepository();
+    const existing = await storage.getSession(chatId);
     if (existing) {
       return this.upsertSession(existing);
     }
@@ -153,12 +183,12 @@ export const SessionManager = {
     const now = new Date();
     const session: Chat = {
       chatId,
-      databaseId: connectionId,
+      databaseId: repositoryConnectionId,
       createdAt: now,
       updatedAt: now,
     };
 
-    await sessionRepository.saveSession(session);
+    await storage.saveSession(session);
     return this.upsertSession(session);
   },
 
@@ -167,7 +197,8 @@ export const SessionManager = {
       return;
     }
 
-    const bucket = getConnectionBucket(connectionId);
+    const repositoryConnectionId = toSessionRepositoryConnectionId(connectionId);
+    const bucket = getConnectionBucket(repositoryConnectionId);
     const existing = bucket[chatId];
     if (!existing) {
       state.runningByChatId[chatId] = running;
@@ -189,9 +220,13 @@ export const SessionManager = {
   },
 
   async renameSession(connectionId: string | undefined, chatId: string, title: string) {
+    const storage = getSessionRepository();
+    const repositoryConnectionId = connectionId
+      ? toSessionRepositoryConnectionId(connectionId)
+      : undefined;
     const current =
-      (connectionId ? getConnectionBucket(connectionId)[chatId] : undefined) ??
-      (await sessionRepository.getSession(chatId));
+      (repositoryConnectionId ? getConnectionBucket(repositoryConnectionId)[chatId] : undefined) ??
+      (await storage.getSession(chatId));
 
     if (!current) {
       return;
@@ -202,12 +237,13 @@ export const SessionManager = {
       title,
     };
 
-    await sessionRepository.saveSession(nextSession);
+    await storage.renameSession(chatId, title);
     this.upsertSession(nextSession);
   },
 
   async deleteSessions(connectionId: string | undefined, chatIds: string[]) {
-    await Promise.all(chatIds.map((chatId) => sessionRepository.deleteSession(chatId)));
+    const storage = getSessionRepository();
+    await Promise.all(chatIds.map((chatId) => storage.deleteSession(chatId)));
     chatActionStorage.clearHiddenActionsForChats(chatIds);
 
     if (!connectionId) {
@@ -215,7 +251,8 @@ export const SessionManager = {
       return;
     }
 
-    const bucket = getConnectionBucket(connectionId);
+    const repositoryConnectionId = toSessionRepositoryConnectionId(connectionId);
+    const bucket = getConnectionBucket(repositoryConnectionId);
     for (const chatId of chatIds) {
       delete state.runningByChatId[chatId];
       delete bucket[chatId];
@@ -224,7 +261,8 @@ export const SessionManager = {
   },
 
   async touchSession(session: Chat) {
-    await sessionRepository.saveSession(session);
+    const storage = getSessionRepository();
+    await storage.saveSession(session);
     this.upsertSession(session);
   },
 
@@ -236,7 +274,8 @@ export const SessionManager = {
       updatedAt: new Date(),
     };
 
-    await sessionRepository.saveSession(nextSession);
+    const storage = getSessionRepository();
+    await storage.saveSession(nextSession);
     return this.upsertSession(nextSession);
   },
 };
