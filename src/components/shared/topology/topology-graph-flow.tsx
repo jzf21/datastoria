@@ -12,9 +12,10 @@ import {
   type Node,
   type NodeTypes,
 } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
-import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Maximize, Maximize2, Minimize, ZoomIn, ZoomOut } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface TopologyGraphFlowProps {
   initialNodes: Node[];
@@ -33,7 +34,7 @@ interface TopologyGraphFlowProps {
   graphId?: string;
   nodeWidth?: number;
   nodeHeight?: number;
-  rankdir?: "LR" | "TB";
+  rankdir?: "LR" | "TB" | "RL" | "BT";
   nodesep?: number;
   ranksep?: number;
   fallbackNodeXStep?: number;
@@ -41,6 +42,7 @@ interface TopologyGraphFlowProps {
   hideHandles?: boolean;
   showFloatingControls?: boolean;
   enableAutoFit?: boolean;
+  fullscreenTargetRef?: React.RefObject<HTMLElement | null>;
 }
 
 const TopologyGraphFlowInner = ({
@@ -64,10 +66,12 @@ const TopologyGraphFlowInner = ({
   hideHandles = false,
   showFloatingControls = true,
   enableAutoFit = true,
+  fullscreenTargetRef,
 }: TopologyGraphFlowProps) => {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initialNodes);
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const layoutedGraphRef = useRef<string>("");
   const hasFittedViewRef = useRef<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -102,13 +106,22 @@ const TopologyGraphFlowInner = ({
 
       return nodes.map((node) => {
         const positionedNode = graph.node(node.id);
+        const isVertical = rankdir === "TB" || rankdir === "BT";
         if (!positionedNode) {
           return node;
         }
         return {
           ...node,
-          targetPosition: Position.Left,
-          sourcePosition: Position.Right,
+          targetPosition: isVertical
+            ? Position.Top
+            : rankdir === "RL"
+              ? Position.Right
+              : Position.Left,
+          sourcePosition: isVertical
+            ? Position.Bottom
+            : rankdir === "RL"
+              ? Position.Left
+              : Position.Right,
           position: {
             x: positionedNode.x - nodeWidth / 2,
             y: positionedNode.y - nodeHeight / 2,
@@ -136,18 +149,20 @@ const TopologyGraphFlowInner = ({
       initialEdges
         .map((edge) => `${edge.source}->${edge.target}`)
         .sort()
-        .join(",");
+        .join(",") +
+      `|${rankdir}|${nodeWidth}|${nodeHeight}|${nodesep}|${ranksep}`;
 
     const isSameGraph = graphSignature === layoutedGraphRef.current;
     if (!isSameGraph) {
+      const isVertical = rankdir === "TB" || rankdir === "BT";
       const nextNodes =
         initialEdges.length > 0
           ? getLayoutedNodes(initialNodes, initialEdges)
           : initialNodes.map((node, index) => ({
               ...node,
               position: { x: index * fallbackNodeXStep, y: fallbackNodeY },
-              targetPosition: Position.Left,
-              sourcePosition: Position.Right,
+              targetPosition: isVertical ? Position.Top : Position.Left,
+              sourcePosition: isVertical ? Position.Bottom : Position.Right,
             }));
 
       setFlowNodes(nextNodes);
@@ -156,10 +171,13 @@ const TopologyGraphFlowInner = ({
     } else {
       // Same graph structure — sync node data (e.g. isSelected) while
       // preserving existing positions so no relayout occurs.
+      const nextNodesById = new Map(initialNodes.map((node) => [node.id, node]));
       setFlowNodes((prev) =>
         prev.map((existing) => {
-          const updated = initialNodes.find((n) => n.id === existing.id);
-          return updated ? { ...existing, data: updated.data } : existing;
+          const updated = nextNodesById.get(existing.id);
+          return updated
+            ? { ...existing, data: updated.data, selected: updated.selected }
+            : existing;
         })
       );
     }
@@ -173,6 +191,11 @@ const TopologyGraphFlowInner = ({
     getLayoutedNodes,
     initialEdges,
     initialNodes,
+    nodeHeight,
+    nodesep,
+    nodeWidth,
+    rankdir,
+    ranksep,
     setFlowEdges,
     setFlowNodes,
   ]);
@@ -234,6 +257,36 @@ const TopologyGraphFlowInner = ({
     });
   }, [fitView, onControlsReady, zoomIn, zoomOut]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        document.fullscreenElement === (fullscreenTargetRef?.current ?? containerRef.current)
+      );
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, [fullscreenTargetRef]);
+
+  const handleFullscreenToggle = useCallback(async () => {
+    const container = fullscreenTargetRef?.current ?? containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === container) {
+        await document.exitFullscreen();
+      } else {
+        await container.requestFullscreen();
+      }
+    } catch {
+      // Ignore fullscreen failures from unsupported environments or denied requests.
+    }
+  }, [fullscreenTargetRef]);
+
   const styleText = useMemo(() => {
     if (!hideHandles) {
       return `
@@ -268,33 +321,50 @@ const TopologyGraphFlowInner = ({
     >
       <style>{styleText}</style>
       {showFloatingControls && (
-        <div className="absolute top-1 right-2 z-10 flex items-center gap-1">
+        <div className="absolute top-1 right-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => zoomIn()}
-            className="h-7 w-7 bg-background border border-border"
+            className="h-11 w-11 sm:h-9 sm:w-9 bg-background border border-border shadow-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary/40"
             title="Zoom In"
+            aria-label="Zoom in graph"
           >
-            <ZoomIn className="h-3 w-3" />
+            <ZoomIn className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => zoomOut()}
-            className="h-7 w-7 bg-background border border-border"
+            className="h-11 w-11 sm:h-9 sm:w-9 bg-background border border-border shadow-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary/40"
             title="Zoom Out"
+            aria-label="Zoom out graph"
           >
-            <ZoomOut className="h-3 w-3" />
+            <ZoomOut className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => fitView({ padding: 0.2 })}
-            className="h-7 w-7 bg-background border border-border"
+            className="h-11 w-11 sm:h-9 sm:w-9 bg-background border border-border shadow-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary/40"
             title="Fit View"
+            aria-label="Fit graph to viewport"
           >
-            <Maximize2 className="h-3 w-3" />
+            <Maximize2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => void handleFullscreenToggle()}
+            className="h-11 w-11 sm:h-9 sm:w-9 bg-background/90 border border-border shadow-sm backdrop-blur-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary/40"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            aria-label={isFullscreen ? "Exit graph fullscreen" : "Enter graph fullscreen"}
+          >
+            {isFullscreen ? (
+              <Minimize className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            ) : (
+              <Maximize className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            )}
           </Button>
         </div>
       )}
