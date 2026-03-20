@@ -185,6 +185,22 @@ function getRequestUsage(messages: UIMessage[], messageId: string) {
     : undefined;
 }
 
+function withModelMetadata(
+  message: AppUIMessage,
+  modelConfig: { provider: string; modelId: string }
+): AppUIMessage {
+  return {
+    ...message,
+    metadata: {
+      ...(message.metadata ?? {}),
+      model: {
+        provider: modelConfig.provider,
+        modelId: modelConfig.modelId,
+      },
+    } satisfies MessageMetadata,
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const userEmail = getAuthenticatedUserEmail(req);
@@ -203,8 +219,8 @@ export async function POST(req: Request) {
       return new Response("Invalid JSON in request body", { status: 400 });
     }
 
-    const resolvedUserIdForRemote = getAuthenticatedUserEmail(req) ?? null;
-    const serverMode = getSessionRepositoryType(resolvedUserIdForRemote);
+    const resolvedUserIdForRemote = userEmail ?? null;
+    const repositoryType = getSessionRepositoryType(resolvedUserIdForRemote);
 
     let context: ServerDatabaseContext;
     let modelConfig: { provider: string; modelId: string; apiKey: string };
@@ -214,11 +230,12 @@ export async function POST(req: Request) {
     let messageId: string;
     let sessionRepositoryUserId: string | null = null;
     let sessionRepositoryChatId: string | null = null;
+    let sessionRepositoryAllowMissingSession = false;
     const sessionRepository: ReturnType<typeof getServerSessionRepository> | null =
-      serverMode === "remote" ? getServerSessionRepository() : null;
+      repositoryType === "remote" ? getServerSessionRepository() : null;
     let titlePromise: Promise<SessionTitleGenerationResponse | undefined> | undefined;
 
-    if (serverMode === "remote") {
+    if (repositoryType === "remote") {
       const apiRequest = validateRemoteChatRequest(payload);
       if (!apiRequest) {
         return new Response("Invalid request format", { status: 400 });
@@ -248,10 +265,24 @@ export async function POST(req: Request) {
 
       agentContext = apiRequest.agentContext;
       generateTitle = !apiRequest.continuation && apiRequest.generateTitle !== false;
-      messageId = apiRequest.continuation ? apiRequest.message.id : uuidv7();
+      messageId = apiRequest.continuation ? apiRequest.message.id : uuidv7().replace(/-/g, "");
 
       if (apiRequest.ephemeral) {
+        const ephemeralSessionId = "ephemeral-" + uuidv7().replace(/-/g, "");
+        const incomingMessage = apiRequest.message as AppUIMessage;
+        const persistedIncomingMessage =
+          incomingMessage.role === "assistant"
+            ? withModelMetadata(incomingMessage, modelConfig)
+            : incomingMessage;
+        await sessionRepository!.upsertMessage({
+          session_id: ephemeralSessionId,
+          user_id: sessionRepositoryUserId,
+          message: persistedIncomingMessage,
+          allowMissingSession: true,
+        });
         originalMessages = expandCommand([apiRequest.message as UIMessage]);
+        sessionRepositoryChatId = ephemeralSessionId;
+        sessionRepositoryAllowMissingSession = true;
       } else {
         const existingSession = await sessionRepository!.getSession(
           sessionRepositoryUserId,
@@ -296,18 +327,24 @@ export async function POST(req: Request) {
           return new Response("Initial requests must send a user message", { status: 400 });
         }
 
+        const incomingMessage = apiRequest.message as AppUIMessage;
+        const persistedIncomingMessage =
+          incomingMessage.role === "assistant"
+            ? withModelMetadata(incomingMessage, modelConfig)
+            : incomingMessage;
         const mergedMessages = replaceOrAppendMessageById(
           persistedMessages,
-          apiRequest.message as AppUIMessage
+          persistedIncomingMessage
         );
         await sessionRepository!.upsertMessage({
           session_id: apiRequest.sessionId,
           user_id: sessionRepositoryUserId,
-          message: apiRequest.message as AppUIMessage,
+          message: persistedIncomingMessage,
         });
 
         originalMessages = expandCommand(mergedMessages as UIMessage[]);
         sessionRepositoryChatId = apiRequest.sessionId;
+        sessionRepositoryAllowMissingSession = false;
       }
 
       titlePromise =
@@ -380,7 +417,7 @@ export async function POST(req: Request) {
       originalMessages: originalMessages as UIMessage[],
       generateMessageId: () => messageId,
       onFinish:
-        serverMode === "remote" &&
+        repositoryType === "remote" &&
         sessionRepository &&
         sessionRepositoryUserId &&
         sessionRepositoryChatId
@@ -388,7 +425,8 @@ export async function POST(req: Request) {
               await sessionRepository.upsertMessage({
                 session_id: sessionRepositoryChatId,
                 user_id: sessionRepositoryUserId,
-                message: responseMessage as AppUIMessage,
+                message: withModelMetadata(responseMessage as AppUIMessage, modelConfig),
+                allowMissingSession: sessionRepositoryAllowMissingSession,
               });
             }
           : undefined,
@@ -453,10 +491,11 @@ export async function POST(req: Request) {
               });
 
               if (
-                serverMode === "remote" &&
+                repositoryType === "remote" &&
                 sessionRepository &&
                 sessionRepositoryUserId &&
-                sessionRepositoryChatId
+                sessionRepositoryChatId &&
+                !sessionRepositoryAllowMissingSession
               ) {
                 void titlePromise.then(async (lateTitleResult) => {
                   const lateTitle = lateTitleResult?.title?.trim();
@@ -486,10 +525,11 @@ export async function POST(req: Request) {
 
             if (
               titleText &&
-              serverMode === "remote" &&
+              repositoryType === "remote" &&
               sessionRepository &&
               sessionRepositoryUserId &&
-              sessionRepositoryChatId
+              sessionRepositoryChatId &&
+              !sessionRepositoryAllowMissingSession
             ) {
               await sessionRepository.updateSessionTitle(
                 sessionRepositoryUserId,
