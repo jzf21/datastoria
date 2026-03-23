@@ -15,7 +15,8 @@ metadata:
    After the tool returns:
    - Treat `value` as the numeric ClickHouse error code and continue.
 3. Load `references/<code>.md` with `skill_resource` (e.g. `references/60.md`) and follow its workflow.
-4. If `skill_resource` returns nothing, use the error message and your ClickHouse knowledge to provide a best-effort Cause / Fix / Example response.
+4. If the orchestrator provides database context facts such as cluster name, server version, or ClickHouse user, use them when they materially change the cause or fix. Treat missing values as unknown; do not infer them.
+5. If `skill_resource` returns nothing, use the error message and your ClickHouse knowledge to provide a best-effort Cause / Fix / Example response.
 
 ## Response format
 
