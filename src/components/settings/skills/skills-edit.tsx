@@ -1,9 +1,9 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import type { SkillCatalogItem } from "@/lib/ai/skills/skill-manager";
+import type { SkillCatalogItem } from "@/lib/ai/skills/skill-types";
 import { BasePath } from "@/lib/base-path";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SkillsCard } from "./skills-card";
 import { SkillsDetailView } from "./skills-detail-view";
 
@@ -13,7 +13,7 @@ export function SkillsEdit({ initialSkillId }: { initialSkillId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(initialSkillId ?? null);
 
-  useEffect(() => {
+  const loadSkills = useCallback(() => {
     setLoading(true);
     setError(null);
 
@@ -32,8 +32,20 @@ export function SkillsEdit({ initialSkillId }: { initialSkillId?: string }) {
       });
   }, []);
 
+  useEffect(() => {
+    loadSkills();
+  }, [loadSkills]);
+
   if (selectedSkillId) {
-    return <SkillsDetailView skillId={selectedSkillId} onBack={() => setSelectedSkillId(null)} />;
+    return (
+      <SkillsDetailView
+        skillId={selectedSkillId}
+        onBack={() => {
+          setSelectedSkillId(null);
+          loadSkills();
+        }}
+      />
+    );
   }
 
   return (

@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 
+import { RuntimeConfigProvider } from "@/components/runtime-config-provider";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -58,5 +59,27 @@ describe("SkillsEdit", () => {
     expect(container.querySelector("[data-testid='skill-detail-view']")?.textContent).toBe(
       "review"
     );
+  });
+
+  it("loads skills from the published catalog endpoint", async () => {
+    const fetchMock = vi.mocked(fetch);
+
+    await act(async () => {
+      root.render(
+        <RuntimeConfigProvider
+          value={{
+            connectionProviderEnabled: false,
+            sessionRepositoryType: "local",
+            allowEditSkill: true,
+          }}
+        >
+          <SkillsEdit />
+        </RuntimeConfigProvider>
+      );
+    });
+
+    const calledUrls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(calledUrls.some((url) => url.includes("/api/ai/skills"))).toBe(true);
+    expect(calledUrls.some((url) => url.includes("/api/ai/skills?includeDraft=1"))).toBe(false);
   });
 });
