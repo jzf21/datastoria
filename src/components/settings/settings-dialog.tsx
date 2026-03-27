@@ -91,6 +91,17 @@ function SettingsDialogWrapper({
                     </Collapsible>
                   </SidebarMenuItem>
 
+                  {/* Monitoring Section */}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      className="justify-start"
+                      onClick={() => setActiveSection("alerts")}
+                      isActive={activeSection === "alerts"}
+                    >
+                      <span>Alerts</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
                   {/* AI Section */}
                   <SidebarMenuItem>
                     <Collapsible defaultOpen className="group/collapsible">

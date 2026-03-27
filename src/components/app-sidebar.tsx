@@ -1,3 +1,4 @@
+import { AlertNotificationBell } from "@/components/alerts/alert-notification-bell";
 import { AppLogo } from "@/components/app-logo";
 import { useChatPanel } from "@/components/chat/view/use-chat-panel";
 import { useConnection } from "@/components/connection/connection-context";
@@ -351,6 +352,8 @@ export function AppSidebar() {
                 <SystemTableIntrospectionSidebarMenuItem />
 
                 <SettingsSidebarMenuItem />
+
+                <AlertNotificationBell enabled={isConnectionAvailable} />
               </>
             )}
           </SidebarMenu>

@@ -60,3 +60,58 @@ CREATE TABLE IF NOT EXISTS feedback_events (
   KEY idx_feedback_events_source_created_at (source, created_at),
   KEY idx_feedback_events_message (user_id, session_id, message_id)
 );
+
+CREATE TABLE IF NOT EXISTS alert_rules (
+  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  connection_id VARCHAR(255) NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  rule_type VARCHAR(32) NOT NULL,
+  category VARCHAR(64) NOT NULL,
+  severity VARCHAR(32) NOT NULL DEFAULT 'WARNING',
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  condition_text LONGTEXT NOT NULL,
+  evaluation_interval_seconds INT NOT NULL DEFAULT 300,
+  cooldown_seconds INT NOT NULL DEFAULT 900,
+  channels_text LONGTEXT NULL,
+  last_evaluated_at DATETIME(3) NULL,
+  last_fired_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_alert_rules_user_enabled (user_id, enabled),
+  KEY idx_alert_rules_category (category)
+);
+
+CREATE TABLE IF NOT EXISTS alert_events (
+  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  rule_id VARCHAR(255) NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
+  connection_id VARCHAR(255) NULL,
+  fingerprint VARCHAR(255) NOT NULL,
+  severity VARCHAR(32) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'firing',
+  title TEXT NOT NULL,
+  detail_text LONGTEXT NULL,
+  fired_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  resolved_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_alert_events_rule (rule_id),
+  KEY idx_alert_events_user_status (user_id, status),
+  KEY idx_alert_events_fingerprint (fingerprint, status),
+  KEY idx_alert_events_fired_at (user_id, fired_at)
+);
+
+CREATE TABLE IF NOT EXISTS alert_notifications (
+  id VARCHAR(255) NOT NULL PRIMARY KEY,
+  event_id VARCHAR(255) NOT NULL,
+  user_id VARCHAR(255) NOT NULL,
+  channel VARCHAR(32) NOT NULL DEFAULT 'in_app',
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  is_dismissed BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_alert_notifications_user_read (user_id, is_read, is_dismissed),
+  KEY idx_alert_notifications_event (event_id)
+);

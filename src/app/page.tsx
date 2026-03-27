@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertEvaluationProvider } from "@/components/alerts/alert-evaluation-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppStorageProvider } from "@/components/app-storage-provider";
 import { ChatPanelProvider } from "@/components/chat/view/use-chat-panel";
@@ -19,6 +20,7 @@ export default function Home() {
       <ModelConfigBootstrap>
         <ThemeProvider defaultTheme="dark">
           <ConnectionProvider>
+            <AlertEvaluationProvider>
             <ChatPanelProvider>
               <ReleaseDetectorProvider>
                 <ToastProvider />
@@ -35,6 +37,7 @@ export default function Home() {
                 </SidebarProvider>
               </ReleaseDetectorProvider>
             </ChatPanelProvider>
+          </AlertEvaluationProvider>
           </ConnectionProvider>
         </ThemeProvider>
       </ModelConfigBootstrap>
